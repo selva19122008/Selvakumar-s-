@@ -1,0 +1,6 @@
+{
+  "name": "BattleZone FF",
+  "description": "Premium Free Fire Esports Tournament App with dual User & Admin layers, persistent wallets, and custom game cards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
