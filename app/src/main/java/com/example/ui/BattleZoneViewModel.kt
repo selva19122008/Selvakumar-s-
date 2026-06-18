@@ -48,13 +48,208 @@ class BattleZoneViewModel(
     private val repository: BattleZoneRepository
 ) : AndroidViewModel(application) {
 
-    // --- Firebase Authentication Setup ---
+    // --- Firebase Authentication Setup & Firestore Setup ---
     private var firebaseAuth: com.google.firebase.auth.FirebaseAuth? = null
+    private var firestore: com.google.firebase.firestore.FirebaseFirestore? = null
+    private var currentUserSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     init {
         try {
             com.google.firebase.FirebaseApp.initializeApp(application)
             firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun tournamentToMap(t: TournamentEntity): HashMap<String, Any?> {
+        return hashMapOf(
+            "id" to t.id,
+            "title" to t.title,
+            "dateTimeStr" to t.dateTimeStr,
+            "timestamp" to t.timestamp,
+            "entryFee" to t.entryFee,
+            "prizePool" to t.prizePool,
+            "map" to t.map,
+            "type" to t.type,
+            "slotsTotal" to t.slotsTotal,
+            "slotsRemaining" to t.slotsRemaining,
+            "status" to t.status,
+            "rules" to t.rules,
+            "roomId" to t.roomId,
+            "roomPassword" to t.roomPassword,
+            "winnerName" to t.winnerName,
+            "winnerUid" to t.winnerUid
+        )
+    }
+
+    private fun mapToTournament(m: Map<String, Any?>): TournamentEntity {
+        return TournamentEntity(
+            id = (m["id"] as? Number)?.toInt() ?: 0,
+            title = m["title"] as? String ?: "",
+            dateTimeStr = m["dateTimeStr"] as? String ?: "",
+            timestamp = (m["timestamp"] as? Number)?.toLong() ?: 0L,
+            entryFee = (m["entryFee"] as? Number)?.toDouble() ?: 0.0,
+            prizePool = (m["prizePool"] as? Number)?.toDouble() ?: 0.0,
+            map = m["map"] as? String ?: "Bermuda",
+            type = m["type"] as? String ?: "Solo",
+            slotsTotal = (m["slotsTotal"] as? Number)?.toInt() ?: 48,
+            slotsRemaining = (m["slotsRemaining"] as? Number)?.toInt() ?: 48,
+            status = m["status"] as? String ?: "UPCOMING",
+            rules = m["rules"] as? String ?: "",
+            roomId = m["roomId"] as? String,
+            roomPassword = m["roomPassword"] as? String,
+            winnerName = m["winnerName"] as? String,
+            winnerUid = m["winnerUid"] as? String
+        )
+    }
+
+    fun pushTournamentToFirestore(tournament: TournamentEntity) {
+        try {
+            firestore?.collection("tournaments")
+                ?.document("tourney_${tournament.id}")
+                ?.set(tournamentToMap(tournament))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun deleteTournamentFromFirestore(tournamentId: Int) {
+        try {
+            firestore?.collection("tournaments")
+                ?.document("tourney_$tournamentId")
+                ?.delete()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun userToMap(u: UserEntity): HashMap<String, Any?> {
+        return hashMapOf(
+            "id" to u.id,
+            "inGameName" to u.inGameName,
+            "freeFireUid" to u.freeFireUid,
+            "phoneNumber" to u.phoneNumber,
+            "email" to u.email,
+            "profilePicture" to u.profilePicture,
+            "referralCode" to u.referralCode,
+            "depositBalance" to u.depositBalance,
+            "winningBalance" to u.winningBalance,
+            "bonusBalance" to u.bonusBalance,
+            "referrerId" to u.referrerId,
+            "extraMobileNumber" to u.extraMobileNumber
+        )
+    }
+
+    private fun mapToUser(m: Map<String, Any?>): UserEntity {
+        return UserEntity(
+            id = m["id"] as? String ?: "default_user",
+            inGameName = m["inGameName"] as? String ?: "Alpha_Gamer",
+            freeFireUid = m["freeFireUid"] as? String ?: "FF-837492047",
+            phoneNumber = m["phoneNumber"] as? String ?: "+91 98765 43210",
+            email = m["email"] as? String ?: "gamer@battlezone.com",
+            profilePicture = m["profilePicture"] as? String ?: "",
+            referralCode = m["referralCode"] as? String ?: "BZONEFF77",
+            depositBalance = (m["depositBalance"] as? Number)?.toDouble() ?: 150.0,
+            winningBalance = (m["winningBalance"] as? Number)?.toDouble() ?: 50.0,
+            bonusBalance = (m["bonusBalance"] as? Number)?.toDouble() ?: 20.0,
+            referrerId = m["referrerId"] as? String,
+            extraMobileNumber = m["extraMobileNumber"] as? String ?: ""
+        )
+    }
+
+    fun pushUserToFirestore(user: UserEntity) {
+        try {
+            firestore?.collection("users")
+                ?.document(user.id)
+                ?.set(userToMap(user))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun deleteUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                repository.deleteUserById(userId)
+                try {
+                    firestore?.collection("users")
+                        ?.document(userId)
+                        ?.delete()
+                } catch (fe: Exception) {
+                    fe.printStackTrace()
+                }
+                logSecurityEvent("Gamer account deleted from directory by administrator: ID=$userId")
+                showToast(
+                    title = "🗑️ Gamer Account Purged",
+                    message = "Esports profile $userId has been completely removed from local and cloud databases.",
+                    type = NotificationType.SUCCESS
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                showToast(
+                    title = "⚠️ Deletion Error",
+                    message = "Could not delete user account: ${e.message}",
+                    type = NotificationType.WARNING
+                )
+            }
+        }
+    }
+
+    fun startUserFirestoreSync(userId: String) {
+        currentUserSnapshotListener?.remove()
+        try {
+            currentUserSnapshotListener = firestore?.collection("users")
+                ?.document(userId)
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        error.printStackTrace()
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        val m = snapshot.data
+                        if (m != null) {
+                            val cloudUser = mapToUser(m)
+                            viewModelScope.launch {
+                                val local = repository.getUserSync(userId)
+                                if (local == null || local != cloudUser) {
+                                    repository.insertUser(cloudUser)
+                                }
+                            }
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun startFirestoreSync() {
+        try {
+            firestore?.collection("tournaments")
+               ?.addSnapshotListener { snapshot, error ->
+                   if (error != null) {
+                       error.printStackTrace()
+                       return@addSnapshotListener
+                   }
+                   if (snapshot != null) {
+                       viewModelScope.launch {
+                           for (doc in snapshot.documents) {
+                               val m = doc.data
+                               if (m != null) {
+                                   val tournament = mapToTournament(m)
+                                   val existing = repository.getTournamentSync(tournament.id)
+                                   if (existing == null) {
+                                       repository.insertTournament(tournament)
+                                   } else if (existing != tournament) {
+                                       repository.updateTournament(tournament)
+                                   }
+                               }
+                           }
+                       }
+                   }
+               }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -434,7 +629,7 @@ class BattleZoneViewModel(
         }
     }
 
-    private val _isUserLoggedIn = MutableStateFlow(false) // Always start false to force login and OTP verification on every app boot
+    private val _isUserLoggedIn = MutableStateFlow(authPrefs.getBoolean("is_logged_in", false))
     val isUserLoggedIn: StateFlow<Boolean> = _isUserLoggedIn.asStateFlow()
 
     fun getSavedLoggedInUserId(): String {
@@ -458,6 +653,24 @@ class BattleZoneViewModel(
             if (tenDigits.length == 10) {
                 val user2 = repository.getUserByPhoneSync("+91 $tenDigits") ?: repository.getUserByPhoneSync("+91$tenDigits")
                 if (user2 != null) return user2
+            }
+        }
+        
+        // Ultra-robust suffix match backup: Strip all non-digit characters and compare the last 10 digits
+        val searchDigits = searchPhone.filter { it.isDigit() }
+        if (searchDigits.length >= 10) {
+            val last10Search = searchDigits.takeLast(10)
+            try {
+                val allDbUsers = repository.getAllUsersSync()
+                val matchedUser = allDbUsers.find { u ->
+                    val dbDigits = u.phoneNumber.filter { it.isDigit() }
+                    dbDigits.length >= 10 && dbDigits.takeLast(10) == last10Search
+                }
+                if (matchedUser != null) {
+                    return matchedUser
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
         return null
@@ -522,15 +735,15 @@ class BattleZoneViewModel(
                         phoneNumber = phone.trim(),
                         extraMobileNumber = extraMobile.trim(),
                         email = if (email.isBlank()) "gamer@battlezone.com" else email,
-                        depositBalance = 150.0,
-                        winningBalance = 50.0,
-                        bonusBalance = 20.0
+                        depositBalance = 0.0,
+                        winningBalance = 0.0,
+                        bonusBalance = 5.0
                     )
                 )
                 logSecurityEvent("New account generated in directory: IGN=$ign, ID=$targetUserId, Phone=${phone.trim()} [VERIFIED SETUP]")
                 showToast(
                     title = "🎉 Esports Profile Created!",
-                    message = "Welcome, $ign! ₹150 deposit, ₹50 winning, and ₹20 bonus balances have been credited to your wallet.",
+                    message = "Welcome, $ign! Your esports profile has been initialized with a ₹5.00 entry bonus.",
                     type = NotificationType.SUCCESS
                 )
             }
@@ -622,9 +835,9 @@ class BattleZoneViewModel(
                         freeFireUid = "FF-" + (1000000..9999999).random().toString(),
                         phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
                         email = email,
-                        depositBalance = 150.0, // Special welcome sign-in bonus
-                        winningBalance = 50.0,
-                        bonusBalance = 50.0
+                        depositBalance = 0.0,
+                        winningBalance = 0.0,
+                        bonusBalance = 5.0
                     )
                 )
             }
@@ -644,7 +857,138 @@ class BattleZoneViewModel(
         }
     }
 
+    fun firebaseSignInWithEmailAndPassword(emailInput: String, passwordInput: String, onFinished: (Boolean, String?) -> Unit) {
+        val email = emailInput.trim().lowercase()
+        val password = passwordInput.trim()
+        val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    viewModelScope.launch {
+                        val cleanEmail = email.replace("@", "_").replace(".", "_")
+                        val userId = "user_e_${cleanEmail.take(20)}"
+                        var user = repository.getUserSync(userId)
+                        if (user == null) {
+                            // Find any user matching email
+                            try {
+                                val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                                user = allUsersLocal.find { it.email.trim().lowercase() == email }
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                        if (user == null) {
+                            user = UserEntity(
+                                id = userId,
+                                inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                                email = email,
+                                depositBalance = 0.0,
+                                winningBalance = 0.0,
+                                bonusBalance = 5.0
+                            )
+                            repository.insertUser(user)
+                        }
+                        
+                        val determinedRole = if (email.endsWith("@battlezone.com") || email.endsWith("@admin.com") || email.contains("admin") || email == "selva19122008@gmail.com") "admin" else "user"
+                        
+                        authPrefs.edit().apply {
+                            putBoolean("is_logged_in", true)
+                            putString("logged_in_user_id", user.id)
+                            putString("user_role", determinedRole)
+                            apply()
+                        }
+                        
+                        _currentUserIdFlow.value = user.id
+                        _userRole.value = determinedRole
+                        _isUserLoggedIn.value = true
+                        
+                        showToast(
+                            title = if (determinedRole == "admin") "🛡️ Admin Terminal Connected" else "🔥 Welcome Back, ${user.inGameName}!",
+                            message = "Secure Firebase session established.",
+                            type = NotificationType.SUCCESS
+                        )
+                        onFinished(true, null)
+                    }
+                } else {
+                    val errorMsg = task.exception?.localizedMessage ?: "Invalid email or password."
+                    showToast(
+                        title = "🔑 Authentication Failed",
+                        message = errorMsg,
+                        type = NotificationType.WARNING
+                    )
+                    onFinished(false, errorMsg)
+                }
+            }
+    }
+
+    fun firebaseRegisterWithEmailAndPassword(
+        ign: String,
+        ffUid: String,
+        phone: String,
+        extraMobile: String,
+        emailInput: String,
+        passwordInput: String,
+        onFinished: (Boolean, String?) -> Unit
+    ) {
+        val email = emailInput.trim().lowercase()
+        val password = passwordInput.trim()
+        val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    viewModelScope.launch {
+                        val cleanEmail = email.replace("@", "_").replace(".", "_")
+                        val userId = "user_e_${cleanEmail.take(20)}"
+                        val determinedRole = if (email.endsWith("@battlezone.com") || email.endsWith("@admin.com") || email.contains("admin") || email == "selva19122008@gmail.com") "admin" else "user"
+                        
+                        val newUser = UserEntity(
+                            id = userId,
+                            inGameName = ign.trim(),
+                            freeFireUid = ffUid.trim(),
+                            phoneNumber = phone.trim(),
+                            extraMobileNumber = extraMobile.trim(),
+                            email = email,
+                            depositBalance = if (determinedRole == "admin") 5000.0 else 0.0,
+                            winningBalance = if (determinedRole == "admin") 5000.0 else 0.0,
+                            bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
+                        )
+                        repository.insertUser(newUser)
+                        
+                        authPrefs.edit().apply {
+                            putBoolean("is_logged_in", true)
+                            putString("logged_in_user_id", userId)
+                            putString("user_role", determinedRole)
+                            apply()
+                        }
+                        
+                        _currentUserIdFlow.value = userId
+                        _userRole.value = determinedRole
+                        _isUserLoggedIn.value = true
+                        
+                        showToast(
+                            title = if (determinedRole == "admin") "🛡️ Admin Account Registered" else "🎉 Profile Created successfully!",
+                            message = "Welcome, ${ign}! Secure profile initiated on Firebase.",
+                            type = NotificationType.SUCCESS
+                        )
+                        onFinished(true, null)
+                    }
+                } else {
+                    val errorMsg = task.exception?.localizedMessage ?: "Registration error."
+                    showToast(
+                        title = "⚠️ Account Creation Error",
+                        message = errorMsg,
+                        type = NotificationType.WARNING
+                    )
+                    onFinished(false, errorMsg)
+                }
+            }
+    }
+
     fun logoutUser() {
+        currentUserSnapshotListener?.remove()
+        currentUserSnapshotListener = null
         authPrefs.edit().apply {
             putBoolean("is_logged_in", false)
             putString("logged_in_user_id", "default_user")
@@ -705,6 +1049,20 @@ class BattleZoneViewModel(
     init {
         viewModelScope.launch {
             repository.prefillIfEmpty()
+            // Pull the tournaments directly from database to seed Firestore
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(2000) {
+                    repository.allTournaments.collect { list ->
+                        if (list.isNotEmpty()) {
+                            list.forEach { pushTournamentToFirestore(it) }
+                            throw kotlinx.coroutines.CancellationException()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // ignore cancellation
+            }
+            startFirestoreSync()
         }
 
         // Automatic observer to register/schedule all upcoming games directly in background logic!
@@ -815,6 +1173,33 @@ class BattleZoneViewModel(
                 }
             }
         }
+
+        // Automatic collection of _currentUserIdFlow to trigger Firestore document listeners dynamically
+        viewModelScope.launch {
+            _currentUserIdFlow.collect { userId ->
+                if (userId != "default_user") {
+                    startUserFirestoreSync(userId)
+                    viewModelScope.launch {
+                        val localUser = repository.getUserSync(userId)
+                        if (localUser != null) {
+                            pushUserToFirestore(localUser)
+                        }
+                    }
+                } else {
+                    currentUserSnapshotListener?.remove()
+                    currentUserSnapshotListener = null
+                }
+            }
+        }
+
+        // Real-time observer of local users table updates to continuously push balance upgrades to Firebase Firestore
+        viewModelScope.launch {
+            repository.allUsers.collect { users ->
+                users.forEach { u ->
+                    pushUserToFirestore(u)
+                }
+            }
+        }
     }
 
     // --- USER FLOW ACTIONS ---
@@ -889,7 +1274,9 @@ class BattleZoneViewModel(
             repository.insertJoin(joinEntry)
 
             // Update tournament slots
-            repository.updateTournament(tournament.copy(slotsRemaining = tournament.slotsRemaining - 1))
+            val updatedTournament = tournament.copy(slotsRemaining = tournament.slotsRemaining - 1)
+            repository.updateTournament(updatedTournament)
+            pushTournamentToFirestore(updatedTournament)
 
             // Update user balance
             repository.insertUser(user.copy(
@@ -909,6 +1296,12 @@ class BattleZoneViewModel(
                     status = "SUCCESS",
                     invoiceId = "TXN-JOIN-${UUID.randomUUID().toString().take(6).uppercase()}"
                 )
+            )
+
+            showToast(
+                title = "🏆 Match Registered!",
+                message = "Successfully joined \"${tournament.title}\" (Fee: ₹${entryFee})",
+                type = NotificationType.SUCCESS
             )
 
             onResult("SUCCESS")
@@ -937,6 +1330,84 @@ class BattleZoneViewModel(
             putString("gateway_mode", mode.trim())
             apply()
         }
+    }
+
+    // Dynamic social media configurations
+    fun getInstagramSetting(): String = sharedPrefs.getString("instagram_setting", "https://www.instagram.com/its_nivetha_01?igsh=ejV2bnR4NTVkb2oz") ?: "https://www.instagram.com/its_nivetha_01?igsh=ejV2bnR4NTVkb2oz"
+    fun getTelegramSetting(): String = sharedPrefs.getString("telegram_setting", "https://t.me/battlezone_esports_official") ?: "https://t.me/battlezone_esports_official"
+
+    // Razorpay and Cashfree dynamic gateway configurations
+    fun getRazorpayKeyId(): String = sharedPrefs.getString("razorpay_key_id", "") ?: ""
+    fun getCashfreeClientId(): String = sharedPrefs.getString("cashfree_client_id", "") ?: ""
+    fun getCashfreeSecretKey(): String = sharedPrefs.getString("cashfree_secret_key", "") ?: ""
+
+    fun updateRazorpayConfig(keyId: String) {
+        sharedPrefs.edit().apply {
+            putString("razorpay_key_id", keyId.trim())
+            apply()
+        }
+    }
+
+    fun updateCashfreeConfig(clientId: String, secretKey: String) {
+        sharedPrefs.edit().apply {
+            putString("cashfree_client_id", clientId.trim())
+            putString("cashfree_secret_key", secretKey.trim())
+            apply()
+        }
+    }
+
+    fun updateSocialConfig(instagram: String, telegram: String) {
+        sharedPrefs.edit().apply {
+            putString("instagram_setting", instagram.trim())
+            putString("telegram_setting", telegram.trim())
+            apply()
+        }
+    }
+
+    fun getInstagramUrl(): String {
+        val setting = getInstagramSetting().trim()
+        if (setting.startsWith("http://") || setting.startsWith("https://")) {
+            return setting
+        }
+        val clean = setting.removePrefix("@")
+        return "https://www.instagram.com/$clean"
+    }
+
+    fun getInstagramDisplay(): String {
+        val setting = getInstagramSetting().trim()
+        if (setting.startsWith("http://") || setting.startsWith("https://")) {
+            val uri = setting.substringAfter("instagram.com/")
+            if (uri.isNotBlank() && uri != setting) {
+                val user = uri.substringBefore("/").substringBefore("?")
+                if (user.isNotBlank()) return "@$user"
+            }
+            return "@its_nivetha_01"
+        }
+        val clean = setting.removePrefix("@")
+        return "@$clean"
+    }
+
+    fun getTelegramUrl(): String {
+        val setting = getTelegramSetting().trim()
+        if (setting.startsWith("http://") || setting.startsWith("https://")) {
+            return setting
+        }
+        val clean = setting.removePrefix("@")
+        return "https://t.me/$clean"
+    }
+
+    fun getTelegramDisplay(): String {
+        val setting = getTelegramSetting().trim()
+        if (setting.startsWith("http://") || setting.startsWith("https://")) {
+            val uri = setting.substringAfter("t.me/")
+            if (uri.isNotBlank() && uri != setting) {
+                val user = uri.substringBefore("/").substringBefore("?")
+                if (user.isNotBlank()) return "@$user"
+            }
+            return "Join Channel"
+        }
+        val clean = setting.removePrefix("@")
+        return "@$clean"
     }
 
     // Dynamic Real SMS OTP Gateway configurations
@@ -1086,6 +1557,11 @@ class BattleZoneViewModel(
                     invoiceId = invoiceId
                 )
             )
+            showToast(
+                title = "💰 Deposit Successful!",
+                message = "Successfully loaded ₹${amount} via ${gateway} to deposit balance.",
+                type = NotificationType.SUCCESS
+            )
             onFinished(invoiceId)
         }
     }
@@ -1104,6 +1580,11 @@ class BattleZoneViewModel(
                     status = "PENDING", // PENDING approval by admin
                     invoiceId = invoiceId
                 )
+            )
+            showToast(
+                title = "⏳ Deposit Request Submitted",
+                message = "Requested ₹${amount} via ${gateway}. Admin is validating ref UTR: ${referenceId}",
+                type = NotificationType.INFO
             )
             onFinished(invoiceId)
         }
@@ -1124,6 +1605,11 @@ class BattleZoneViewModel(
                     val updatedUser = user.copy(depositBalance = user.depositBalance + transaction.amount)
                     repository.insertUser(updatedUser)
                 }
+                showToast(
+                    title = "✅ Deposit Approved!",
+                    message = "Transaction ₹${transaction.amount} approved. Balance funded successfully.",
+                    type = NotificationType.SUCCESS
+                )
                 onResult(true)
             } else {
                 onResult(false)
@@ -1139,6 +1625,11 @@ class BattleZoneViewModel(
                 // Update transaction status to FAILED
                 val updatedTxn = transaction.copy(status = "FAILED")
                 repository.insertTransaction(updatedTxn)
+                showToast(
+                    title = "❌ Deposit Rejected",
+                    message = "Deposit request for ₹${transaction.amount} was rejected by system administrator.",
+                    type = NotificationType.WARNING
+                )
                 onResult(true)
             } else {
                 onResult(false)
@@ -1269,6 +1760,7 @@ class BattleZoneViewModel(
             val insertedId = repository.insertTournament(newTournament)
             val insertedTournament = repository.getTournamentSync(insertedId.toInt())
             if (insertedTournament != null) {
+                pushTournamentToFirestore(insertedTournament)
                 com.example.notification.TournamentNotificationScheduler.scheduleTournamentAlert(getApplication(), insertedTournament)
             }
             onFinished()
@@ -1311,6 +1803,7 @@ class BattleZoneViewModel(
 
             // Remove tournament
             repository.deleteTournament(tournament)
+            deleteTournamentFromFirestore(tournamentId)
             com.example.notification.TournamentNotificationScheduler.cancelTournamentAlert(getApplication(), tournamentId)
         }
     }
@@ -1324,6 +1817,7 @@ class BattleZoneViewModel(
                 roomPassword = roomPass
             )
             repository.updateTournament(updated)
+            pushTournamentToFirestore(updated)
 
             // Reschedule notification warning system context
             com.example.notification.TournamentNotificationScheduler.scheduleTournamentAlert(getApplication(), updated)
@@ -1540,6 +2034,7 @@ class BattleZoneViewModel(
                 winnerName = winnerInGameName
             )
             repository.updateTournament(updated)
+            pushTournamentToFirestore(updated)
 
             // Find matching local user or fallback to default user
             var winnerUser = repository.allUsers.firstOrNull()?.find { it.freeFireUid == winnerFFUid || it.inGameName == winnerInGameName }
@@ -1763,11 +2258,13 @@ class BattleZoneViewModel(
                         repository.insertUser(updatedUser)
 
                         // Complete tournament
-                        repository.updateTournament(tournament.copy(
+                        val completedTournament = tournament.copy(
                             status = "COMPLETED",
                             winnerUid = joinObj.freeFireUid,
                             winnerName = joinObj.inGameName
-                        ))
+                        )
+                        repository.updateTournament(completedTournament)
+                        pushTournamentToFirestore(completedTournament)
 
                         // Insert transaction log
                         repository.insertTransaction(

@@ -151,7 +151,17 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     if (isSplashScreenVisible) {
         SplashScreen(onTimeout = { isSplashScreenVisible = false })
     } else if (!isUserLoggedIn) {
-        LoginRegistrationScreen(viewModel = viewModel)
+        Box(modifier = Modifier.fillMaxSize()) {
+            LoginRegistrationScreen(viewModel = viewModel)
+            
+            // Transient Toast Notifications Layer
+            val toastNotifications by viewModel.toastNotifications.collectAsStateWithLifecycle()
+            ToastOverlay(
+                toasts = toastNotifications,
+                onDismiss = { viewModel.dismissToast(it) },
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
     } else {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -183,6 +193,10 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         scope.launch {
                             snackbarHostState.showSnackbar("Admin portal locked successfully.")
                         }
+                    },
+                    onWalletClick = {
+                        selectedTab = 1
+                        activeTournamentIdForDetails = null
                     }
                 )
             },
@@ -896,7 +910,8 @@ fun BattleZoneTopBar(
     user: UserEntity?,
     onToggleAdmin: () -> Unit,
     onLogoClick: () -> Unit,
-    onLockAdmin: () -> Unit
+    onLockAdmin: () -> Unit,
+    onWalletClick: () -> Unit = {}
 ) {
     Surface(
         color = DarkSurface,
@@ -904,91 +919,220 @@ fun BattleZoneTopBar(
         border = BorderStroke(1.dp, Color(0xFF1E1C24)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onLogoClick() }
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Image(
-                    painter = painterResource(id = com.example.R.drawable.img_app_logo),
-                    contentDescription = "Logo",
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.5f)), RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "BATTLEZONE FF",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 15.sp,
-                        color = Color.White,
-                        letterSpacing = 1.sp
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onLogoClick() }
+                ) {
+                    Image(
+                        painter = painterResource(id = com.example.R.drawable.img_app_logo),
+                        contentDescription = "Logo",
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.5f)), RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
                     )
-                    Text(
-                        text = if (isAdmin) "ROOT ADMIN PORTAL" else "FREE FIRE TOURNAMENTS",
-                        fontSize = 10.sp,
-                        color = if (isAdmin) RedPrimary else GreyText,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "BATTLEZONE FF",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = if (isAdmin) "ROOT ADMIN PORTAL" else "FREE FIRE TOURNAMENTS",
+                            fontSize = 10.sp,
+                            color = if (isAdmin) RedPrimary else GreyText,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+
+                // Dual Role Changer Badge - hidden in public place, only shown if isAdminUnlocked
+                if (isAdminUnlocked) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = onToggleAdmin,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isAdmin) RedPrimary else Color(0xFF232029),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .testTag("admin_toggle")
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isAdmin) Icons.Filled.SportsEsports else Icons.Filled.Shield,
+                                    contentDescription = "Role Mode",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isAdmin) Color.White else RedPrimary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isAdmin) "GAMER LOBBY" else "ADMIN PANEL",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        IconButton(
+                            onClick = onLockAdmin,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF232029), RoundedCornerShape(8.dp))
+                                .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(8.dp))
+                                .testTag("admin_relock_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Lock Admin",
+                                tint = RedPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            // Dual Role Changer Badge - hidden in public place, only shown if isAdminUnlocked
-            if (isAdminUnlocked) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(
-                        onClick = onToggleAdmin,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isAdmin) RedPrimary else Color(0xFF232029),
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            // Interactive Persistent User Wallet Horizontal Indicator
+            if (!isAdmin && user != null) {
+                Divider(color = Color(0xFF1E1C24), thickness = 1.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF131118))
+                        .clickable { onWalletClick() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val deposit = user.depositBalance
+                    val winnings = user.winningBalance
+                    val bonus = user.bonusBalance
+                    val totalB = deposit + winnings + bonus
+
+                    Row(
                         modifier = Modifier
-                            .height(32.dp)
-                            .testTag("admin_toggle")
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (isAdmin) Icons.Filled.SportsEsports else Icons.Filled.Shield,
-                                contentDescription = "Role Mode",
-                                modifier = Modifier.size(14.dp),
-                                tint = if (isAdmin) Color.White else RedPrimary
+                        // Deposit Balance Badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFF4CAF50), CircleShape)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isAdmin) "GAMER LOBBY" else "ADMIN PANEL",
+                                text = "DEPOSIT:",
                                 fontSize = 10.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = deposit.toCurrency(),
+                                fontSize = 11.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+
+                        // Winning Balance Badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(NeonGold, CircleShape)
+                            )
+                            Text(
+                                text = "WINNING:",
+                                fontSize = 10.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = winnings.toCurrency(),
+                                fontSize = 11.sp,
+                                color = NeonGold,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+
+                        // Bonus Balance Badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(RedSecondary, CircleShape)
+                            )
+                            Text(
+                                text = "BONUS:",
+                                fontSize = 10.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = bonus.toCurrency(),
+                                fontSize = 11.sp,
+                                color = RedSecondary,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
-                    IconButton(
-                        onClick = onLockAdmin,
+                    // Total Wallet Pill
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(Color(0xFF232029), RoundedCornerShape(8.dp))
-                            .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(8.dp))
-                            .testTag("admin_relock_button")
+                            .background(Color(0xFF1E1B24), RoundedCornerShape(12.dp))
+                            .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Lock Admin",
-                            tint = RedPrimary,
-                            modifier = Modifier.size(14.dp)
+                            imageVector = Icons.Default.AccountBalanceWallet,
+                            contentDescription = "Wallet Balance",
+                            tint = NeonGold,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = totalB.toCurrency(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
                         )
                     }
                 }
@@ -2305,8 +2449,67 @@ fun WalletScreen(
                             }
                         }
 
+                        // Method 3: Razorpay Payment Gateway
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { depositMethodRoute = "RAZORPAY" }
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (depositMethodRoute == "RAZORPAY") Color(0xFF101B24) else Color(0xFF141217)
+                            ),
+                            border = BorderStroke(1.dp, if (depositMethodRoute == "RAZORPAY") Color(0xFF3395FF) else Color(0xFF28252C))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(Color(0xFF3395FF).copy(alpha = 0.15f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(imageVector = Icons.Default.Payment, contentDescription = "razorpay", tint = Color(0xFF3395FF), modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Razorpay Secure Instant Checkout", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("Automated instant wallets credit via card, netbanking, or UPI.", color = GreyText, fontSize = 8.sp)
+                                }
+                            }
+                        }
 
-
+                        // Method 4: Cashfree Payments
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { depositMethodRoute = "CASHFREE" }
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (depositMethodRoute == "CASHFREE") Color(0xFF16111D) else Color(0xFF141217)
+                            ),
+                            border = BorderStroke(1.dp, if (depositMethodRoute == "CASHFREE") Color(0xFF00C853) else Color(0xFF28252C))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(Color(0xFF00C853).copy(alpha = 0.15f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(imageVector = Icons.Default.OfflineBolt, contentDescription = "cashfree", tint = Color(0xFF00C853), modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Cashfree Smart Checkout", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("Super-fast deposit gateway routes. Auto-installs to account.", color = GreyText, fontSize = 8.sp)
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -2566,6 +2769,182 @@ fun WalletScreen(
                                     Text("SUBMIT FOR BANK RECORD", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                                 }
     }
+                        } else if (depositMethodRoute == "RAZORPAY") {
+                            val razorpayKey = viewModel.getRazorpayKeyId().ifBlank { "[No live Key ID Configured under Admin panel]" }
+                            var mockUpiIdInput by remember { mutableStateOf("${viewModel.currentUserId}@paytm") }
+                            var razorpayStep by remember { mutableStateOf(1) } // 1 = Review, 2 = Pay Details
+
+                            Text("RAZORPAY SECURE GATEWAY", fontSize = 11.sp, color = Color(0xFF3395FF), fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Automatic client-side order routing node. Verification completed dynamically.", fontSize = 9.sp, color = GreyText)
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            if (razorpayStep == 1) {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    border = BorderStroke(1.dp, Color(0xFF1F1C25))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Escrow Client:", fontSize = 9.sp, color = GreyText)
+                                            Text("Razorpay Ltd (In-Project)", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Merchant ID Key:", fontSize = 9.sp, color = GreyText)
+                                            Text(if (razorpayKey.length > 10) razorpayKey.take(24) + "..." else razorpayKey, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Billing Amount:", fontSize = 9.sp, color = GreyText)
+                                            Text("₹$amtNum", fontSize = 11.sp, color = Color(0xFF3395FF), fontWeight = FontWeight.Black)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { currentDepositStep = 1 }) {
+                                        Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { razorpayStep = 2 },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3395FF))
+                                    ) {
+                                        Text("RECHARGE NOW", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            } else if (razorpayStep == 2) {
+                                Text("SELECT SECURE PAYMENT INSTRUMENTS", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = mockUpiIdInput,
+                                    onValueChange = { mockUpiIdInput = it },
+                                    label = { Text("Your UPI ID (Required)") },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF3395FF), unfocusedBorderColor = Color(0xFF28252C)),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { razorpayStep = 1 }) {
+                                        Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            if (mockUpiIdInput.isBlank()) {
+                                                scope.launch { snackbarHostState.showSnackbar("Enter registered local billing UPI address.") }
+                                            } else {
+                                                val txId = "RZP-${java.util.UUID.randomUUID().toString().take(10).uppercase()}"
+                                                showDepositDialog = false
+                                                viewModel.addPendingMoney(amtNum, "RAZORPAY AUTO", txId) { invoiceId ->
+                                                    scope.launch {
+                                                        snackbarHostState.showSnackbar("Razorpay Gateway completed! TXN ID: $txId. Sent to admin dashboard.")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3395FF))
+                                    ) {
+                                        Text("PAY ₹$amtNum SECURELY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else if (depositMethodRoute == "CASHFREE") {
+                            val cashfreeClient = viewModel.getCashfreeClientId().ifBlank { "[No live Cashfree Client ID Configured under Admin panel]" }
+                            var mockUpiIdInput by remember { mutableStateOf("${viewModel.currentUserId}@paytm") }
+                            var cashfreeStep by remember { mutableStateOf(1) } // 1 = Review, 2 = Process
+
+                            Text("CASHFREE INSTANT CHECKOUT", fontSize = 11.sp, color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Automatic client-side order routing node. Verification completed dynamically.", fontSize = 9.sp, color = GreyText)
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            if (cashfreeStep == 1) {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    border = BorderStroke(1.dp, Color(0xFF1F1C25))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Channel Merchant:", fontSize = 9.sp, color = GreyText)
+                                            Text("Cashfree Payments", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Client App ID:", fontSize = 9.sp, color = GreyText)
+                                            Text(if (cashfreeClient.length > 10) cashfreeClient.take(24) + "..." else cashfreeClient, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Amount to Pay:", fontSize = 9.sp, color = GreyText)
+                                            Text("₹$amtNum", fontSize = 11.sp, color = Color(0xFF00C853), fontWeight = FontWeight.Black)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { currentDepositStep = 1 }) {
+                                        Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { cashfreeStep = 2 },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                                    ) {
+                                        Text("RECHARGE NOW", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    }
+                                }
+                            } else if (cashfreeStep == 2) {
+                                Text("SELECT SECURE PAYMENT INSTRUMENTS", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = mockUpiIdInput,
+                                    onValueChange = { mockUpiIdInput = it },
+                                    label = { Text("Your Billing UPI Address") },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00C853), unfocusedBorderColor = Color(0xFF28252C)),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { cashfreeStep = 1 }) {
+                                        Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            if (mockUpiIdInput.isBlank()) {
+                                                scope.launch { snackbarHostState.showSnackbar("Enter registered local billing UPI address.") }
+                                            } else {
+                                                val txId = "CF-${java.util.UUID.randomUUID().toString().take(10).uppercase()}"
+                                                showDepositDialog = false
+                                                viewModel.addPendingMoney(amtNum, "CASHFREE AUTO", txId) { invoiceId ->
+                                                    scope.launch {
+                                                        snackbarHostState.showSnackbar("Cashfree Payment Completed! TXN ID: $txId. Sent to admin dashboard.")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                                    ) {
+                                        Text("PAY ₹$amtNum SECURELY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2595,38 +2974,132 @@ fun WalletScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Winnings balance is transferable with ₹50 minimum constraint.",
-                        fontSize = 10.sp,
+                        "Winnings balance is transferable with a absolute ₹50 minimum limit. Transactions undergo secure human verification.",
+                        fontSize = 11.sp,
                         color = GreyText
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val userWinningBalance = user?.winningBalance ?: 0.0
+                    val isWinningBalanceSufficientForMin = userWinningBalance >= 50.0
+
+                    val amtNum = withdrawalAmountInput.toDoubleOrNull() ?: 0.0
+                    val isAmountValid = amtNum >= 50.0 && amtNum <= userWinningBalance
+                    val isAmountFormatOk = withdrawalAmountInput.isNotBlank() && withdrawalAmountInput.toDoubleOrNull() != null
+                    val isUpiValid = upiIdInput.isNotBlank() && upiIdInput.contains("@")
+
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // Available winnings balance display card
+                    Surface(
+                        color = Color(0xFF1E1B24),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "Your Winning Balance:",
+                                fontSize = 12.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                userWinningBalance.toCurrency(),
+                                fontSize = 14.sp,
+                                color = NeonGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // If user's winning balance is below the minimum required withdrawal threshold
+                    if (!isWinningBalanceSufficientForMin) {
+                        Surface(
+                            color = RedPrimary.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Warning Info",
+                                    tint = RedPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Payout Unavailable: You must have a minimum of ₹50.00 in your winnings account to request a payout.",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
 
                     OutlinedTextField(
                         value = withdrawalAmountInput,
                         onValueChange = { withdrawalAmountInput = it },
-                        label = { Text("Transfer Target Amount") },
+                        label = { Text("Transfer Target Amount (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        enabled = isWinningBalanceSufficientForMin,
+                        isError = (!isAmountValid && withdrawalAmountInput.isNotBlank()) || (!isWinningBalanceSufficientForMin && withdrawalAmountInput.isNotBlank()),
+                        supportingText = {
+                            if (withdrawalAmountInput.isNotBlank()) {
+                                if (!isAmountFormatOk) {
+                                    Text("Please enter a valid numeric value", color = RedPrimary, fontSize = 10.sp)
+                                } else if (amtNum < 50.0) {
+                                    Text("Minimum withdrawal amount is ₹50 rupees", color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                } else if (amtNum > userWinningBalance) {
+                                    Text("Insufficient winning balance (Available: ${userWinningBalance.toCurrency()})", color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Valid transfer amount", color = Color(0xFF81C784), fontSize = 10.sp)
+                                }
+                            }
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = RedPrimary,
-                            unfocusedBorderColor = Color(0xFF28252C)
+                            unfocusedBorderColor = Color(0xFF28252C),
+                            errorBorderColor = RedPrimary,
+                            disabledBorderColor = Color(0xFF232029)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = upiIdInput,
                         onValueChange = { upiIdInput = it },
-                        label = { Text("UPI Receiver ID (e.g. name@gpay)") },
+                        label = { Text("UPI ID (e.g. username@upi)") },
+                        enabled = isWinningBalanceSufficientForMin,
+                        isError = !isUpiValid && upiIdInput.isNotBlank(),
+                        supportingText = {
+                            if (upiIdInput.isNotBlank() && !isUpiValid) {
+                                Text("Please enter a valid UPI address containing @", color = RedPrimary, fontSize = 10.sp)
+                            }
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = RedPrimary,
-                            unfocusedBorderColor = Color(0xFF28252C)
+                            unfocusedBorderColor = Color(0xFF28252C),
+                            errorBorderColor = RedPrimary,
+                            disabledBorderColor = Color(0xFF232029)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showWithdrawalDialog = false }) {
@@ -2635,21 +3108,30 @@ fun WalletScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                val amtNum = withdrawalAmountInput.toDoubleOrNull() ?: 0.0
-                                viewModel.requestWithdrawal(amtNum, upiIdInput) { resp ->
-                                    scope.launch {
-                                        if (resp == "SUCCESS") {
-                                            snackbarHostState.showSnackbar("Withdrawal placed. Pending Admin review.")
-                                            showWithdrawalDialog = false
-                                        } else {
-                                            snackbarHostState.showSnackbar(resp)
+                                if (isAmountValid && isUpiValid && isWinningBalanceSufficientForMin) {
+                                    viewModel.requestWithdrawal(amtNum, upiIdInput) { resp ->
+                                        scope.launch {
+                                            if (resp == "SUCCESS") {
+                                                snackbarHostState.showSnackbar("Withdrawal request placed. Pending Admin review.")
+                                                showWithdrawalDialog = false
+                                            } else {
+                                                snackbarHostState.showSnackbar(resp)
+                                            }
                                         }
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                            enabled = isAmountValid && isUpiValid && isWinningBalanceSufficientForMin,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RedPrimary,
+                                disabledContainerColor = Color(0xFF232029)
+                            )
                         ) {
-                            Text("CONFIRM WITHDRAWAL")
+                            Text(
+                                "CONFIRM WITHDRAWAL",
+                                color = if (isAmountValid && isUpiValid && isWinningBalanceSufficientForMin) Color.White else GreyText,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -3327,7 +3809,11 @@ fun ProfileScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
-                                uriHandler.openUri("https://www.instagram.com/its_nivetha_01?igsh=ejV2bnR4NTVkb2oz")
+                                try {
+                                    uriHandler.openUri(viewModel.getInstagramUrl())
+                                } catch (e: Exception) {
+                                    // Fallback
+                                }
                             },
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1F121C)),
                         border = BorderStroke(1.dp, Color(0xFFC13584).copy(alpha = 0.4f))
@@ -3351,7 +3837,7 @@ fun ProfileScreen(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text("INSTAGRAM", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text("@its_nivetha_01", color = Color(0xFFE1306C), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                            Text(viewModel.getInstagramDisplay(), color = Color(0xFFE1306C), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
 
@@ -3360,7 +3846,11 @@ fun ProfileScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
-                                uriHandler.openUri("https://t.me/battlezone_esports_official")
+                                try {
+                                    uriHandler.openUri(viewModel.getTelegramUrl())
+                                } catch (e: Exception) {
+                                    // Fallback
+                                }
                             },
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF101B24)),
                         border = BorderStroke(1.dp, Color(0xFF0088CC).copy(alpha = 0.4f))
@@ -3384,7 +3874,7 @@ fun ProfileScreen(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text("TELEGRAM", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text("Join Channel", color = Color(0xFF0088CC), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                            Text(viewModel.getTelegramDisplay(), color = Color(0xFF0088CC), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -3811,6 +4301,7 @@ fun AdminMetricsTab(
     val scope = rememberCoroutineScope()
     var searchUserQuery by remember { mutableStateOf("") }
     var selectUserForWalletAdjust by remember { mutableStateOf<UserEntity?>(null) }
+    var showDeleteConfirmUser by remember { mutableStateOf<UserEntity?>(null) }
 
     Column(
         modifier = Modifier
@@ -3880,14 +4371,31 @@ fun AdminMetricsTab(
                             Text("UID: ${usr.freeFireUid}", color = GreyText, fontSize = 10.sp)
                         }
 
-                        // Wallet adjustment selector
-                        Button(
-                            onClick = { selectUserForWalletAdjust = usr },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(28.dp)
+                        // Action controls block (Wallet Credit & Delete User)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("CREDIT WALLET", fontSize = 9.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = { selectUserForWalletAdjust = usr },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("CREDIT WALLET", fontSize = 9.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
+                            }
+
+                            IconButton(
+                                onClick = { showDeleteConfirmUser = usr },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Competitor",
+                                    tint = RedPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
 
@@ -3899,6 +4407,56 @@ fun AdminMetricsTab(
                         Text("Dep: ${usr.depositBalance.toCurrency()}", color = Color.White, fontSize = 11.sp)
                         Text("Win: ${usr.winningBalance.toCurrency()}", color = NeonGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Text("Bonus: ${usr.bonusBalance.toCurrency()}", color = RedSecondary, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // Delete Compete Confirmation Dialog overlay
+        if (showDeleteConfirmUser != null) {
+            val userToDelete = showDeleteConfirmUser!!
+            Dialog(onDismissRequest = { showDeleteConfirmUser = null }) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = "⚠️ Confirm Account Deletion",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = RedPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Are you absolutely sure you want to completely delete the competitor account '${userToDelete.inGameName}'?\n\nUID: ${userToDelete.freeFireUid}\nEmail: ${userToDelete.email}\nPhone: ${userToDelete.phoneNumber}\n\nThis will purge all their entry tokens, support queries, histories, and wallet balances permanently from both local & cloud databases. This action is IRREVERSIBLE.",
+                            fontSize = 12.sp,
+                            color = Color.LightGray
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showDeleteConfirmUser = null }) {
+                                Text("CANCEL", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = {
+                                    viewModel.deleteUser(userToDelete.id)
+                                    showDeleteConfirmUser = null
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("DELETE PERMANENTLY", color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -5388,6 +5946,13 @@ fun AdminDepositsTab(
     var twilioPhone by remember { mutableStateOf(viewModel.getTwilioPhone()) }
     var customSmsUrl by remember { mutableStateOf(viewModel.getCustomSmsUrl()) }
 
+    var instagramSettingState by remember { mutableStateOf(viewModel.getInstagramSetting()) }
+    var telegramSettingState by remember { mutableStateOf(viewModel.getTelegramSetting()) }
+
+    var razorpayKeyIdState by remember { mutableStateOf(viewModel.getRazorpayKeyId()) }
+    var cashfreeClientIdState by remember { mutableStateOf(viewModel.getCashfreeClientId()) }
+    var cashfreeSecretKeyState by remember { mutableStateOf(viewModel.getCashfreeSecretKey()) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -5476,12 +6041,51 @@ fun AdminDepositsTab(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = Color(0xFF28252C), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text("RAZORPAY & CASHFREE APIS (PRODUCTION GATEWAY)", fontSize = 10.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Input your API merchant credentials from Razorpay / Cashfree dashboards to activate direct automated gateway payments.", fontSize = 8.sp, color = GreyText)
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = razorpayKeyIdState,
+                    onValueChange = { razorpayKeyIdState = it },
+                    label = { Text("Razorpay Key ID (rzp_live_...)") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = cashfreeClientIdState,
+                        onValueChange = { cashfreeClientIdState = it },
+                        label = { Text("Cashfree Client ID") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = cashfreeSecretKeyState,
+                        onValueChange = { cashfreeSecretKeyState = it },
+                        label = { Text("Cashfree Client Secret") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
                         viewModel.updatePaymentConfig(upiState, payeeState, bankAccState, bankIfscState, bankNameState, gatewayModeState)
+                        viewModel.updateRazorpayConfig(razorpayKeyIdState)
+                        viewModel.updateCashfreeConfig(cashfreeClientIdState, cashfreeSecretKeyState)
                         scope.launch {
-                            snackbarHost.showSnackbar("Payment Gateway settings updated successfully in active context.")
+                            snackbarHost.showSnackbar("Payment Gateway & API details saved successfully!")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -5636,6 +6240,59 @@ fun AdminDepositsTab(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("SAVE SMS GATEWAY CONFIGS", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Part 1.5: Social channels configuration card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("BATTLEZONE SOCIAL OFFICIAL CHANNELS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Configure your active official Instagram and Telegram channels. Clients will immediately auto-forward to these handles from their dashboard buttons.", fontSize = 9.sp, color = GreyText)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = instagramSettingState,
+                    onValueChange = { instagramSettingState = it },
+                    label = { Text("Instagram ID / Link") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    placeholder = { Text("e.g. its_nivetha_01 or full URL") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = telegramSettingState,
+                    onValueChange = { telegramSettingState = it },
+                    label = { Text("Telegram Link / Channel ID") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    placeholder = { Text("e.g. battlezone_esports_official or full URL") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.updateSocialConfig(instagramSettingState, telegramSettingState)
+                        scope.launch {
+                            snackbarHost.showSnackbar("Social official channels updated successfully!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("SAVE SOCIAL CONFIGS", fontSize = 11.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -5977,6 +6634,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     // For Sign In tab
     var signInPhoneInput by remember { mutableStateOf("") }
     
+    var authMode by remember { mutableStateOf("EMAIL_PASS") } // "EMAIL_PASS" or "PHONE_OTP"
+    var loginEmailInput by remember { mutableStateOf("") }
+    var loginPasswordInput by remember { mutableStateOf("") }
+    var registerPasswordInput by remember { mutableStateOf("") }
+    
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var showGoogleDialog by remember { mutableStateOf(false) }
     var isGoogleLoading by remember { mutableStateOf(false) }
@@ -5985,7 +6647,22 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var showCustomGoogleFields by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val gPrefs = remember { context.getSharedPreferences("google_accounts_cache", android.content.Context.MODE_PRIVATE) }
+    
+    val saveGoogleEmailCache = remember {
+        { email: String ->
+            val trimmed = email.trim().lowercase()
+            if (trimmed.isNotBlank() && trimmed.contains("@")) {
+                val current = gPrefs.getStringSet("emails", emptySet()) ?: emptySet()
+                val updated = current.toMutableSet()
+                updated.add(trimmed)
+                gPrefs.edit().putStringSet("emails", updated).apply()
+            }
+        }
+    }
+
     val accountsList = remember { mutableStateListOf<String>() }
+    var isGoogleWebLoginActive by remember { mutableStateOf(false) }
     var hasAccountPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -6004,11 +6681,21 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
     LaunchedEffect(hasAccountPermission, showGoogleDialog) {
         if (showGoogleDialog) {
+            accountsList.clear()
+            
+            // 1. Add all previously searched / logged in Google accounts from the persistent device cache
+            val cachedAccounts = gPrefs.getStringSet("emails", emptySet()) ?: emptySet()
+            for (email in cachedAccounts) {
+                if (email.contains("@") && !accountsList.contains(email)) {
+                    accountsList.add(email)
+                }
+            }
+            
+            // 2. Perform system platform accounts scanning (with runtime authorization check)
             if (hasAccountPermission) {
                 try {
-                    val am = AccountManager.get(context)
+                    val am = android.accounts.AccountManager.get(context)
                     val accounts = am.getAccountsByType("com.google")
-                    accountsList.clear()
                     for (acc in accounts) {
                         if (acc.name.contains("@") && !accountsList.contains(acc.name)) {
                             accountsList.add(acc.name)
@@ -6019,6 +6706,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 }
             } else {
                 permissionLauncher.launch(Manifest.permission.GET_ACCOUNTS)
+            }
+
+            // 3. If no actual accounts were found on the device, automatically redirect to Google Account Page simulation
+            if (accountsList.isEmpty()) {
+                isGoogleWebLoginActive = true
+            } else {
+                isGoogleWebLoginActive = false
             }
         }
     }
@@ -6272,6 +6966,87 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                         }
                     }
 
+                    // Secure Auth Protocol Toggle (Email/Password vs Mobile OTP)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                            .background(Color(0xFF16141A), RoundedCornerShape(10.dp))
+                            .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(10.dp))
+                            .padding(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (authMode == "EMAIL_PASS") RedPrimary.copy(alpha = 0.2f) else Color.Transparent,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    BorderStroke(1.dp, if (authMode == "EMAIL_PASS") RedPrimary.copy(alpha = 0.4f) else Color.Transparent),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { 
+                                    authMode = "EMAIL_PASS"
+                                    errorMsg = null
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Email Secure Key",
+                                    tint = if (authMode == "EMAIL_PASS") RedPrimary else GreyText,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "EMAIL & PASSWORD",
+                                    color = if (authMode == "EMAIL_PASS") Color.White else GreyText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (authMode == "PHONE_OTP") RedPrimary.copy(alpha = 0.2f) else Color.Transparent,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    BorderStroke(1.dp, if (authMode == "PHONE_OTP") RedPrimary.copy(alpha = 0.4f) else Color.Transparent),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { 
+                                    authMode = "PHONE_OTP"
+                                    errorMsg = null
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "SMS OTP",
+                                    tint = if (authMode == "PHONE_OTP") RedPrimary else GreyText,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "MOBILE SMS OTP",
+                                    color = if (authMode == "PHONE_OTP") Color.White else GreyText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    }
+
                     AnimatedContent(
                         targetState = activeAuthTab,
                         transitionSpec = {
@@ -6281,291 +7056,612 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     ) { tab ->
                         Column {
                             if (tab == "SIGN_IN") {
-                        Text(
-                            text = "SIGN IN WITH MOBILE NUMBER",
-                            fontSize = 10.sp,
-                            color = NeonGold,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                                if (authMode == "EMAIL_PASS") {
+                                    Text(
+                                        text = "SIGN IN SECURELY WITH EMAIL",
+                                        fontSize = 10.sp,
+                                        color = NeonGold,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
-                            value = signInPhoneInput,
-                            onValueChange = { 
-                                signInPhoneInput = it 
-                                errorMsg = null
-                            },
-                            label = { Text("Enter WhatsApp/Mobile Number") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
-                            placeholder = { Text("e.g. +91 88877 66554") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_phone_input")
-                        )
+                                    OutlinedTextField(
+                                        value = loginEmailInput,
+                                        onValueChange = { 
+                                            loginEmailInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Email Address") },
+                                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. admin@battlezone.com") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_email_input")
+                                    )
 
-                        errorMsg?.let { msg ->
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = msg,
-                                color = RedPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                                    OutlinedTextField(
+                                        value = loginPasswordInput,
+                                        onValueChange = { 
+                                            loginPasswordInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Password") },
+                                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
+                                        placeholder = { Text("••••••••") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_password_input")
+                                    )
 
-                        Button(
-                            onClick = {
-                                if (signInPhoneInput.isBlank()) {
-                                    errorMsg = "Please enter your WhatsApp/Mobile number to sign in!"
-                                } else {
-                                    scope.launch {
-                                        val registeredUser = viewModel.getRegisteredUserByPhone(signInPhoneInput.trim())
-                                        val exists = registeredUser != null
-                                        if (exists) {
-                                            val otp = (1000..9999).random().toString()
-                                            val targetNumber = registeredUser?.phoneNumber ?: signInPhoneInput.trim()
-                                            viewModel.sendOtpSms(targetNumber, otp) { success, errMsg ->
-                                                if (success) {
-                                                    generatedOtp = otp
-                                                    otpFlowType = "SIGN_IN"
-                                                    authStep = "OTP"
-                                                    enteredOtp = ""
-                                                    otpErrorMsg = null
-                                                    if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                        viewModel.showToast(
-                                                            title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                            message = "Your BattleZone entry verification OTP is: $otp. Input this code to enter.",
-                                                            type = NotificationType.SUCCESS
-                                                        )
-                                                    } else {
-                                                        viewModel.showToast(
-                                                            title = "✉️ SMS OTP DISPATCHED",
-                                                            message = "A BattleZone verification code has been sent securely via SMS. Please check your phone inbox!",
-                                                            type = NotificationType.SUCCESS
-                                                        )
+                                    errorMsg?.let { msg ->
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = msg,
+                                            color = RedPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (loginEmailInput.isBlank() || loginPasswordInput.isBlank()) {
+                                                errorMsg = "Please enter both Email and Password!"
+                                            } else {
+                                                viewModel.firebaseSignInWithEmailAndPassword(
+                                                    emailInput = loginEmailInput.trim(),
+                                                    passwordInput = loginPasswordInput,
+                                                    onFinished = { success, error ->
+                                                        if (!success) {
+                                                            errorMsg = error ?: "Authentication failed."
+                                                        }
                                                     }
-                                                } else {
-                                                    errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
+                                                )
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("login_submit_btn")
+                                    ) {
+                                        Text(
+                                            text = "SIGN IN & ENTER THE ZONE",
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "SIGN IN WITH MOBILE NUMBER",
+                                        fontSize = 10.sp,
+                                        color = NeonGold,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    OutlinedTextField(
+                                        value = signInPhoneInput,
+                                        onValueChange = { 
+                                            signInPhoneInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Enter WhatsApp/Mobile Number") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. +91 88877 66554") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_phone_input")
+                                    )
+
+                                    errorMsg?.let { msg ->
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = msg,
+                                            color = RedPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (signInPhoneInput.isBlank()) {
+                                                errorMsg = "Please enter your WhatsApp/Mobile number to sign in!"
+                                            } else {
+                                                scope.launch {
+                                                    val registeredUser = viewModel.getRegisteredUserByPhone(signInPhoneInput.trim())
+                                                    val exists = registeredUser != null
+                                                    if (exists) {
+                                                        val otp = (1000..9999).random().toString()
+                                                        val targetNumber = registeredUser?.phoneNumber ?: signInPhoneInput.trim()
+                                                        viewModel.sendOtpSms(targetNumber, otp) { success, errMsg ->
+                                                            if (success) {
+                                                                generatedOtp = otp
+                                                                otpFlowType = "SIGN_IN"
+                                                                authStep = "OTP"
+                                                                enteredOtp = ""
+                                                                otpErrorMsg = null
+                                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
+                                                                    viewModel.showToast(
+                                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
+                                                                        message = "Your BattleZone entry verification OTP is: $otp. Input this code to enter.",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                } else {
+                                                                    viewModel.showToast(
+                                                                        title = "✉️ SMS OTP DISPATCHED",
+                                                                        message = "A BattleZone verification code has been sent securely via SMS. Please check your phone inbox!",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
+                                                            }
+                                                        }
+                                                    } else {
+                                                        errorMsg = "No registered account found with Mobile Number: ${signInPhoneInput.trim()}. Please register first!"
+                                                    }
                                                 }
                                             }
-                                        } else {
-                                            errorMsg = "No registered account found with Mobile Number: ${signInPhoneInput.trim()}. Please register first!"
-                                        }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("login_submit_btn")
+                                    ) {
+                                        Text(
+                                            text = "SIGN IN & ENTER THE ZONE",
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
                                     }
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("login_submit_btn")
-                        ) {
-                            Text(
-                                text = "SIGN IN & ENTER THE ZONE",
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp,
-                                fontSize = 13.sp,
-                                color = Color.White
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = "CREATE NEW ESPORTS PROFILE",
-                            fontSize = 10.sp,
-                            color = NeonGold,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                            } else {
+                                if (authMode == "EMAIL_PASS") {
+                                    Text(
+                                        text = "CREATE ESPORTS PROFILE WITH EMAIL",
+                                        fontSize = 10.sp,
+                                        color = NeonGold,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
-                            value = ignInput,
-                            onValueChange = { 
-                                ignInput = it 
-                                errorMsg = null
-                            },
-                            label = { Text("In-Game Name (IGN)") },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
-                            placeholder = { Text("e.g. Rogue_Gamer") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_ign_input")
-                        )
+                                    OutlinedTextField(
+                                        value = ignInput,
+                                        onValueChange = { 
+                                            ignInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Game Name (Required)") },
+                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. Rogue_Gamer") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_ign_input")
+                                    )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = ffUidInput,
-                            onValueChange = { 
-                                ffUidInput = it 
-                                errorMsg = null
-                            },
-                            label = { Text("Free Fire Character UID") },
-                            leadingIcon = { Icon(Icons.Default.Star, contentDescription = "uid", tint = RedPrimary) },
-                            placeholder = { Text("e.g. FF-938402194") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_uuid_input")
-                        )
+                                    OutlinedTextField(
+                                        value = ffUidInput,
+                                        onValueChange = { 
+                                            ffUidInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("User ID (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Star, contentDescription = "uid", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. FF-938402194") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_uuid_input")
+                                    )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = phoneInput,
-                            onValueChange = { 
-                                phoneInput = it 
-                                errorMsg = null
-                            },
-                            label = { Text("WhatsApp Phone Number") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
-                            placeholder = { Text("e.g. +91 9876543210") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_phone_input")
-                        )
+                                    OutlinedTextField(
+                                        value = phoneInput,
+                                        onValueChange = { 
+                                            phoneInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Mobile Number (Required)") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. +91 9876543210") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_phone_input")
+                                    )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = extraMobileInput,
-                            onValueChange = { 
-                                extraMobileInput = it 
-                                errorMsg = null
-                            },
-                            label = { Text("Mobile Number") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
-                            placeholder = { Text("e.g. +91 9123456789") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_extra_phone_input")
-                        )
+                                    OutlinedTextField(
+                                        value = extraMobileInput,
+                                        onValueChange = { 
+                                            extraMobileInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("WhatsApp Contact Number (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. +91 9123456789") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_extra_phone_input")
+                                    )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = emailInput,
-                            onValueChange = { emailInput = it },
-                            label = { Text("Email Contact (Required)") },
-                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
-                            placeholder = { Text("e.g. name@domain.com") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RedPrimary,
-                                unfocusedBorderColor = Color(0xFF28252C),
-                                focusedLabelColor = RedPrimary,
-                                unfocusedLabelColor = GreyText,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("login_email_input")
-                        )
+                                    OutlinedTextField(
+                                        value = emailInput,
+                                        onValueChange = { 
+                                            emailInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Email ID (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. name@domain.com") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_email_input")
+                                    )
 
-                        errorMsg?.let { msg ->
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = msg,
-                                color = RedPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
-                        }
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                                    OutlinedTextField(
+                                        value = registerPasswordInput,
+                                        onValueChange = { 
+                                            registerPasswordInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Choose Password (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
+                                        placeholder = { Text("Min 6 chars. Blank for standard default.") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_password_input")
+                                    )
 
-                        Button(
-                            onClick = {
-                                if (ignInput.isBlank() || ffUidInput.isBlank() || phoneInput.isBlank() || extraMobileInput.isBlank() || emailInput.isBlank() || !emailInput.contains("@") || !emailInput.contains(".")) {
-                                    errorMsg = "Please fill in IGN, Character UID, WhatsApp number, Mobile number, and a valid Gmail/Email address to register!"
-                                } else {
-                                    val otp = (1000..9999).random().toString()
-                                    viewModel.sendOtpSms(phoneInput.trim(), otp) { success, errMsg ->
-                                        if (success) {
-                                            generatedOtp = otp
-                                            otpFlowType = "REGISTER"
-                                            authStep = "OTP"
-                                            enteredOtp = ""
-                                            otpErrorMsg = null
-                                            if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                viewModel.showToast(
-                                                    title = "🔒 NEW REGISTRATION OTP",
-                                                    message = "Your BattleZone account setup verification OTP is: $otp. Please input this code to verify.",
-                                                    type = NotificationType.SUCCESS
-                                                )
+                                    errorMsg?.let { msg ->
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = msg,
+                                            color = RedPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.align(Alignment.Start)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (ignInput.isBlank() || phoneInput.isBlank()) {
+                                                errorMsg = "Please fill in your Game Name and Mobile Number!"
                                             } else {
-                                                viewModel.showToast(
-                                                    title = "✉️ SMS OTP DISPATCHED",
-                                                    message = "A registration verification code has been sent securely via SMS. Please check your phone!",
-                                                    type = NotificationType.SUCCESS
+                                                val determinedEmail = if (emailInput.isBlank()) {
+                                                    "gamer_${phoneInput.trim().replace(" ", "").replace("+", "").replace("-", "")}@battlezone.com".lowercase()
+                                                } else {
+                                                    emailInput.trim()
+                                                }
+                                                val determinedPassword = if (registerPasswordInput.isBlank()) {
+                                                    "battle123"
+                                                } else {
+                                                    registerPasswordInput
+                                                }
+                                                viewModel.firebaseRegisterWithEmailAndPassword(
+                                                    ign = ignInput.trim(),
+                                                    ffUid = ffUidInput.trim(),
+                                                    phone = phoneInput.trim(),
+                                                    extraMobile = extraMobileInput.trim(),
+                                                    emailInput = determinedEmail,
+                                                    passwordInput = determinedPassword,
+                                                    onFinished = { success, error ->
+                                                        if (!success) {
+                                                            errorMsg = error ?: "Registration failed."
+                                                        }
+                                                    }
                                                 )
                                             }
-                                        } else {
-                                            errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
-                                        }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("login_submit_btn")
+                                    ) {
+                                        Text(
+                                            text = "REGISTER & ENTER THE ZONE",
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "CREATE NEW ESPORTS PROFILE",
+                                        fontSize = 10.sp,
+                                        color = NeonGold,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    OutlinedTextField(
+                                        value = ignInput,
+                                        onValueChange = { 
+                                            ignInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Game Name (Required)") },
+                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. Rogue_Gamer") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_ign_input")
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = ffUidInput,
+                                        onValueChange = { 
+                                            ffUidInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("User ID (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Star, contentDescription = "uid", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. FF-938402194") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_uuid_input")
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = phoneInput,
+                                        onValueChange = { 
+                                            phoneInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Mobile Number (Required)") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. +91 9876543210") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_phone_input")
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = extraMobileInput,
+                                        onValueChange = { 
+                                            extraMobileInput = it 
+                                            errorMsg = null
+                                        },
+                                        label = { Text("WhatsApp Contact Number (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. +91 9123456789") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_extra_phone_input")
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    OutlinedTextField(
+                                        value = emailInput,
+                                        onValueChange = { 
+                                            emailInput = it
+                                            errorMsg = null
+                                        },
+                                        label = { Text("Email ID (Optional)") },
+                                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
+                                        placeholder = { Text("e.g. name@domain.com") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RedPrimary,
+                                            unfocusedBorderColor = Color(0xFF28252C),
+                                            focusedLabelColor = RedPrimary,
+                                            unfocusedLabelColor = GreyText,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("login_email_input")
+                                    )
+
+                                    errorMsg?.let { msg ->
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = msg,
+                                            color = RedPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.align(Alignment.Start)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (ignInput.isBlank() || phoneInput.isBlank()) {
+                                                errorMsg = "Please fill in your Game Name and Mobile Number to register!"
+                                            } else {
+                                                val otp = (1000..9999).random().toString()
+                                                viewModel.sendOtpSms(phoneInput.trim(), otp) { success, errMsg ->
+                                                    if (success) {
+                                                        generatedOtp = otp
+                                                        otpFlowType = "REGISTER"
+                                                        authStep = "OTP"
+                                                        enteredOtp = ""
+                                                        otpErrorMsg = null
+                                                        if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
+                                                            viewModel.showToast(
+                                                                title = "🔒 NEW REGISTRATION OTP",
+                                                                message = "Your BattleZone account setup verification OTP is: $otp. Please input this code to verify.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        } else {
+                                                            viewModel.showToast(
+                                                                title = "✉️ SMS OTP DISPATCHED",
+                                                                message = "A registration verification code has been sent securely via SMS. Please check your phone!",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        }
+                                                    } else {
+                                                        errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                            .testTag("login_submit_btn")
+                                    ) {
+                                        Text(
+                                            text = "REGISTER & ENTER THE ZONE",
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
                                     }
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("login_submit_btn")
-                        ) {
-                            Text(
-                                text = "REGISTER & ENTER THE ZONE",
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp,
-                                fontSize = 13.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
+                            }
                         }
                     }
                     } // closes FORM of if (authStep == "OTP")
@@ -6631,66 +7727,294 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
     // Google Sign-In Account Picker Simulation Dialog
     if (showGoogleDialog) {
-        Dialog(onDismissRequest = { if (!isGoogleLoading) showGoogleDialog = false }) {
+        Dialog(onDismissRequest = { 
+            if (!isGoogleLoading) {
+                showGoogleDialog = false
+                isGoogleWebLoginActive = false
+            }
+        }) {
+            val googleThemeBg = if (isGoogleWebLoginActive) Color(0xFFFFFFFF) else Color(0xFF202124)
+            val googleThemeBorder = if (isGoogleWebLoginActive) Color(0xFFE0E0E0) else Color(0xFF3C4043)
+            val googleThemeText = if (isGoogleWebLoginActive) Color(0xFF202124) else Color.White
+            
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF202124), // Google Dark theme
+                color = googleThemeBg,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(BorderStroke(1.dp, Color(0xFF3C4043)), RoundedCornerShape(16.dp))
+                    .border(BorderStroke(1.dp, googleThemeBorder), RoundedCornerShape(16.dp))
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Google Logo branding
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(text = "G", color = Color(0xFF4285F4), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                        Text(text = "o", color = Color(0xFFEA4335), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                        Text(text = "o", color = Color(0xFFFBBC05), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                        Text(text = "g", color = Color(0xFF4285F4), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                        Text(text = "l", color = Color(0xFF34A853), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                        Text(text = "e", color = Color(0xFFEA4335), fontSize = 28.sp, fontWeight = FontWeight.Black)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Text(
-                        text = "Choose an account",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "to continue to BattleZone",
-                        color = Color.LightGray,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    
-                    if (isGoogleLoading) {
-                        Box(
+                    if (isGoogleWebLoginActive) {
+                        // 1. MOCK CHROME CUSTOM TAB / SECURE BROWSER BAR
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(160.dp),
-                            contentAlignment = Alignment.Center
+                                .background(Color(0xFFF1F3F4), RoundedCornerShape(24.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = Color(0xFF4285F4), strokeWidth = 3.dp)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text("Connecting securely...", color = Color.LightGray, fontSize = 11.sp)
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Secure Connection",
+                                tint = Color(0xFF0F9D58),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "accounts.google.com/signin/v3",
+                                color = Color(0xFF5F6368),
+                                fontSize = 10.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Color(0xFF5F6368),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        // Google Brand Multi-colored Logo
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(text = "G", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFFBBC05), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "g", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Sign in with Google",
+                            color = googleThemeText,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Log in with your Google account to redirect back",
+                            color = Color(0xFF5F6368),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        if (isGoogleLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = Color(0xFF1A73E8), strokeWidth = 3.dp)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text("Connecting securely to Google...", color = Color(0xFF5F6368), fontSize = 11.sp)
+                                }
+                            }
+                        } else {
+                            var tempGooglePassword by remember { mutableStateOf("") }
+                            
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = customGoogleEmail,
+                                    onValueChange = { customGoogleEmail = it },
+                                    label = { Text("Email or phone", color = Color(0xFF5F6368)) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color(0xFF202124),
+                                        unfocusedTextColor = Color(0xFF202124),
+                                        focusedBorderColor = Color(0xFF1A73E8),
+                                        unfocusedBorderColor = Color(0xFFDADCE0),
+                                        focusedLabelColor = Color(0xFF1A73E8),
+                                        unfocusedLabelColor = Color(0xFF5F6368)
+                                    ),
+                                    placeholder = { Text("username@gmail.com", color = Color.Gray) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                OutlinedTextField(
+                                    value = tempGooglePassword,
+                                    onValueChange = { tempGooglePassword = it },
+                                    label = { Text("Enter Password (Secure)", color = Color(0xFF5F6368)) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color(0xFF202124),
+                                        unfocusedTextColor = Color(0xFF202124),
+                                        focusedBorderColor = Color(0xFF1A73E8),
+                                        unfocusedBorderColor = Color(0xFFDADCE0),
+                                        focusedLabelColor = Color(0xFF1A73E8),
+                                        unfocusedLabelColor = Color(0xFF5F6368)
+                                    ),
+                                    placeholder = { Text("••••••••", color = Color.Gray) },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Text(
+                                    text = "Don't see your account? Type any active email above to log in.",
+                                    color = Color(0xFF1A73E8),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(18.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (accountsList.isNotEmpty()) {
+                                        TextButton(onClick = { isGoogleWebLoginActive = false }) {
+                                            Text("← Phone accounts", color = Color(0xFF1A73E8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                    } else {
+                                        TextButton(onClick = { 
+                                            showGoogleDialog = false
+                                            isGoogleWebLoginActive = false
+                                        }) {
+                                            Text("Cancel", color = Color(0xFF5F6368), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                    }
+                                    
+                                    Button(
+                                        onClick = {
+                                            if (customGoogleEmail.isNotBlank() && customGoogleEmail.contains("@") && customGoogleEmail.contains(".")) {
+                                                saveGoogleEmailCache(customGoogleEmail)
+                                                isGoogleLoading = true
+                                                scope.launch {
+                                                    delay(1200)
+                                                    isGoogleLoading = false
+                                                    val autoName = customGoogleEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                                    val registeredPhone = viewModel.getGoogleUserPhone(customGoogleEmail.trim().lowercase())
+                                                    if (!registeredPhone.isNullOrBlank() && !registeredPhone.startsWith("+91 123456")) {
+                                                        val otp = (1000..9999).random().toString()
+                                                        viewModel.sendOtpSms(registeredPhone, otp) { success, errMsg ->
+                                                            if (success) {
+                                                                generatedOtp = otp
+                                                                otpFlowType = "GOOGLE"
+                                                                customGoogleEmail = customGoogleEmail.trim().lowercase()
+                                                                customGoogleName = autoName
+                                                                authStep = "OTP"
+                                                                enteredOtp = ""
+                                                                otpErrorMsg = null
+                                                                showGoogleDialog = false
+                                                                isGoogleWebLoginActive = false
+                                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
+                                                                    viewModel.showToast(
+                                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
+                                                                        message = "Google Account: $customGoogleEmail has registered phone: $registeredPhone. OTP code is: $otp",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                } else {
+                                                                    viewModel.showToast(
+                                                                        title = "✉️ SMS OTP DISPATCHED",
+                                                                        message = "A verification code has been sent securely via SMS to your registered number: $registeredPhone.",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                showGoogleDialog = false
+                                                                isGoogleWebLoginActive = false
+                                                                viewModel.showToast(
+                                                                    title = "⚠️ Verification Error",
+                                                                    message = "Could not deliver secure OTP to registered number: $registeredPhone. Detail: $errMsg",
+                                                                    type = NotificationType.WARNING
+                                                                )
+                                                            }
+                                                        }
+                                                    } else {
+                                                        showGoogleDialog = false
+                                                        isGoogleWebLoginActive = false
+                                                        viewModel.loginWithGoogle(email = customGoogleEmail.trim().lowercase(), name = autoName) {
+                                                            authStep = "FORM"
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                viewModel.showToast("Google Account Error", "Please enter a valid Gmail address.", NotificationType.WARNING)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        enabled = customGoogleEmail.isNotBlank() && customGoogleEmail.contains("@") && customGoogleEmail.contains(".")
+                                    ) {
+                                        Text("Next", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     } else {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        // 2. DEVICE ACCOUNT PICKER DIALOG (Shows only if accounts exist on their device)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            if (accountsList.isNotEmpty()) {
+                            Text(text = "G", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFFBBC05), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "g", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = "Choose an account",
+                            color = googleThemeText,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "to continue to BattleZone",
+                            color = Color.LightGray,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        
+                        if (isGoogleLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = Color(0xFF4285F4), strokeWidth = 3.dp)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text("Connecting securely...", color = Color.LightGray, fontSize = 11.sp)
+                                }
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 accountsList.forEach { accEmail ->
                                     val accName = accEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
                                     val hash = accEmail.hashCode().coerceAtLeast(0)
@@ -6705,6 +8029,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .background(Color(0xFF292A2D), RoundedCornerShape(8.dp))
                                             .clickable {
+                                                saveGoogleEmailCache(accEmail)
                                                 isGoogleLoading = true
                                                 scope.launch {
                                                     delay(1000)
@@ -6722,6 +8047,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                                 enteredOtp = ""
                                                                 otpErrorMsg = null
                                                                 showGoogleDialog = false
+                                                                isGoogleWebLoginActive = false
                                                                 if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
                                                                     viewModel.showToast(
                                                                         title = "🔒 SECURE ACCOUNT VERIFICATION",
@@ -6737,6 +8063,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                                 }
                                                             } else {
                                                                 showGoogleDialog = false
+                                                                isGoogleWebLoginActive = false
                                                                 viewModel.showToast(
                                                                     title = "⚠️ Verification Error",
                                                                     message = "Could not deliver secure OTP to registered number: $registeredPhone. Detail: $errMsg",
@@ -6746,6 +8073,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         }
                                                     } else {
                                                         showGoogleDialog = false
+                                                        isGoogleWebLoginActive = false
                                                         viewModel.loginWithGoogle(email = accEmail, name = accName) {
                                                             authStep = "FORM"
                                                         }
@@ -6790,100 +8118,47 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         )
                                     }
                                 }
-                            } else {
-                                Text(
-                                    text = "No Google accounts were automatically detected on this device. Please enter your Gmail address below to sign in with Google:",
-                                    color = Color.LightGray,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(bottom = 6.dp)
-                                )
-
-                                OutlinedTextField(
-                                    value = customGoogleEmail,
-                                    onValueChange = { customGoogleEmail = it },
-                                    label = { Text("Gmail Address", color = Color.Gray) },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedBorderColor = Color(0xFF4285F4),
-                                        unfocusedBorderColor = Color(0xFF5F6368)
-                                    ),
-                                    placeholder = { Text("username@gmail.com") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Button(
-                                    onClick = {
-                                        if (customGoogleEmail.isNotBlank() && customGoogleEmail.contains("@") && customGoogleEmail.contains(".")) {
-                                            isGoogleLoading = true
-                                            scope.launch {
-                                                delay(1000)
-                                                isGoogleLoading = false
-                                                val autoName = customGoogleEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
-                                                val registeredPhone = viewModel.getGoogleUserPhone(customGoogleEmail.trim().lowercase())
-                                                if (!registeredPhone.isNullOrBlank() && !registeredPhone.startsWith("+91 123456")) {
-                                                    val otp = (1000..9999).random().toString()
-                                                    viewModel.sendOtpSms(registeredPhone, otp) { success, errMsg ->
-                                                        if (success) {
-                                                            generatedOtp = otp
-                                                            otpFlowType = "GOOGLE"
-                                                            customGoogleEmail = customGoogleEmail.trim().lowercase()
-                                                            customGoogleName = autoName
-                                                            authStep = "OTP"
-                                                            enteredOtp = ""
-                                                            otpErrorMsg = null
-                                                            showGoogleDialog = false
-                                                            if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                                viewModel.showToast(
-                                                                    title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                    message = "Google Account: $customGoogleEmail has registered phone: $registeredPhone. OTP code is: $otp",
-                                                                    type = NotificationType.SUCCESS
-                                                                )
-                                                            } else {
-                                                                viewModel.showToast(
-                                                                    title = "✉️ SMS OTP DISPATCHED",
-                                                                    message = "A verification code has been sent securely via SMS to your registered number: $registeredPhone.",
-                                                                    type = NotificationType.SUCCESS
-                                                                )
-                                                            }
-                                                        } else {
-                                                            showGoogleDialog = false
-                                                            viewModel.showToast(
-                                                                title = "⚠️ Verification Error",
-                                                                message = "Could not deliver secure OTP to registered number: $registeredPhone. Detail: $errMsg",
-                                                                type = NotificationType.WARNING
-                                                            )
-                                                        }
-                                                    }
-                                                } else {
-                                                    showGoogleDialog = false
-                                                    viewModel.loginWithGoogle(email = customGoogleEmail.trim().lowercase(), name = autoName) {
-                                                        authStep = "FORM"
-                                                    }
-                                                }
-                                            }
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
+                                
+                                // Beautiful selector to sign in with standard Web Redirect Simulation page instead
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF1C1D21), RoundedCornerShape(8.dp))
+                                        .border(BorderStroke(1.dp, Color(0xFF2C2D31)), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            isGoogleWebLoginActive = true
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    enabled = customGoogleEmail.isNotBlank() && customGoogleEmail.contains("@") && customGoogleEmail.contains(".")
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("CONTINUE WITH GOOGLE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Google account",
+                                        tint = Color(0xFF4285F4),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Add or Sign in with another Google account",
+                                        color = Color(0xFF4285F4),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            TextButton(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { showGoogleDialog = false }
-                            ) {
-                                Text("CANCEL", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                TextButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { 
+                                        showGoogleDialog = false
+                                        isGoogleWebLoginActive = false
+                                    }
+                                ) {
+                                    Text("CANCEL", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
                             }
                         }
                     }

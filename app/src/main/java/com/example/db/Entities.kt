@@ -12,9 +12,9 @@ data class UserEntity(
     val email: String = "gamer@battlezone.com",
     val profilePicture: String = "",
     val referralCode: String = "BZONEFF77",
-    val depositBalance: Double = 150.0,
-    val winningBalance: Double = 50.0,
-    val bonusBalance: Double = 20.0,
+    val depositBalance: Double = 0.0,
+    val winningBalance: Double = 0.0,
+    val bonusBalance: Double = 5.0,
     val referrerId: String? = null,
     val extraMobileNumber: String = ""
 )

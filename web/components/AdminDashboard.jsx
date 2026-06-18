@@ -41,6 +41,14 @@ export default function AdminDashboard({
     payouts: { pendingWithdrawalAmount: 8500.00, pendingWithdrawalCount: 4, undistributedTournamentPrizeAmount: 3500.00, undistributedTournamentCount: 2, totalCombinedPendingObligations: 12000.00 }
   });
 
+  const [recentTransactions, setRecentTransactions] = useState([
+    { _id: 'txn-101', inGameName: 'Gamer_9122', email: 'gamer9122@gmail.com', phoneNumber: '+919999999991', amount: 150.00, type: 'DEPOSIT', status: 'SUCCESS', title: 'Wallet Top-up via Razorpay', upiId: 'gamer9122@okaxis', gateway: 'RAZORPAY', createdAt: '2026-06-18T10:15:00.000Z', bankTxnRef: 'RZP_LIVE_8891023' },
+    { _id: 'txn-102', inGameName: 'Elite_Shooter', email: 'shooter_pro@gmail.com', phoneNumber: '+919999999992', amount: 30.00, type: 'ENTRY_FEE', status: 'SUCCESS', title: 'Entry Fee: Extreme Solo Sunday', upiId: 'selva1912@paytm', gateway: 'MOCK_UPI', createdAt: '2026-06-18T09:42:00.000Z', bankTxnRef: 'UPI_E_88125634' },
+    { _id: 'txn-103', inGameName: 'Phoenix_FF', email: 'phoenix_gamer@gmail.com', phoneNumber: '+919999999993', amount: 200.00, type: 'DEPOSIT', status: 'SUCCESS', title: 'Wallet Top-up via PhonePe', upiId: 'phoenix_gamer@ybl', gateway: 'CASHFREE', createdAt: '2026-06-17T21:10:00.000Z', bankTxnRef: 'CF_LIVE_9031835' },
+    { _id: 'txn-104', inGameName: 'Gamer_9122', email: 'gamer9122@gmail.com', phoneNumber: '+919999999991', amount: 100.00, type: 'WITHDRAWAL', status: 'PENDING', title: 'Withdrawal winnings request', upiId: 'gamer_9122@okaxis', gateway: 'MANUAL_UPI', createdAt: '2026-06-17T18:25:00.000Z', bankTxnRef: 'PENDING_AUDIT' },
+    { _id: 'txn-105', inGameName: 'Elite_Shooter', email: 'shooter_pro@gmail.com', phoneNumber: '+919999999992', amount: 350.00, type: 'PRIZE_WINNING', status: 'SUCCESS', title: 'Winnings: Clash Squad Rumble', upiId: 'selva1912@paytm', gateway: 'SYSTEM_CREDIT', createdAt: '2026-06-14T20:45:00.000Z', bankTxnRef: 'SYS_991054' }
+  ]);
+
   const [tournaments, setTournaments] = useState([
     { _id: 't-101', title: 'Championship Pro League - Elite Duo', prizePool: 500, entryFee: 15, maxSlots: 50, joinedCount: 42, matchDate: '2026-06-16T18:30:00.000Z', status: 'upcoming', mapType: 'Bermuda', format: 'DUO', winnerName: null, roomId: '9912085', roomPassword: 'SECRET_EPRO' },
     { _id: 't-102', title: 'BattleZone Extreme Solo Sunday', prizePool: 1200, entryFee: 30, maxSlots: 100, joinedCount: 100, matchDate: '2026-06-15T15:00:00.000Z', status: 'live', mapType: 'Purgatory', format: 'SOLO', winnerName: null, roomId: '8872161', roomPassword: 'FF_SUNDAY_88' },
@@ -218,6 +226,23 @@ export default function AdminDashboard({
         };
 
         setAuditLogs(prev => [newLog, ...prev]);
+
+        // Prepend to recentTransactions
+        const newTx = {
+          _id: `txn-${Date.now()}`,
+          inGameName: targetUser.inGameName,
+          email: targetUser.email,
+          phoneNumber: targetUser.phoneNumber,
+          amount: parsedAmount,
+          type: 'DEPOSIT',
+          status: 'SUCCESS',
+          title: `Simulated Sandbox Webhook Deposit`,
+          upiId: targetUser.phoneNumber + '@okhdfc',
+          gateway: 'RAZORPAY',
+          createdAt: new Date().toISOString(),
+          bankTxnRef: invoiceId
+        };
+        setRecentTransactions(prev => [newTx, ...prev]);
         
         // Update stats summary on the fly
         setStats(prev => ({
@@ -237,6 +262,22 @@ export default function AdminDashboard({
 
         triggerMessage(`[Playground] Mock UPI successful! Credited ₹${parsedAmount.toFixed(2)} to ${targetUser.inGameName}.`, 'success');
       } else {
+        // Prepend failed transaction
+        const newTx = {
+          _id: `txn-${Date.now()}`,
+          inGameName: targetUser.inGameName,
+          email: targetUser.email,
+          phoneNumber: targetUser.phoneNumber,
+          amount: parsedAmount,
+          type: 'DEPOSIT',
+          status: 'FAILED',
+          title: `Simulated Sandbox Webhook Deposit`,
+          upiId: targetUser.phoneNumber + '@okhdfc',
+          gateway: 'RAZORPAY',
+          createdAt: new Date().toISOString(),
+          bankTxnRef: invoiceId
+        };
+        setRecentTransactions(prev => [newTx, ...prev]);
         triggerMessage(`[Playground] Webhook status recorded as FAILED. No balances adjusted.`, 'info');
       }
     }
@@ -313,6 +354,24 @@ export default function AdminDashboard({
       };
 
       setAuditLogs(prev => [newLog, ...prev]);
+
+      // Prepend to recentTransactions
+      const newTx = {
+        _id: `txn-${Date.now()}`,
+        inGameName: selectedUser.inGameName,
+        email: selectedUser.email,
+        phoneNumber: selectedUser.phoneNumber,
+        amount: Math.abs(delta),
+        type: delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
+        status: 'SUCCESS',
+        title: `Manual Admin Adjustment: ${walletReason}`,
+        upiId: selectedUser.phoneNumber + '@admin',
+        gateway: 'SYSTEM_CREDIT',
+        createdAt: new Date().toISOString(),
+        bankTxnRef: `MAN_ADJ_${Date.now().toString().slice(-4)}`
+      };
+      setRecentTransactions(prev => [newTx, ...prev]);
+
       triggerMessage(`[Playground] Adjusted ${selectedUser.inGameName} balance successfully!`, 'success');
       
       // Cleanup
@@ -997,6 +1056,104 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
+              </div>
+
+              {/* OVERSIGHT: QUICK-ACCESS RECENT TRANSACTIONS LEDGER */}
+              <div style={styles.oversightSection}>
+                <div style={styles.oversightHeader}>
+                  <div>
+                    <h3 style={styles.oversightTitle}>
+                      🛡️ QUICK-ACCESS TRANSACTIONS OVERSIGHT LEDGER
+                    </h3>
+                    <p style={styles.oversightSubtitle}>
+                      Live administrative monitoring of payment collections, tournament entry fees, and prize payouts
+                    </p>
+                  </div>
+                  <div style={styles.oversightBadging}>
+                    <span style={styles.oversightLiveBadge}>● LIVE FEED</span>
+                    <span style={styles.oversightCountBadge}>{recentTransactions.length} Transactions</span>
+                  </div>
+                </div>
+
+                <div style={styles.oversightTableWrapper}>
+                  <table style={styles.oversightTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.thOversight}>TXN IDENT / TIMESTAMP</th>
+                        <th style={styles.thOversight}>USER ACCOUNT DETAILS</th>
+                        <th style={styles.thOversight}>CATEGORY / SPEC</th>
+                        <th style={styles.thOversight}>MERCHANT ROUTE</th>
+                        <th style={styles.thOversight}>BANK UTR REFERENCE</th>
+                        <th style={{ ...styles.thOversight, textAlign: 'right' }}>TRANSACTION AMOUNT (INR)</th>
+                        <th style={{ ...styles.thOversight, textAlign: 'right' }}>AUDIT STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentTransactions.map((tx) => (
+                        <tr key={tx._id} style={styles.oversightRow}>
+                          <td style={styles.tdOversight}>
+                            <div>
+                              <div style={styles.textHighlight}>{tx.title || 'UPI Wallet Deposit'}</div>
+                              <div style={styles.textDim}>
+                                {new Date(tx.createdAt).toLocaleDateString()} {new Date(tx.createdAt).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={styles.tdOversight}>
+                            <div>
+                              <div style={styles.textHighlight}>{tx.inGameName}</div>
+                              <div style={styles.textDim}>
+                                <code>{tx.phoneNumber}</code>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={styles.tdOversight}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: '900',
+                              backgroundColor: tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WINNING' || tx.type === 'BONUS_ADD' ? 'rgba(129, 199, 132, 0.1)' : 'rgba(239, 83, 80, 0.1)',
+                              color: tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WINNING' || tx.type === 'BONUS_ADD' ? '#81C784' : '#EF5350',
+                              border: tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WINNING' || tx.type === 'BONUS_ADD' ? '1px solid rgba(129, 199, 132, 0.2)' : '1px solid rgba(239, 83, 80, 0.2)'
+                            }}>
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td style={styles.tdOversight}>
+                            <span style={{ fontSize: '12px', color: '#B0BEC5' }}>🛡️ {tx.gateway || 'MOCK_UPI'}</span>
+                          </td>
+                          <td style={styles.tdOversight}>
+                            <code style={{ fontSize: '11px', color: '#ECEFF1', backgroundColor: '#1E293B', padding: '2px 6px', borderRadius: '4px' }}>{tx.upiId || 'N/A'}</code>
+                          </td>
+                          <td style={{ ...styles.tdOversight, textAlign: 'right', fontWeight: 'bold' }}>
+                            <span style={{
+                              color: tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WINNING' || tx.type === 'BONUS_ADD' ? '#81C784' : '#EF5350',
+                              fontSize: '13px'
+                            }}>
+                              {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WINNING' || tx.type === 'BONUS_ADD' ? '+' : '-'} ₹{tx.amount.toFixed(2)}
+                            </span>
+                          </td>
+                          <td style={{ ...styles.tdOversight, textAlign: 'right' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: '900',
+                              backgroundColor: tx.status === 'SUCCESS' ? 'rgba(129, 199, 132, 0.15)' : tx.status === 'PENDING' ? 'rgba(255, 179, 0, 0.15)' : 'rgba(239, 83, 80, 0.15)',
+                              color: tx.status === 'SUCCESS' ? '#81C784' : tx.status === 'PENDING' ? '#FFB300' : '#EF5350',
+                              border: `1px solid ${tx.status === 'SUCCESS' ? '#81C784' : tx.status === 'PENDING' ? '#FFB300' : '#EF5350'}`
+                            }}>
+                              {tx.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
             </div>
@@ -2365,5 +2522,86 @@ const styles = {
   },
   hidden: {
     display: 'none'
+  },
+  oversightSection: {
+    backgroundColor: '#111116',
+    borderRadius: '12px',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
+    padding: '24px',
+    marginTop: '24px'
+  },
+  oversightHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '16px',
+    marginBottom: '20px'
+  },
+  oversightTitle: {
+    margin: 0,
+    fontSize: '15.5px',
+    fontWeight: '900',
+    letterSpacing: '0.75px',
+    color: '#FFFFFF'
+  },
+  oversightSubtitle: {
+    margin: '4px 0 0 0',
+    fontSize: '11.5px',
+    color: '#90A4AE'
+  },
+  oversightBadging: {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center'
+  },
+  oversightLiveBadge: {
+    fontSize: '10px',
+    fontWeight: '900',
+    color: '#81C784',
+    backgroundColor: 'rgba(129, 199, 132, 0.08)',
+    border: '1px solid rgba(129, 199, 132, 0.3)',
+    borderRadius: '6px',
+    padding: '4px 10px',
+    letterSpacing: '0.5px'
+  },
+  oversightCountBadge: {
+    fontSize: '10px',
+    fontWeight: '900',
+    color: '#ECEFF1',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '6px',
+    padding: '4px 10px',
+    letterSpacing: '0.5px'
+  },
+  oversightTableWrapper: {
+    overflowX: 'auto',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.04)'
+  },
+  oversightTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    textAlign: 'left'
+  },
+  thOversight: {
+    backgroundColor: '#16161D',
+    color: '#90A4AE',
+    fontSize: '10px',
+    fontWeight: '900',
+    letterSpacing: '1px',
+    padding: '12px 16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+  },
+  oversightRow: {
+    borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
+    backgroundColor: '#111116',
+    transition: 'background-color 0.15s ease'
+  },
+  tdOversight: {
+    padding: '12px 16px',
+    fontSize: '12.5px',
+    color: '#ECEFF1',
+    verticalAlign: 'middle'
   }
 };

@@ -11,6 +11,9 @@ interface UserDao {
     @Query("SELECT * FROM users")
     fun getAllUsersFlow(): Flow<List<UserEntity>>
 
+    @Query("SELECT * FROM users")
+    suspend fun getAllUsersSync(): List<UserEntity>
+
     @Query("SELECT * FROM users WHERE id = :uid LIMIT 1")
     suspend fun getUserSync(uid: String): UserEntity?
 
@@ -19,6 +22,9 @@ interface UserDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity)
+
+    @Query("DELETE FROM users WHERE id = :uid")
+    suspend fun deleteUserById(uid: String)
 }
 
 @Dao
