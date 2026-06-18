@@ -14,6 +14,9 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE id = :uid LIMIT 1")
     suspend fun getUserSync(uid: String): UserEntity?
 
+    @Query("SELECT * FROM users WHERE phoneNumber = :phone LIMIT 1")
+    suspend fun getUserByPhoneSync(phone: String): UserEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity)
 }
@@ -79,6 +82,15 @@ interface TransactionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
+
+    @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
+    suspend fun getTransactionByIdSync(id: Int): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE invoiceId = :invoiceId LIMIT 1")
+    suspend fun getTransactionByInvoiceIdSync(invoiceId: String): TransactionEntity?
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteTransactionByIdSync(id: Int)
 }
 
 @Dao

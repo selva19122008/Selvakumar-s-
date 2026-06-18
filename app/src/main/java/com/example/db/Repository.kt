@@ -14,6 +14,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     fun getUserFlow(uid: String): Flow<UserEntity?> = userDao.getUserFlow(uid)
     val allUsers: Flow<List<UserEntity>> = userDao.getAllUsersFlow()
     suspend fun getUserSync(uid: String): UserEntity? = userDao.getUserSync(uid)
+    suspend fun getUserByPhoneSync(phone: String): UserEntity? = userDao.getUserByPhoneSync(phone)
     suspend fun insertUser(user: UserEntity) = userDao.insertUser(user)
 
     // Tournaments
@@ -39,6 +40,9 @@ class BattleZoneRepository(private val db: AppDatabase) {
     fun getTransactionsForUserFlow(userId: String): Flow<List<TransactionEntity>> = transactionDao.getTransactionsForUserFlow(userId)
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactionsFlow()
     suspend fun insertTransaction(transaction: TransactionEntity) = transactionDao.insertTransaction(transaction)
+    suspend fun getTransactionByIdSync(id: Int): TransactionEntity? = transactionDao.getTransactionByIdSync(id)
+    suspend fun getTransactionByInvoiceIdSync(invoiceId: String): TransactionEntity? = transactionDao.getTransactionByInvoiceIdSync(invoiceId)
+    suspend fun deleteTransactionByIdSync(id: Int) = transactionDao.deleteTransactionByIdSync(id)
 
     // Withdrawals
     fun getWithdrawalsForUserFlow(userId: String): Flow<List<WithdrawalRequestEntity>> = withdrawalDao.getWithdrawalsForUserFlow(userId)

@@ -437,27 +437,20 @@ exports.registerTournament = async (req, res) => {
     }
 
     const entryFee = tournament.entryFee;
-    const totalBalance = user.depositBalance + user.winningBalance + user.bonusBalance;
+    const totalRealBalance = user.depositBalance + user.winningBalance;
 
-    if (totalBalance < entryFee) {
+    if (totalRealBalance < entryFee) {
       return res.status(400).json({
         success: false,
-        message: `Sufficient balance unavailable. Entry fee: ${entryFee}, your total balance: ${totalBalance}`
+        message: `Sufficient real cash balance unavailable. Entry fee: ₹${entryFee}, your real cash balance: ₹${totalRealBalance}`
       });
     }
 
-    // 7. Deduct wallet balances using priority: Bonus -> Deposit -> Winnings
+    // 7. Deduct wallet balances using priority: Deposit -> Winnings (excluding bonus balance from tournament entries)
     let remainingToDeduct = entryFee;
     let deductedBonus = 0;
     let deductedDeposit = 0;
     let deductedWinning = 0;
-
-    if (remainingToDeduct > 0 && user.bonusBalance > 0) {
-      const bonusDeduct = Math.min(user.bonusBalance, remainingToDeduct);
-      user.bonusBalance -= bonusDeduct;
-      deductedBonus = bonusDeduct;
-      remainingToDeduct -= bonusDeduct;
-    }
 
     if (remainingToDeduct > 0 && user.depositBalance > 0) {
       const depositDeduct = Math.min(user.depositBalance, remainingToDeduct);
