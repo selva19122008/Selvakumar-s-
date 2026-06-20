@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the requesting user's UID matches the authorized administrator's hardcoded UID,
+    // matches an authorized list element, or matches the authenticated administrator's email.
+    function isAdmin(request) {
+      return request.auth != null && (
+        request.auth.uid == "ADMIN_FIREBASE_UID_PLACEHOLDER" || 
+        request.auth.uid == "Z0p9YnVfM6iiog" || 
+        request.auth.uid == "selva_admin_uid_main_phone" || 
+        request.auth.token.email == "selva19122008@gmail.com"
+      );
+    }
+
+    // Match users collection - read/write is open to enable seamless mobile number lookups,
+    // registration fallbacks, and real-time account data coordination on the client side.
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Match joins collection - reader and client writers permitted for real-time join list syncing
+    match /joins/{joinId} {
+      allow read, write: if true;
+    }
+    
+    // Match tournaments collection - admin-guarded for modifications
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow write: if isAdmin(request);
+    }
+    
+    // Match withdrawals collection
+    match /withdrawals/{withdrawalId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Match settings (like global_config) - admin-guarded for modifications
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin(request);
+    }
+  }
+}

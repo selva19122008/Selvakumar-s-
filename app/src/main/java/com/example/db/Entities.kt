@@ -32,7 +32,44 @@ data class TournamentEntity(
     val slotsTotal: Int = 48,
     val slotsRemaining: Int = 48,
     val status: String = "UPCOMING", // "UPCOMING", "LIVE", "COMPLETED"
-    val rules: String = "1. Hacks/modded clients prohibited.\n2. Standard emulator restrictions apply.\n3. Send screenshot proof of kills or win if requested.\n4. Admin decisions are final.",
+    val rules: String = """
+🚫 RESTRICTIONS:
+• Throwables items (Grenades / gloo melter / flash freeze / Smoke grenade / flash bank) and Vector are NOT allowed. If any team member uses these, the whole team will be fined, winning amount will be deducted, and accounts can also be blocked.
+• Trogon not allowed.
+• M10 not allowed.
+• Zone Pack not allowed.
+• Your Free Fire account level must be 40+.
+
+📋 CUSTOM ROOM SETTINGS:
+1. While joining, fill your In-Game Username, NOT your UID (Stylish fonts are not allowed; use normal fonts. Failure to follow this can result in being kicked from the room).
+2. ID Level Must Be 40+.
+3. Headshot rate must be under 60%.
+4. Unlimited ammo & Gloo Wall enabled.
+5. Default coin: 1500.
+6. Character skills: No (No CS).
+
+⚠️ IMPORTANT NOTES:
+• Record all matches to review suspicious activities.
+• If you find someone hacking, report immediately with a screenshot or video. We will refund you and ban the hacker.
+• If you fail to join the custom match by the start time, we are not responsible, and refunds will not be processed. Make sure to join on time.
+• Do not use abusive language with admins, in-game chat, or customer support. Violations can lead to losing winnings and account termination.
+• The squad team leader is responsible for the behavior of teammates. Bullying is not allowed and can lead to bans without refunds.
+
+🌍 GENERAL RULES:
+- Contact us on Telegram for any problems or doubts.
+- Matches can be rescheduled if the number of registered players is insufficient. Check our notifications, Telegram channel, or app for updates.
+- Room ID and password will be shared in the app 10 minutes before match start time. Match will start 10 minutes after sharing.
+- Do not share the Room ID and password. Violations can lead to account termination and loss of winnings.
+- If you fail to join the room by match start time, disconnect, or lose connection, we are not responsible and refunds will not be processed.
+- This is a paid match. Pay the entry fee to participate. Spots are first come, first served.
+- Each team member (squad or duo) must pay the entry fee and register individually.
+- Griefing and teaming are against game rules. Violations lead to disqualification and loss of prizes.
+- Do not change your position in the custom room after joining. Violations can result in being kicked.
+- All players ranking between 1 and 4 will receive special prizes. All players will be rewarded for each kill. Check reward details.
+- Do not use screencast while playing. Violations result in an instant ban without warnings.
+- Use only mobile devices to join matches. Hacks and emulators are not allowed.
+- Violating these rules will result in immediate action, including account bans and forfeiture of rewards.
+    """.trimIndent(),
     val roomId: String? = null,
     val roomPassword: String? = null,
     val winnerName: String? = null,
@@ -88,3 +125,17 @@ data class SupportTicketEntity(
     val adminReply: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "refund_requests")
+data class RefundRequestEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: String,
+    val tournamentId: Int,
+    val tournamentTitle: String,
+    val entryFee: Double,
+    val reason: String, // "NOT_CONDUCTED" or "TIMING_ISSUE"
+    val status: String = "PENDING", // "PENDING", "APPROVED", "REJECTED"
+    val refundDestination: String = "WALLET", // "WALLET" or "BANK" (reversals)
+    val timestamp: Long = System.currentTimeMillis()
+)
+

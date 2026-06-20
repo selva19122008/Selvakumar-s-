@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getFirestore, 
   collection, 
   onSnapshot, 
   doc, 
@@ -9,6 +7,7 @@ import {
   addDoc,
   serverTimestamp 
 } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 /**
  * FirestoreUserList Component
@@ -25,7 +24,7 @@ export default function FirestoreUserList({
 }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isLiveConnection, setIsLiveConnection] = useState(false);
+  const [isLiveConnection, setIsLiveConnection] = useState(true);
   const [errorStatus, setErrorStatus] = useState(null);
   const [notification, setNotification] = useState(null);
   
@@ -51,19 +50,17 @@ export default function FirestoreUserList({
 
     // Fallback configurations if none provided
     const activeConfig = firebaseConfig || {
-      apiKey: "AIzaSyFakeKey_BattleZone_19122008",
-      authDomain: "battlezone-esports.firebaseapp.com",
-      projectId: "battlezone-esports",
-      storageBucket: "battlezone-esports.appspot.com",
-      messagingSenderId: "101185877248",
-      appId: "1:101185877248:web:abcdef123"
+      apiKey: "AIzaSyDr0LJeBUoQcBzrxuZTb0sUcy3SCKP-eEU",
+      authDomain: "battle-zone-ff-3b23f.firebaseapp.com",
+      projectId: "battle-zone-ff-3b23f",
+      storageBucket: "battle-zone-ff-3b23f.firebasestorage.app",
+      messagingSenderId: "178066056608",
+      appId: "1:178066056608:web:3b52f63c046ff4382970c5"
     };
 
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApps().length === 0 ? initializeApp(activeConfig) : getApp();
-        const db = getFirestore(app);
         const usersRef = collection(db, 'users');
 
         // Establish live listener
@@ -138,8 +135,6 @@ export default function FirestoreUserList({
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApp();
-        const db = getFirestore(app);
         const userDocRef = doc(db, 'users', userId);
         
         await deleteDoc(userDocRef);
@@ -183,9 +178,6 @@ export default function FirestoreUserList({
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApp();
-        const db = getFirestore(app);
-        
         await addDoc(collection(db, 'users'), {
           ...payload,
           createdAt: serverTimestamp()

@@ -1125,7 +1125,34 @@ export default function AdminDashboard({
                             <span style={{ fontSize: '12px', color: '#B0BEC5' }}>🛡️ {tx.gateway || 'MOCK_UPI'}</span>
                           </td>
                           <td style={styles.tdOversight}>
-                            <code style={{ fontSize: '11px', color: '#ECEFF1', backgroundColor: '#1E293B', padding: '2px 6px', borderRadius: '4px' }}>{tx.upiId || 'N/A'}</code>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <code style={{ fontSize: '11px', color: '#ECEFF1', backgroundColor: '#1E293B', padding: '2px 6px', borderRadius: '4px' }}>{tx.upiId || 'N/A'}</code>
+                              {tx.upiId && tx.upiId !== 'N/A' && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(tx.upiId);
+                                    triggerMessage(`UPI ID Copied: ${tx.upiId}`, 'success');
+                                  }}
+                                  title="Copy UPI ID"
+                                  style={{
+                                    border: '1px solid rgba(239, 83, 80, 0.4)',
+                                    background: 'rgba(239, 83, 80, 0.1)',
+                                    color: '#EF5350',
+                                    borderRadius: '4px',
+                                    fontSize: '9px',
+                                    fontWeight: 'bold',
+                                    padding: '2px 6px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    outline: 'none'
+                                  }}
+                                  onMouseOver={(e) => { e.currentTarget.style.background = '#EF5350'; e.currentTarget.style.color = '#fff'; }}
+                                  onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239, 83, 80, 0.1)'; e.currentTarget.style.color = '#EF5350'; }}
+                                >
+                                  COPY
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td style={{ ...styles.tdOversight, textAlign: 'right', fontWeight: 'bold' }}>
                             <span style={{

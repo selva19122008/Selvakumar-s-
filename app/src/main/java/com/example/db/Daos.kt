@@ -32,6 +32,9 @@ interface TournamentDao {
     @Query("SELECT * FROM tournaments ORDER BY timestamp ASC")
     fun getAllTournamentsFlow(): Flow<List<TournamentEntity>>
 
+    @Query("SELECT * FROM tournaments ORDER BY timestamp ASC")
+    suspend fun getAllTournamentsSync(): List<TournamentEntity>
+
     @Query("SELECT * FROM tournaments WHERE id = :id LIMIT 1")
     fun getTournamentFlow(id: Int): Flow<TournamentEntity?>
 
@@ -71,6 +74,9 @@ interface JoinDao {
     @Query("SELECT * FROM user_tournament_joins WHERE proofStatus != 'NONE' ORDER BY joinedAt DESC")
     fun getAllSubmittedProofsFlow(): Flow<List<TournamentJoinEntity>>
 
+    @Query("SELECT * FROM user_tournament_joins ORDER BY joinedAt DESC")
+    fun getAllJoinsFlow(): Flow<List<TournamentJoinEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertJoin(join: TournamentJoinEntity)
 
@@ -108,7 +114,7 @@ interface WithdrawalDao {
     fun getAllWithdrawalsFlow(): Flow<List<WithdrawalRequestEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertWithdrawal(withdrawal: WithdrawalRequestEntity)
+    suspend fun insertWithdrawal(withdrawal: WithdrawalRequestEntity): Long
 
     @Update
     suspend fun updateWithdrawal(withdrawal: WithdrawalRequestEntity)
@@ -128,3 +134,25 @@ interface SupportDao {
     @Update
     suspend fun updateTicket(ticket: SupportTicketEntity)
 }
+
+@Dao
+interface RefundDao {
+    @Query("SELECT * FROM refund_requests WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getRefundsForUserFlow(userId: String): Flow<List<RefundRequestEntity>>
+
+    @Query("SELECT * FROM refund_requests ORDER BY timestamp DESC")
+    fun getAllRefundsFlow(): Flow<List<RefundRequestEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRefund(refund: RefundRequestEntity): Long
+
+    @Update
+    suspend fun updateRefund(refund: RefundRequestEntity)
+
+    @Query("SELECT * FROM refund_requests WHERE id = :id LIMIT 1")
+    suspend fun getRefundByIdSync(id: Int): RefundRequestEntity?
+
+    @Query("SELECT * FROM refund_requests WHERE userId = :userId AND tournamentId = :tournamentId LIMIT 1")
+    suspend fun getRefundByUserAndTournamentSync(userId: String, tournamentId: Int): RefundRequestEntity?
+}
+

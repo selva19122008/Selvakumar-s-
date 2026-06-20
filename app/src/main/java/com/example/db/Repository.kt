@@ -21,6 +21,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
 
     // Tournaments
     val allTournaments: Flow<List<TournamentEntity>> = tournamentDao.getAllTournamentsFlow()
+    suspend fun getTournamentsSync(): List<TournamentEntity> = tournamentDao.getAllTournamentsSync()
     fun getTournamentFlow(id: Int): Flow<TournamentEntity?> = tournamentDao.getTournamentFlow(id)
     suspend fun getTournamentSync(id: Int): TournamentEntity? = tournamentDao.getTournamentSync(id)
     suspend fun insertTournament(tournament: TournamentEntity): Long = tournamentDao.insertTournament(tournament)
@@ -35,6 +36,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     suspend fun getJoinSync(userId: String, tournamentId: Int): TournamentJoinEntity? = joinDao.getJoinSync(userId, tournamentId)
     suspend fun getJoinByIdSync(joinId: Int): TournamentJoinEntity? = joinDao.getJoinByIdSync(joinId)
     fun getAllSubmittedProofsFlow(): Flow<List<TournamentJoinEntity>> = joinDao.getAllSubmittedProofsFlow()
+    fun getAllJoinsFlow(): Flow<List<TournamentJoinEntity>> = joinDao.getAllJoinsFlow()
     suspend fun insertJoin(join: TournamentJoinEntity) = joinDao.insertJoin(join)
     suspend fun deleteJoin(join: TournamentJoinEntity) = joinDao.deleteJoin(join)
 
@@ -49,7 +51,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     // Withdrawals
     fun getWithdrawalsForUserFlow(userId: String): Flow<List<WithdrawalRequestEntity>> = withdrawalDao.getWithdrawalsForUserFlow(userId)
     val allWithdrawals: Flow<List<WithdrawalRequestEntity>> = withdrawalDao.getAllWithdrawalsFlow()
-    suspend fun insertWithdrawal(withdrawal: WithdrawalRequestEntity) = withdrawalDao.insertWithdrawal(withdrawal)
+    suspend fun insertWithdrawal(withdrawal: WithdrawalRequestEntity): Long = withdrawalDao.insertWithdrawal(withdrawal)
     suspend fun updateWithdrawal(withdrawal: WithdrawalRequestEntity) = withdrawalDao.updateWithdrawal(withdrawal)
 
     // Support Tickets
@@ -57,6 +59,15 @@ class BattleZoneRepository(private val db: AppDatabase) {
     val allTickets: Flow<List<SupportTicketEntity>> = supportDao.getAllTicketsFlow()
     suspend fun insertTicket(ticket: SupportTicketEntity) = supportDao.insertTicket(ticket)
     suspend fun updateTicket(ticket: SupportTicketEntity) = supportDao.updateTicket(ticket)
+
+    // Refunds
+    val refundDao = db.refundDao()
+    fun getRefundsForUserFlow(userId: String): Flow<List<RefundRequestEntity>> = refundDao.getRefundsForUserFlow(userId)
+    val allRefunds: Flow<List<RefundRequestEntity>> = refundDao.getAllRefundsFlow()
+    suspend fun insertRefund(refund: RefundRequestEntity): Long = refundDao.insertRefund(refund)
+    suspend fun updateRefund(refund: RefundRequestEntity) = refundDao.updateRefund(refund)
+    suspend fun getRefundByIdSync(id: Int): RefundRequestEntity? = refundDao.getRefundByIdSync(id)
+    suspend fun getRefundByUserAndTournamentSync(userId: String, tournamentId: Int): RefundRequestEntity? = refundDao.getRefundByUserAndTournamentSync(userId, tournamentId)
 
     // Prefill Database if empty
     suspend fun prefillIfEmpty() {

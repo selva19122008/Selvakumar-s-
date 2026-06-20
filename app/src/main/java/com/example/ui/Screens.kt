@@ -134,13 +134,14 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     var isAdminMode by remember { mutableStateOf(false) }
     var activeTournamentIdForDetails by remember { mutableStateOf<Int?>(null) }
 
+    val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val userRole by viewModel.userRole.collectAsStateWithLifecycle()
-    var isAdminUnlocked by remember(userRole) { mutableStateOf(userRole == "admin") }
+    val isUserAdmin = user?.email == "selva19122008@gmail.com" && userRole == "admin" && viewModel.isFirebaseUserAdmin()
+    var isAdminUnlocked by remember(isUserAdmin) { mutableStateOf(isUserAdmin) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordInput by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
-    val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
     val userJoins by viewModel.currentUserJoins.collectAsStateWithLifecycle()
     val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsStateWithLifecycle()
@@ -179,11 +180,14 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         }
                     },
                     onLogoClick = {
-                        if (!isAdminUnlocked) {
-                            showPasswordDialog = true
-                        } else {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Admin portal is already unlocked. Tap lock icon to lock.")
+                        val isUserAdminEmail = user?.email == "selva19122008@gmail.com" && viewModel.isFirebaseUserAdmin()
+                        if (isUserAdminEmail) {
+                            if (!isAdminUnlocked) {
+                                showPasswordDialog = true
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Admin portal is already unlocked. Tap lock icon to lock.")
+                                }
                             }
                         }
                     },
@@ -225,7 +229,11 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             tournamentId = activeTournamentIdForDetails!!,
                             viewModel = viewModel,
                             snackbarHostState = snackbarHostState,
-                            onBack = { activeTournamentIdForDetails = null }
+                            onBack = { activeTournamentIdForDetails = null },
+                            onNavigateToWallet = {
+                                activeTournamentIdForDetails = null
+                                selectedTab = 1
+                            }
                         )
                     } else {
                         AnimatedContent(
@@ -546,7 +554,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
-                            if (passwordInput.trim() == "Selva@2008") {
+                            if (passwordInput.trim() == "Selva@2008" && user?.email == "selva19122008@gmail.com") {
                                 viewModel.setUserRole("admin")
                                 isAdminMode = true
                                 showPasswordDialog = false
@@ -555,7 +563,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                                     snackbarHostState.showSnackbar("Root systems unlocked! Switched to Admin Mode.")
                                 }
                             } else {
-                                passwordError = "Access Denied: Invalid Master Password!"
+                                passwordError = "Access Denied: Invalid Authorization!"
                             }
                         }),
                         singleLine = true,
@@ -592,7 +600,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
 
                         Button(
                             onClick = {
-                                if (passwordInput.trim() == "Selva@2008") {
+                                if (passwordInput.trim() == "Selva@2008" && user?.email == "selva19122008@gmail.com") {
                                     viewModel.setUserRole("admin")
                                     isAdminMode = true
                                     showPasswordDialog = false
@@ -601,7 +609,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                                         snackbarHostState.showSnackbar("Root systems unlocked! Switched to Admin Mode.")
                                     }
                                 } else {
-                                    passwordError = "Access Denied: Invalid Master Password!"
+                                    passwordError = "Access Denied: Invalid Authorization!"
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -1196,6 +1204,9 @@ fun LobbyScreen(
     tournaments: List<TournamentEntity>,
     onViewTournament: (Int) -> Unit
 ) {
+    val userJoins by viewModel.currentUserJoins.collectAsStateWithLifecycle()
+    val userRole by viewModel.userRole.collectAsStateWithLifecycle()
+    val isAdmin = userRole == "admin" || viewModel.isFirebaseUserAdmin()
     var activeFilterTab by remember { mutableStateOf("UPCOMING") } // "UPCOMING", "LIVE", "COMPLETED"
 
     Column(
@@ -1242,7 +1253,20 @@ fun LobbyScreen(
             }
         }
 
-        val filteredTournaments = tournaments.filter { it.status == activeFilterTab }
+        val filteredTournaments = tournaments
+            .filter { match ->
+                if (match.status == activeFilterTab) {
+                    if (activeFilterTab == "LIVE") {
+                        // "Otherwise, it should only be visible to those who need to see it live, and others should not be able to see it."
+                        isAdmin || userJoins.any { it.tournamentId == match.id }
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
+            .sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.timestamp })
 
         if (filteredTournaments.isEmpty()) {
             Box(
@@ -1281,7 +1305,11 @@ fun LobbyScreen(
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 items(filteredTournaments, key = { it.id }) { match ->
-                    TournamentCard(match = match, onViewDetails = { onViewTournament(match.id) })
+                    TournamentCard(
+                        match = match,
+                        viewModel = viewModel,
+                        onViewDetails = { onViewTournament(match.id) }
+                    )
                 }
             }
         }
@@ -1350,7 +1378,11 @@ fun GamingBannerSlider() {
 }
 
 @Composable
-fun TournamentCard(match: TournamentEntity, onViewDetails: () -> Unit) {
+fun TournamentCard(
+    match: TournamentEntity,
+    viewModel: BattleZoneViewModel? = null,
+    onViewDetails: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1372,6 +1404,21 @@ fun TournamentCard(match: TournamentEntity, onViewDetails: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Time",
+                        tint = RedPrimary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = match.dateTimeStr,
+                        fontSize = 11.sp,
+                        color = RedPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .background(Color(0xFF281116), RoundedCornerShape(4.dp))
@@ -1387,23 +1434,17 @@ fun TournamentCard(match: TournamentEntity, onViewDetails: () -> Unit) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFF121B1C), RoundedCornerShape(4.dp))
+                            .background(Color(0xFF1E1C24), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = match.map.uppercase(),
                             fontSize = 8.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF00E676)
+                            color = Color.White
                         )
                     }
                 }
-                Text(
-                    text = match.dateTimeStr,
-                    fontSize = 11.sp,
-                    color = RedPrimary,
-                    fontWeight = FontWeight.Bold
-                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1417,6 +1458,17 @@ fun TournamentCard(match: TournamentEntity, onViewDetails: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1
             )
+
+            // Countdown timer row for UPCOMING tournaments
+            if (match.status == "UPCOMING") {
+                Spacer(modifier = Modifier.height(10.dp))
+                CountdownTimer(
+                    targetTimestamp = match.timestamp,
+                    onTimerFinished = {
+                        viewModel?.setTournamentLive(match.id)
+                    }
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -1496,6 +1548,125 @@ fun TournamentCard(match: TournamentEntity, onViewDetails: () -> Unit) {
     }
 }
 
+@Composable
+fun CountdownTimer(
+    targetTimestamp: Long,
+    onTimerFinished: () -> Unit
+) {
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    LaunchedEffect(targetTimestamp) {
+        while (System.currentTimeMillis() < targetTimestamp) {
+            currentTime = System.currentTimeMillis()
+            delay(1000)
+        }
+        currentTime = System.currentTimeMillis()
+        onTimerFinished()
+    }
+    
+    val diff = targetTimestamp - currentTime
+    if (diff > 0) {
+        val seconds = (diff / 1000) % 60
+        val minutes = (diff / (1000 * 60)) % 60
+        val hours = (diff / (1000 * 60 * 60)) % 24
+        val days = diff / (1000 * 60 * 60 * 24)
+        
+        val countdownText = buildString {
+            if (days > 0) append("${days}d ")
+            append(String.format("%02dh %02dm %02ds", hours, minutes, seconds))
+        }
+        
+        val tf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+        val currentClockStr = tf.format(java.util.Date(currentTime))
+        val targetClockStr = tf.format(java.util.Date(targetTimestamp))
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF1B1014)) // subtle dark ruby red-tinted black background
+                .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.3f)), RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = "Timer",
+                        tint = RedPrimary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Current: $currentClockStr  |  Match: $targetClockStr",
+                        fontSize = 10.sp,
+                        color = GreyText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "BATTLE STARTS IN: ",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = countdownText,
+                        fontSize = 13.sp,
+                        color = NeonGold,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        }
+    } else {
+        // If the scheduled time has already been reached or passed
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF172C1E)) // subtle dark green background for starting matches
+                .border(BorderStroke(1.dp, Color.Green.copy(alpha = 0.3f)), RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Ready",
+                    tint = Color.Green,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "BATTLE IS LIVE NOW",
+                    fontSize = 11.sp,
+                    color = Color.Green,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+    }
+}
+
 
 // --- 2. TOURNAMENT DETAILS & SEAT MAP & DYNAMIC KEYS ---
 @Composable
@@ -1503,7 +1674,8 @@ fun TournamentDetailsScreen(
     tournamentId: Int,
     viewModel: BattleZoneViewModel,
     snackbarHostState: SnackbarHostState,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToWallet: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -1556,7 +1728,11 @@ fun TournamentDetailsScreen(
                     .padding(bottom = 8.dp)
             ) {
                 Text(match.title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White)
-                Text("${match.type} • ${match.map}", fontSize = 11.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(match.type.uppercase(), fontSize = 11.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
+                    Text("  •  ", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Text(match.map.uppercase(), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -1696,6 +1872,171 @@ fun TournamentDetailsScreen(
                         viewModel = viewModel,
                         snackbarHostState = snackbarHostState
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Refund Request block
+                    var showRefundPrompt by remember { mutableStateOf(false) }
+                    val liveRefunds by viewModel.currentUserRefunds.collectAsStateWithLifecycle()
+                    val existingRefund = liveRefunds.find { it.tournamentId == tournamentId }
+
+                    if (existingRefund != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF281C16)),
+                            border = BorderStroke(1.dp, Color(0xFFFF9800).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Refund Request Status Info",
+                                        tint = Color(0xFFFF9800),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("REFUND STATUS: ${existingRefund.status}", fontSize = 11.sp, color = Color(0xFFFF9800), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Reason: ${existingRefund.reason}", fontSize = 10.sp, color = GreyText)
+                                Text("Refund Destination: ${existingRefund.refundDestination}", fontSize = 10.sp, color = GreyText)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = when (existingRefund.status) {
+                                        "PENDING" -> "Your request is currently being reviewed by our audit desk. If approved, ₹${existingRefund.entryFee} INR will immediately credit back."
+                                        "APPROVED" -> "✅ Approved! Refund reversed of ₹${existingRefund.entryFee} INR."
+                                        else -> "❌ Rejected by admin verification."
+                                    },
+                                    fontSize = 10.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    } else {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1424)),
+                            border = BorderStroke(0.5.dp, Color(0xFF9E2A2B)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("HAVING MATCH CONDUCT OR TIMING ISSUES?", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Black)
+                                Text("If tournament is not conducted or delayed, request a full match entry fee return.", fontSize = 9.sp, color = GreyText)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = { showRefundPrompt = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A1E29)),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth().height(32.dp)
+                                ) {
+                                    Text("REQUEST REFUND", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    if (showRefundPrompt) {
+                        var refundReason by remember { mutableStateOf("Tournament was not conducted by the admin") }
+                        var refundDestination by remember { mutableStateOf("WALLET") } // "WALLET" or "BANK_WALLET"
+
+                        Dialog(onDismissRequest = { showRefundPrompt = false }) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF16141F),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("REQUEST ENTRY FEE REFUND", color = NeonGold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Select the exact reason and destination for manual processing or wallet reversals.", fontSize = 9.sp, color = GreyText)
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    Text("SELECT REFUND REASON", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    val refundReasons = listOf("Tournament was not conducted by the admin", "Match was rescheduled / Timing issue")
+                                    refundReasons.forEach { r ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { refundReason = r }
+                                                .padding(vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = refundReason == r,
+                                                onClick = { refundReason = r },
+                                                colors = RadioButtonDefaults.colors(selectedColor = RedPrimary)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(r, color = Color.White, fontSize = 11.sp)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text("RETURN DESTINATION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(if (refundDestination == "WALLET") RedPrimary else Color(0xFF232029), RoundedCornerShape(6.dp))
+                                                .clickable { refundDestination = "WALLET" }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("BZONE WALLET", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Text("Instant Reversal", color = Color.White.copy(alpha = 0.6f), fontSize = 7.sp)
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(if (refundDestination == "BANK_WALLET") RedPrimary else Color(0xFF232029), RoundedCornerShape(6.dp))
+                                                .clickable { refundDestination = "BANK_WALLET" }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text("ORIGINAL SOURCE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Text("Bank / Net-banking", color = Color.White.copy(alpha = 0.6f), fontSize = 7.sp)
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                        TextButton(onClick = { showRefundPrompt = false }) {
+                                            Text("CANCEL", color = GreyText)
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Button(
+                                            onClick = {
+                                                viewModel.requestRefund(tournamentId, refundReason, refundDestination) { success, err ->
+                                                    scope.launch {
+                                                        if (success) {
+                                                            snackbarHostState.showSnackbar("Refund request submitted successfully!")
+                                                        } else {
+                                                            snackbarHostState.showSnackbar(err ?: "Failed to request refund.")
+                                                        }
+                                                    }
+                                                }
+                                                showRefundPrompt = false
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                                        ) {
+                                            Text("SUBMIT REQUEST")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -2087,9 +2428,7 @@ fun TournamentDetailsScreen(
                                             Button(
                                                 onClick = {
                                                     showInGameNamePrompt = false
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Go to the wallet screen to add money!")
-                                                    }
+                                                    onNavigateToWallet()
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
                                             ) {
@@ -2135,6 +2474,52 @@ fun WalletScreen(
     val scope = rememberCoroutineScope()
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val transactions by viewModel.currentUserTransactions.collectAsStateWithLifecycle()
+    val withdrawals by viewModel.currentUserWithdrawals.collectAsStateWithLifecycle(emptyList())
+    var approvedToShowDialog by remember { mutableStateOf<WithdrawalRequestEntity?>(null) }
+
+    LaunchedEffect(withdrawals) {
+        val unnotified = withdrawals.find { it.status == "APPROVED" && !viewModel.hasNotifiedApproval(it.id) }
+        if (unnotified != null) {
+            approvedToShowDialog = unnotified
+        }
+    }
+
+    if (approvedToShowDialog != null) {
+        AlertDialog(
+            onDismissRequest = {
+                approvedToShowDialog?.let { viewModel.markApprovalNotified(it.id) }
+                approvedToShowDialog = null
+            },
+            title = {
+                Text(
+                    text = "🎉 Withdrawal Approved!",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "Your withdrawal of ₹${approvedToShowDialog?.amount} has been approved by the administrator.\n\nThe funds will be credited to your UPI ID within two to three days. Thank you for your patience!",
+                    color = GreyText,
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        approvedToShowDialog?.let { viewModel.markApprovalNotified(it.id) }
+                        approvedToShowDialog = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonGold)
+                ) {
+                    Text("OK", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = DarkSurface,
+            tonalElevation = 6.dp
+        )
+    }
 
     var showDepositDialog by remember { mutableStateOf(false) }
     var showWithdrawalDialog by remember { mutableStateOf(false) }
@@ -2449,67 +2834,6 @@ fun WalletScreen(
                             }
                         }
 
-                        // Method 3: Razorpay Payment Gateway
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { depositMethodRoute = "RAZORPAY" }
-                                .padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (depositMethodRoute == "RAZORPAY") Color(0xFF101B24) else Color(0xFF141217)
-                            ),
-                            border = BorderStroke(1.dp, if (depositMethodRoute == "RAZORPAY") Color(0xFF3395FF) else Color(0xFF28252C))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .background(Color(0xFF3395FF).copy(alpha = 0.15f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(imageVector = Icons.Default.Payment, contentDescription = "razorpay", tint = Color(0xFF3395FF), modifier = Modifier.size(16.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Razorpay Secure Instant Checkout", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Automated instant wallets credit via card, netbanking, or UPI.", color = GreyText, fontSize = 8.sp)
-                                }
-                            }
-                        }
-
-                        // Method 4: Cashfree Payments
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { depositMethodRoute = "CASHFREE" }
-                                .padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (depositMethodRoute == "CASHFREE") Color(0xFF16111D) else Color(0xFF141217)
-                            ),
-                            border = BorderStroke(1.dp, if (depositMethodRoute == "CASHFREE") Color(0xFF00C853) else Color(0xFF28252C))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .background(Color(0xFF00C853).copy(alpha = 0.15f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(imageVector = Icons.Default.OfflineBolt, contentDescription = "cashfree", tint = Color(0xFF00C853), modifier = Modifier.size(16.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Cashfree Smart Checkout", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Super-fast deposit gateway routes. Auto-installs to account.", color = GreyText, fontSize = 8.sp)
-                                }
-                            }
-                        }
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -2520,8 +2844,9 @@ fun WalletScreen(
                             Button(
                                 onClick = {
                                     val amt = depositAmountInput.toDoubleOrNull() ?: 0.0
-                                    if (amt <= 0) {
-                                        scope.launch { snackbarHostState.showSnackbar("Please enter a valid deposit amount.") }
+                                    val minDeposit = viewModel.getMinDepositAmount()
+                                    if (amt < minDeposit) {
+                                        scope.launch { snackbarHostState.showSnackbar("Minimum deposit amount is ₹$minDeposit rupees.") }
                                     } else {
                                         currentDepositStep = 2
                                     }
@@ -2973,18 +3298,20 @@ fun WalletScreen(
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val minWithdrawalVal = viewModel.getMinWithdrawalAmount()
                     Text(
-                        "Winnings balance is transferable with a absolute ₹50 minimum limit. Transactions undergo secure human verification.",
+                        "Winnings balance is transferable with a absolute ₹$minWithdrawalVal minimum limit. Transactions undergo secure human verification.",
                         fontSize = 11.sp,
                         color = GreyText
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
                     val userWinningBalance = user?.winningBalance ?: 0.0
-                    val isWinningBalanceSufficientForMin = userWinningBalance >= 50.0
+                    val minWithdrawal = viewModel.getMinWithdrawalAmount()
+                    val isWinningBalanceSufficientForMin = userWinningBalance >= minWithdrawal
 
                     val amtNum = withdrawalAmountInput.toDoubleOrNull() ?: 0.0
-                    val isAmountValid = amtNum >= 50.0 && amtNum <= userWinningBalance
+                    val isAmountValid = amtNum >= minWithdrawal && amtNum <= userWinningBalance
                     val isAmountFormatOk = withdrawalAmountInput.isNotBlank() && withdrawalAmountInput.toDoubleOrNull() != null
                     val isUpiValid = upiIdInput.isNotBlank() && upiIdInput.contains("@")
 
@@ -3038,7 +3365,7 @@ fun WalletScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Payout Unavailable: You must have a minimum of ₹50.00 in your winnings account to request a payout.",
+                                    text = "Payout Unavailable: You must have a minimum of ₹$minWithdrawal in your winnings account to request a payout.",
                                     color = Color.White,
                                     fontSize = 11.sp,
                                     lineHeight = 15.sp
@@ -3059,8 +3386,8 @@ fun WalletScreen(
                             if (withdrawalAmountInput.isNotBlank()) {
                                 if (!isAmountFormatOk) {
                                     Text("Please enter a valid numeric value", color = RedPrimary, fontSize = 10.sp)
-                                } else if (amtNum < 50.0) {
-                                    Text("Minimum withdrawal amount is ₹50 rupees", color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                } else if (amtNum < minWithdrawal) {
+                                    Text("Minimum withdrawal amount is ₹$minWithdrawal rupees", color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 } else if (amtNum > userWinningBalance) {
                                     Text("Insufficient winning balance (Available: ${userWinningBalance.toCurrency()})", color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 } else {
@@ -3360,6 +3687,34 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
         Text("RAISE A SUPPORT TICKET", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
         Text("Encountered matches or wallet transfer delays? Create tickets for instant support replies.", fontSize = 10.sp, color = GreyText)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF13101C)),
+            border = BorderStroke(1.dp, Color(0xFFEF6C00).copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Notification Info",
+                    tint = Color(0xFFEF6C00),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Withdrawal Requests Notice", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("If you are inquiring about a withdrawal, please note that approved transactions are credited to your UPI within 2 to 3 days.", color = GreyText, fontSize = 10.sp)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(14.dp))
 
         OutlinedTextField(
@@ -3802,7 +4157,7 @@ fun ProfileScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Instagram Card Button/Tab
                     Card(
@@ -3819,12 +4174,12 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, Color(0xFFC13584).copy(alpha = 0.4f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(32.dp)
                                     .background(Color(0xFFC13584).copy(alpha = 0.15f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -3832,12 +4187,12 @@ fun ProfileScreen(
                                     imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "Official Instagram link tab",
                                     tint = Color(0xFFE1306C),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("INSTAGRAM", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(viewModel.getInstagramDisplay(), color = Color(0xFFE1306C), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                            Text("INSTAGRAM", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(viewModel.getInstagramDisplay(), color = Color(0xFFE1306C), fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
 
@@ -3856,12 +4211,12 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, Color(0xFF0088CC).copy(alpha = 0.4f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(32.dp)
                                     .background(Color(0xFF0088CC).copy(alpha = 0.15f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -3869,12 +4224,49 @@ fun ProfileScreen(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Official Telegram link tab",
                                     tint = Color(0xFF0088CC),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("TELEGRAM", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(viewModel.getTelegramDisplay(), color = Color(0xFF0088CC), fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                            Text("TELEGRAM", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(viewModel.getTelegramDisplay(), color = Color(0xFF0088CC), fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
+
+                    // YouTube Card Button/Tab
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                try {
+                                    uriHandler.openUri(viewModel.getYoutubeUrl())
+                                } catch (e: Exception) {
+                                    // Fallback
+                                }
+                            },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF241011)),
+                        border = BorderStroke(1.dp, Color(0xFFFF0000).copy(alpha = 0.4f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFFFF0000).copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Official YouTube link tab",
+                                    tint = Color(0xFFFF0000),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("YOUTUBE", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(viewModel.getYoutubeDisplay(), color = Color(0xFFFF0000), fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                 }
@@ -4258,6 +4650,7 @@ fun AdminDashboardScreen(
             val tabs = listOf(
                 Pair("METRICS", "Platform Live Stats"),
                 Pair("TOURNAMENTS", "Matches Manager"),
+                Pair("REFUNDS", "Refund Requests"),
                 Pair("WITHDRAWALS", "UPI Disbursals"),
                 Pair("TICKETS", "Helpdesk Desk"),
                 Pair("PROOFS", "Verification Queue"),
@@ -4280,6 +4673,7 @@ fun AdminDashboardScreen(
         when (activeAdminTab) {
             "METRICS" -> AdminMetricsTab(users = users, tourneys = tournaments, withdrawals = withdrawals, viewModel = viewModel, snackbarHost = snackbarHostState)
             "TOURNAMENTS" -> AdminTournamentsTab(tourneys = tournaments, users = users, viewModel = viewModel, snackBars = snackbarHostState)
+            "REFUNDS" -> AdminRefundsTab(viewModel = viewModel, snackbarHost = snackbarHostState)
             "WITHDRAWALS" -> AdminWithdrawalsTab(withdrawals = withdrawals, viewModel = viewModel, message = snackbarHostState)
             "TICKETS" -> AdminTicketsTab(tickets = supportTickets, viewModel = viewModel, callback = snackbarHostState)
             "PROOFS" -> AdminProofsTab(viewModel = viewModel, snackbarHostState = snackbarHostState)
@@ -4545,6 +4939,155 @@ fun AdminMetricsTab(
 }
 
 @Composable
+fun AdminRefundsTab(
+    viewModel: BattleZoneViewModel,
+    snackbarHost: SnackbarHostState
+) {
+    val scope = rememberCoroutineScope()
+    val allRefunds by viewModel.adminAllRefunds.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("REFUND REGISTRATION DISPATCH DESK", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Process players' requested match reimbursement claims. Approvals automatically reverse the original match fee transaction back to original destination.", fontSize = 9.sp, color = GreyText)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (allRefunds.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No refund requests found in system register.", fontSize = 11.sp, color = GreyText)
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)
+            ) {
+                items(allRefunds) { refund ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                        border = BorderStroke(
+                            1.dp,
+                            when (refund.status) {
+                                "PENDING" -> Color(0xFFFF9800).copy(alpha = 0.4f)
+                                "APPROVED" -> Color(0xFF4CAF50).copy(alpha = 0.4f)
+                                else -> Color(0xFFE91E63).copy(alpha = 0.4f)
+                            }
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("REFUND ID: #${refund.id}", fontSize = 10.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            when (refund.status) {
+                                                "PENDING" -> Color(0xFFFF9800).copy(alpha = 0.15f)
+                                                "APPROVED" -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                                else -> Color(0xFFE91E63).copy(alpha = 0.15f)
+                                            },
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        refund.status,
+                                        color = when (refund.status) {
+                                            "PENDING" -> Color(0xFFFF9800)
+                                            "APPROVED" -> Color(0xFF4CAF50)
+                                            else -> Color(0xFFE91E63)
+                                        },
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text("Tournament: ${refund.tournamentTitle} (ID #${refund.tournamentId})", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Player Uid: ${refund.userId}", fontSize = 10.sp, color = GreyText)
+                            Text("Reason Given: \"${refund.reason}\"", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f))
+                            Text("Claim Destination: ${refund.refundDestination}", fontSize = 10.sp, color = GreyText)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Amount: ₹${refund.entryFee} INR", fontSize = 12.sp, color = NeonGold, fontWeight = FontWeight.Black)
+
+                            if (refund.status == "PENDING") {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            viewModel.adminRejectRefund(refund.id) { success, err ->
+                                                scope.launch {
+                                                    if (success) {
+                                                        snackbarHost.showSnackbar("Refund request #${refund.id} rejected.")
+                                                    } else {
+                                                        snackbarHost.showSnackbar("Error: $err")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF381B1E)),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("REJECT CLAIM", color = Color(0xFFFF8A80), fontSize = 9.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            viewModel.adminApproveRefund(refund.id) { success, err ->
+                                                scope.launch {
+                                                    if (success) {
+                                                        snackbarHost.showSnackbar("Refund request #${refund.id} approved completely!")
+                                                    } else {
+                                                        snackbarHost.showSnackbar("Error: $err")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B381E)),
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("APPROVE & DISBURSE", color = Color(0xFFB9F6CA), fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun StatCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
@@ -4572,13 +5115,62 @@ fun AdminTournamentsTab(
 
     // Forms fields
     var matchTitle by remember { mutableStateOf("Free Fire Weekly Showdown") }
-    var entryFeeState by remember { mutableStateOf("40") }
-    var prizeState by remember { mutableStateOf("2000") }
-    var mapState by remember { mutableStateOf("Bermuda") }
-    var formatState by remember { mutableStateOf("Solo") }
+    var entryFeeState by remember { mutableStateOf("45") }
+    var prizeState by remember { mutableStateOf("100") }
+    
+    // Premium selectable states
+    var mapSelection by remember { mutableStateOf("Bermuda Clash") }
+    var formatSelection by remember { mutableStateOf("Solo") }
+    var playStyleSelection by remember { mutableStateOf("Normal (Body Shot Allowed)") } // Normal or Headshot Only
+    
     var slotsState by remember { mutableStateOf("48") }
-    var timeState by remember { mutableStateOf("June 22, 05:00 PM") }
-    var rulesState by remember { mutableStateOf("1. Strictly mobile clients.\n2. In-game verification checked early.") }
+    
+    val tomorrowCalendar = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
+    val formatter = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.US)
+    val tomorrowFormatted = formatter.format(tomorrowCalendar.time)
+    
+    // Split Date & Specific start time
+    var selectedDate by remember { mutableStateOf(tomorrowFormatted) }
+    var selectedTime by remember { mutableStateOf("07:00 PM") }
+    
+    var rulesState by remember { mutableStateOf("""
+🚫 RESTRICTIONS:
+• Throwables items (Grenades / gloo melter / flash freeze / Smoke grenade / flash bank) and Vector are NOT allowed. If any team member uses these, the whole team will be fined, winning amount will be deducted, and accounts can also be blocked.
+• Trogon not allowed.
+• M10 not allowed.
+• Zone Pack not allowed.
+• Your Free Fire account level must be 40+.
+
+📋 CUSTOM ROOM SETTINGS:
+1. While joining, fill your In-Game Username, NOT your UID (Stylish fonts are not allowed; use normal fonts. Failure to follow this can result in being kicked from the room).
+2. ID Level Must Be 40+.
+3. Headshot rate must be under 60%.
+4. Unlimited ammo & Gloo Wall enabled.
+5. Default coin: 1500.
+6. Character skills: No (No CS).
+
+⚠️ IMPORTANT NOTES:
+• Record all matches to review suspicious activities.
+• If you find someone hacking, report immediately with a screenshot or video. We will refund you and ban the hacker.
+• If you fail to join the custom match by the start time, we are not responsible, and refunds will not be processed. Make sure to join on time.
+• Do not use abusive language with admins, in-game chat, or customer support. Violations can lead to losing winnings and account termination.
+• The squad team leader is responsible for the behavior of teammates. Bullying is not allowed and can lead to bans without refunds.
+
+🌍 GENERAL RULES:
+- Contact us on Telegram for any problems or doubts.
+- Matches can be rescheduled if the number of registered players is insufficient. Check our notifications, Telegram channel, or app for updates.
+- Room ID and password will be shared in the app 10 minutes before match start time. Match will start 10 minutes after sharing.
+- Do not share the Room ID and password. Violations can lead to account termination and loss of winnings.
+- If you fail to join the room by match start time, disconnect, or lose connection, we are not responsible and refunds will not be processed.
+- This is a paid match. Pay the entry fee to participate. Spots are first come, first served.
+- Each team member (squad or duo) must pay the entry fee and register individually.
+- Griefing and teaming are against game rules. Violations lead to disqualification and loss of prizes.
+- Do not change your position in the custom room after joining. Violations can result in being kicked.
+- All players ranking between 1 and 4 will receive special prizes. All players will be rewarded for each kill. Check reward details.
+- Do not use screencast while playing. Violations result in an instant ban without warnings.
+- Use only mobile devices to join matches. Hacks and emulators are not allowed.
+- Violating these rules will result in immediate action, including account bans and forfeiture of rewards.
+    """.trimIndent()) }
 
     // Direct credentials edit selector
     var editCredentialsForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
@@ -4630,13 +5222,13 @@ fun AdminTournamentsTab(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(
                             value = entryFeeState,
                             onValueChange = { entryFeeState = it },
-                            label = { Text("Entry Fee") },
+                            label = { Text("Entry Fee (₹)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                             modifier = Modifier.weight(1f)
@@ -4644,40 +5236,217 @@ fun AdminTournamentsTab(
                         OutlinedTextField(
                             value = prizeState,
                             onValueChange = { prizeState = it },
-                            label = { Text("Prize Pool") },
+                            label = { Text("Prize Pool (₹)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedTextField(
-                            value = mapState,
-                            onValueChange = { mapState = it },
-                            label = { Text("Map (e.g. Bermuda)") },
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = formatState,
-                            onValueChange = { formatState = it },
-                            label = { Text("Type (Solo/Duo/Squad)") },
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            modifier = Modifier.weight(1f)
-                        )
+                    // FREE FIRE MAPS SELECTION (Detected Available Maps)
+                    Text("FREE FIRE MAP SELECTION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val mapsLine1 = listOf("Bermuda Clash", "Kalahari", "Purgatory")
+                    val mapsLine2 = listOf("Alpine", "Nexterra", "Bermuda Remastererd")
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        mapsLine1.forEach { mName ->
+                            val isSelected = mapSelection.lowercase() == mName.lowercase()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) RedPrimary else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { mapSelection = mName }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mName,
+                                    color = if (isSelected) Color.White else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        mapsLine2.forEach { mName ->
+                            val isSelected = mapSelection.lowercase() == mName.lowercase()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) RedPrimary else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { mapSelection = mName }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mName.replace("Bermuda Remastererd", "Remastered"),
+                                    color = if (isSelected) Color.White else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // SELECT MATCH FORMAT (Solo/Duo/Squad)
+                    Text("SELECT MATCH FORMAT", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("Solo", "Duo", "Squad").forEach { typeName ->
+                            val isSelected = formatSelection == typeName
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) RedPrimary else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { formatSelection = typeName }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = typeName,
+                                    color = if (isSelected) Color.White else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // PLAY STYLE selector (Headshot Only vs Normal)
+                    Text("PLAY STYLE CRITERIA", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("Normal (Body Shot Allowed)", "Headshot Only").forEach { styleLabel ->
+                            val isSelected = playStyleSelection == styleLabel
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) NeonGold else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { playStyleSelection = styleLabel }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = styleLabel,
+                                    color = if (isSelected) DarkBg else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Date selector custom
+                    Text("MATCH DATE", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val todayFormatted = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.US).format(java.util.Date())
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("Today", "Tomorrow").forEach { dOpt ->
+                            val isSelected = if (dOpt == "Today") selectedDate == todayFormatted else selectedDate == tomorrowFormatted
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) RedPrimary else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable {
+                                        selectedDate = if (dOpt == "Today") todayFormatted else tomorrowFormatted
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$dOpt (${if (dOpt == "Today") todayFormatted.split(" ")[0] else tomorrowFormatted.split(" ")[0]})",
+                                    color = if (isSelected) Color.White else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
-                        value = timeState,
-                        onValueChange = { timeState = it },
-                        label = { Text("Date & Time (e.g. June 22, 05:00 PM)") },
+                        value = selectedDate,
+                        onValueChange = { selectedDate = it },
+                        label = { Text("Selected Date (Editable)") },
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // SPECIFIC START TIME (Instead of ranges)
+                    Text("SPECIFIC ACTIONS TIMING", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("07:20 PM", "08:40 PM", "09:00 PM", "10:30 PM").forEach { tPreset ->
+                            val isSelected = selectedTime == tPreset
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (isSelected) RedPrimary else Color(0xFF232029),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { selectedTime = tPreset }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = tPreset,
+                                    color = if (isSelected) Color.White else GreyText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = selectedTime,
+                        onValueChange = { selectedTime = it },
+                        label = { Text("Start Time (e.g., 07:20 PM)") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = slotsState,
@@ -4703,15 +5472,49 @@ fun AdminTournamentsTab(
 
                     Button(
                         onClick = {
+                            val compositeType = if (playStyleSelection == "Headshot Only") "$formatSelection (Headshot)" else formatSelection
+                            val compositeTitle = if (playStyleSelection == "Headshot Only") "$matchTitle [HEADSHOT ONLY]" else matchTitle
+                            val customRules = if (playStyleSelection == "Headshot Only") {
+                                "🎯 HEADSHOT ONLY TOURNAMENT:\n• Strictly only shots registering as headshots count!\n• No standard body shots allowed.\n$rulesState"
+                            } else {
+                                rulesState
+                            }
+                            val timingWithDuration = try {
+                                val upper = selectedTime.trim().uppercase()
+                                val isPm = upper.endsWith("PM")
+                                val isAm = upper.endsWith("AM")
+                                val cleanStr = upper.replace("AM", "").replace("PM", "").trim()
+                                val parts = cleanStr.split(":")
+                                if (parts.isNotEmpty()) {
+                                    var hours = parts[0].trim().toInt()
+                                    val minutes = if (parts.size > 1) parts[1].trim().toInt() else 0
+                                    if (isPm && hours < 12) { hours += 12 }
+                                    else if (isAm && hours == 12) { hours = 0 }
+                                    val totalStartMinutes = hours * 60 + minutes
+                                    val totalEndMinutes = totalStartMinutes + 90
+                                    val endH = (totalEndMinutes / 60) % 24
+                                    val endM = totalEndMinutes % 60
+                                    val endAmPm = if (endH >= 12) "PM" else "AM"
+                                    val displayEndH = if (endH % 12 == 0) 12 else endH % 12
+                                    val formatEnd = String.format("%02d:%02d %s", displayEndH, endM, endAmPm)
+                                    "$selectedTime - $formatEnd"
+                                } else {
+                                    "$selectedTime - 08:30 PM"
+                                }
+                            } catch (e: Exception) {
+                                "$selectedTime - 08:30 PM"
+                            }
+                            val constructedDateTime = "$selectedDate, $timingWithDuration"
+
                             viewModel.adminCreateTournament(
-                                title = matchTitle,
-                                dateTimeStr = timeState,
-                                entryFee = entryFeeState.toDoubleOrNull() ?: 0.0,
-                                prizePool = prizeState.toDoubleOrNull() ?: 0.0,
-                                map = mapState,
-                                type = formatState,
+                                title = compositeTitle,
+                                dateTimeStr = constructedDateTime,
+                                entryFee = entryFeeState.toDoubleOrNull() ?: 45.0,
+                                prizePool = prizeState.toDoubleOrNull() ?: 100.0,
+                                map = mapSelection,
+                                type = compositeType,
                                 slotsTotal = slotsState.toIntOrNull() ?: 48,
-                                rules = rulesState
+                                rules = customRules
                             ) {
                                 isCreatingMatch = false
                                 scope.launch {
@@ -4729,7 +5532,7 @@ fun AdminTournamentsTab(
         }
 
         // Active management items
-        tourneys.forEach { match ->
+        tourneys.sortedWith(compareBy<TournamentEntity> { match -> match.status == "COMPLETED" }.thenBy { match -> match.timestamp }).forEach { match ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 modifier = Modifier
@@ -4768,8 +5571,35 @@ fun AdminTournamentsTab(
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("Time: ${match.dateTimeStr} • Fee: ₹${match.entryFee}", color = GreyText, fontSize = 11.sp)
-                    Text("Map: ${match.map} • Joined: ${match.slotsTotal - match.slotsRemaining}/${match.slotsTotal}", color = GreyText, fontSize = 11.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Time: ${match.dateTimeStr}", color = GreyText, fontSize = 11.sp)
+                        Text("•", color = Color.DarkGray, fontSize = 11.sp)
+                        Text("Fee: ₹${match.entryFee}", color = NeonGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Map:", color = GreyText, fontSize = 11.sp)
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF1E1C24), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = match.map.uppercase(),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                        Text("•", color = Color.DarkGray, fontSize = 11.sp)
+                        Text("Joined: ${match.slotsTotal - match.slotsRemaining}/${match.slotsTotal}", color = GreyText, fontSize = 11.sp)
+                    }
 
                     if (match.roomId != null) {
                         Text(
@@ -4816,20 +5646,35 @@ fun AdminTournamentsTab(
                                 .weight(1.0f)
                                 .height(32.dp)
                         ) {
-                            Text("UPDATE KEYS", fontSize = 9.sp, color = Color.White)
+                            Text("EDIT MATCH DETAILS", fontSize = 9.sp, color = Color.White)
                         }
 
                         if (match.status != "COMPLETED") {
-                            Button(
-                                onClick = { selectWinnersForTournament = match },
-                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp),
-                                modifier = Modifier
-                                    .weight(1.0f)
-                                    .height(32.dp)
-                            ) {
-                                Text("DECLARE WINNER", fontSize = 9.sp)
+                            if (match.slotsRemaining < match.slotsTotal) {
+                                Button(
+                                    onClick = { selectWinnersForTournament = match },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1.0f)
+                                        .height(32.dp)
+                                ) {
+                                    Text("DECLARE WINNER", fontSize = 9.sp)
+                                }
+                            } else {
+                                Button(
+                                    onClick = { /* Do nothing */ },
+                                    enabled = false,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222028)),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    modifier = Modifier
+                                        .weight(1.0f)
+                                        .height(32.dp)
+                                ) {
+                                    Text("NO PARTICIPANTS", fontSize = 9.sp, color = GreyText)
+                                }
                             }
                         }
                     }
@@ -4920,57 +5765,386 @@ fun AdminTournamentsTab(
             }
         }
 
-        // Room ID pass update dialog
+        // Room details & comprehensive match editor dialog
         if (editCredentialsForTournament != null) {
             val focusM = editCredentialsForTournament!!
+            var editTitle by remember { mutableStateOf(focusM.title) }
+            var editMap by remember { mutableStateOf(focusM.map) }
+            var editType by remember { mutableStateOf(focusM.type) }
+            var editFee by remember { mutableStateOf(focusM.entryFee.toString()) }
+            var editPrize by remember { mutableStateOf(focusM.prizePool.toString()) }
+            var editSlots by remember { mutableStateOf(focusM.slotsTotal.toString()) }
+            var editRules by remember { mutableStateOf(focusM.rules) }
+            var editTime by remember { mutableStateOf(focusM.dateTimeStr) }
             var rId by remember { mutableStateOf(focusM.roomId ?: "") }
             var rPs by remember { mutableStateOf(focusM.roomPassword ?: "") }
 
+            var showCalendarPicker by remember { mutableStateOf(false) }
+
             Dialog(onDismissRequest = { editCredentialsForTournament = null }) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = DarkSurface,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp)
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Set Custom Match Credentials", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                    Column(
+                        modifier = Modifier
+                            .padding(18.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text("COMPREHENSIVE MATCH EDITOR", fontWeight = FontWeight.Black, fontSize = 13.sp, color = NeonGold)
+                        Text("Edit titles, schedules, maps and keys. Live sync on saving.", fontSize = 9.sp, color = GreyText)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text("MATCH TITLE", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = editTitle,
+                            onValueChange = { editTitle = it },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        // FREE FIRE MAP SELECTOR
+                        Text("FREE FIRE MAP SELECTION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val ffMaps = listOf("Bermuda", "Kalahari", "Purgatory", "Alpine", "Nexterra")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            ffMaps.forEach { mName ->
+                                val isSelected = editMap.lowercase() == mName.lowercase()
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(
+                                            if (isSelected) RedPrimary else Color(0xFF232029),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable { editMap = mName }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = mName,
+                                        color = if (isSelected) Color.White else GreyText,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // DATE & TIME WITH CALENDAR TRIGGER
+                        Text("SCHEDULE (CALENDAR FORMAT)", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
-                            value = rId,
-                            onValueChange = { rId = it },
-                            label = { Text("Game Room ID Code") },
+                            value = editTime,
+                            onValueChange = { editTime = it },
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                            trailingIcon = {
+                                IconButton(onClick = { showCalendarPicker = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.DateRange,
+                                        contentDescription = "Format via interactive calendar",
+                                        tint = RedPrimary
+                                    )
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
+                        // ENTRY FEE, PRIZE, SLOTS, TYPE
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = editFee,
+                                onValueChange = { editFee = it },
+                                label = { Text("Fee (₹)", fontSize = 10.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = editPrize,
+                                onValueChange = { editPrize = it },
+                                label = { Text("Prize (₹)", fontSize = 10.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = editSlots,
+                                onValueChange = { editSlots = it },
+                                label = { Text("Slots", fontSize = 10.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = editType,
+                                onValueChange = { editType = it },
+                                label = { Text("Format (Solo/Squad)", fontSize = 10.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text("TOURNAMENT SPECIFIC RULES / DETAIL", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
-                            value = rPs,
-                            onValueChange = { rPs = it },
-                            label = { Text("Game Room Password") },
+                            value = editRules,
+                            onValueChange = { editRules = it },
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(68.dp)
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Divider(color = Color(0xFF28252C))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // GAME KEYS / ROOM INFORMATION
+                        Text("CUSTOM GAME ROOM ACCESS DETAILS", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = rId,
+                                onValueChange = { rId = it },
+                                label = { Text("Room ID", fontSize = 10.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF4CAF50), unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = rPs,
+                                onValueChange = { rPs = it },
+                                label = { Text("Password", fontSize = 10.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF4CAF50), unfocusedBorderColor = Color(0xFF28252C)),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { editCredentialsForTournament = null }) {
-                                Text("CANCEL", color = GreyText)
+                                Text("DISCARD", color = GreyText, fontWeight = FontWeight.Bold)
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Button(
                                 onClick = {
-                                    viewModel.adminUpdateRoomDetails(focusM.id, rId, rPs)
+                                    viewModel.adminEditTournamentDetails(
+                                        id = focusM.id,
+                                        title = editTitle,
+                                        dateTimeStr = editTime,
+                                        entryFee = editFee.toDoubleOrNull() ?: 0.0,
+                                        prizePool = editPrize.toDoubleOrNull() ?: 0.0,
+                                        map = editMap,
+                                        type = editType,
+                                        slotsTotal = editSlots.toIntOrNull() ?: 48,
+                                        rules = editRules,
+                                        roomId = rId.ifBlank { null },
+                                        roomPassword = rPs.ifBlank { null }
+                                    )
                                     editCredentialsForTournament = null
-                                    scope.launch {
-                                        snackBars.showSnackbar("Credentials saved to database.")
-                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
                             ) {
-                                Text("SAVE KEYS")
+                                Text("SAVE CHANGES & SYNC")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Simulated interactive Calendar Format date/time picker dialog
+            if (showCalendarPicker) {
+                var selectedDay by remember { mutableStateOf(22) }
+                var selectedMonthStr by remember { mutableStateOf("Jun") }
+                var selectedYear by remember { mutableStateOf(2026) }
+                var selectedHour by remember { mutableStateOf("07") }
+                var selectedMinute by remember { mutableStateOf("00") }
+                var selectedAmPm by remember { mutableStateOf("PM") }
+
+                Dialog(onDismissRequest = { showCalendarPicker = false }) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF141118),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("SELECT TIME & DATE", fontSize = 12.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(onClick = {
+                                        selectedMonthStr = "Jun"
+                                        selectedYear = 2026
+                                    }) {
+                                        Text("JUN 2026", color = RedPrimary, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // DAYS GRID MOCK
+                            Text("June 2026 Calendar Grid", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Simple Grid simulation in vertical columns of Row
+                            val daysInMonth = (1..30).toList()
+                            Column {
+                                val chunkedDays = daysInMonth.chunked(7)
+                                chunkedDays.forEach { rowDays ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        rowDays.forEach { dayNum ->
+                                            val isChosen = selectedDay == dayNum
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(
+                                                        if (isChosen) RedPrimary else Color.Transparent,
+                                                        CircleShape
+                                                    )
+                                                    .clickable { selectedDay = dayNum }
+                                                    .padding(4.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    dayNum.toString(),
+                                                    color = if (isChosen) Color.White else Color.White.copy(alpha = 0.8f),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                        // Pad columns if shorter than 7
+                                        if (rowDays.size < 7) {
+                                            repeat(7 - rowDays.size) {
+                                                Spacer(modifier = Modifier.size(28.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Hour Spinner Simulation
+                            Text("HOUR & MINUTE SPINNER", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Hour choosing capsules
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    listOf("01", "05", "07", "08", "09", "11").forEach { hr ->
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (hr == selectedHour) RedPrimary else Color(0xFF28252C),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable { selectedHour = hr }
+                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(hr, fontSize = 9.sp, color = Color.White)
+                                        }
+                                    }
+                                }
+
+                                Text(":", color = Color.White, fontWeight = FontWeight.Bold)
+
+                                // Minute choosing capsules
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    listOf("00", "15", "30", "45").forEach { mn ->
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (mn == selectedMinute) RedPrimary else Color(0xFF28252C),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable { selectedMinute = mn }
+                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(mn, fontSize = 9.sp, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // AM/PM Toggle Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (selectedAmPm == "AM") RedPrimary else Color(0xFF232029),
+                                            RoundedCornerShape(4.dp, 0.dp, 0.dp, 4.dp)
+                                        )
+                                        .clickable { selectedAmPm = "AM" }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text("AM", color = Color.White, fontSize = 9.sp)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (selectedAmPm == "PM") RedPrimary else Color(0xFF232029),
+                                            RoundedCornerShape(0.dp, 4.dp, 4.dp, 0.dp)
+                                        )
+                                        .clickable { selectedAmPm = "PM" }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text("PM", color = Color.White, fontSize = 9.sp)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { showCalendarPicker = false }) {
+                                    Text("CANCEL", color = GreyText)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        editTime = String.format(
+                                            java.util.Locale.US,
+                                            "%02d %s %d, %s:%s %s",
+                                            selectedDay,
+                                            selectedMonthStr,
+                                            selectedYear,
+                                            selectedHour,
+                                            selectedMinute,
+                                            selectedAmPm
+                                        )
+                                        showCalendarPicker = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                                ) {
+                                    Text("SET CALENDAR SCHEDULE", fontSize = 9.sp)
+                                }
                             }
                         }
                     }
@@ -5044,24 +6218,25 @@ fun AdminWithdrawalsTab(
     message: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text("PENDING TRANSFERS GATEWAY APPROVAL", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
+        Text("ACTIVE WITHDRAWALS PROPOSAL QUEUE", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
 
-        val pending = withdrawals.filter { it.status == "PENDING" }
+        val activeWithdrawals = withdrawals.filter { it.status == "PENDING" || it.status == "IN_PROGRESS" }
 
-        if (pending.isEmpty()) {
+        if (activeWithdrawals.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No pending withdrawal requests available.", color = GreyText, fontSize = 12.sp)
+                Text("No active withdrawal requests available.", color = GreyText, fontSize = 12.sp)
             }
         } else {
             LazyColumn {
-                items(pending) { req ->
+                items(activeWithdrawals) { req ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         border = BorderStroke(1.dp, Color(0xFF1E1C24)),
@@ -5076,8 +6251,75 @@ fun AdminWithdrawalsTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text("UserId: ${req.userId}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    Text("UPI ID: ${req.upiId}", color = GreyText, fontSize = 10.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("UserId: ${req.userId}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        val statusLabel = if (req.status == "IN_PROGRESS") "IN PROGRESS" else "PENDING"
+                                        val statusBgColor = if (req.status == "IN_PROGRESS") Color(0xFF1E88E5) else NeonGold.copy(alpha = 0.2f)
+                                        val statusTextColor = if (req.status == "IN_PROGRESS") Color.White else NeonGold
+                                        Box(
+                                            modifier = Modifier
+                                                .background(statusBgColor, RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(statusLabel, fontSize = 8.sp, color = statusTextColor, fontWeight = FontWeight.Black)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "UPI ID: ",
+                                            color = GreyText,
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = req.upiId,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.testTag("admin_withdrawal_upi_id")
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        // Elegant, high-visibility outlined Copy Button
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFF28252C), RoundedCornerShape(4.dp))
+                                                .border(1.dp, RedPrimary.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                    val clip = android.content.ClipData.newPlainText("UPI ID", req.upiId)
+                                                    clipboard.setPrimaryClip(clip)
+                                                    scope.launch {
+                                                        message.showSnackbar("UPI ID copied to clipboard.")
+                                                    }
+                                                }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                                .testTag("admin_copy_upi_button")
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCopy,
+                                                    contentDescription = "Copy UPI ID",
+                                                    tint = RedPrimary,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "COPY",
+                                                    color = Color.White,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                                 Text(req.amount.toCurrency(), color = NeonGold, fontWeight = FontWeight.Black, fontSize = 14.sp)
                             }
@@ -5085,8 +6327,22 @@ fun AdminWithdrawalsTab(
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (req.status == "PENDING") {
+                                    Button(
+                                        onClick = { viewModel.adminSetWithdrawalInProgress(req.id) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF6C00)),
+                                        shape = RoundedCornerShape(4.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("PROGRESS", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+
                                 Button(
                                     onClick = { viewModel.adminRejectWithdrawal(req.id) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
@@ -5241,6 +6497,7 @@ fun ProofSubmissionCard(
             "PENDING" -> NeonGold.copy(alpha = 0.5f)
             "APPROVED" -> Color(0xFF4CAF50).copy(alpha = 0.5f)
             "REJECTED" -> RedPrimary.copy(alpha = 0.5f)
+            "COMPLETED", "completed" -> Color(0xFF00B0FF).copy(alpha = 0.5f)
             else -> Color(0xFF28252C)
         }),
         modifier = Modifier
@@ -5259,6 +6516,7 @@ fun ProofSubmissionCard(
                             "PENDING" -> Icons.Filled.HourglassBottom
                             "APPROVED" -> Icons.Filled.CheckCircle
                             "REJECTED" -> Icons.Filled.Cancel
+                            "COMPLETED", "completed" -> Icons.Filled.CheckCircle
                             else -> Icons.Filled.CloudUpload
                         },
                         contentDescription = "Proof Status Indicator",
@@ -5266,6 +6524,7 @@ fun ProofSubmissionCard(
                             "PENDING" -> NeonGold
                             "APPROVED" -> Color(0xFF4CAF50)
                             "REJECTED" -> RedPrimary
+                            "COMPLETED", "completed" -> Color(0xFF00B0FF)
                             else -> GreyText
                         },
                         modifier = Modifier.size(20.dp)
@@ -5286,6 +6545,7 @@ fun ProofSubmissionCard(
                         "PENDING" -> NeonGold.copy(alpha = 0.15f)
                         "APPROVED" -> Color(0xFF4CAF50).copy(alpha = 0.15f)
                         "REJECTED" -> RedPrimary.copy(alpha = 0.15f)
+                        "COMPLETED", "completed" -> Color(0xFF00B0FF).copy(alpha = 0.15f)
                         else -> Color(0xFF232029)
                     },
                     shape = RoundedCornerShape(4.dp),
@@ -5293,6 +6553,7 @@ fun ProofSubmissionCard(
                         "PENDING" -> NeonGold.copy(alpha = 0.3f)
                         "APPROVED" -> Color(0xFF4CAF50).copy(alpha = 0.3f)
                         "REJECTED" -> RedPrimary.copy(alpha = 0.3f)
+                        "COMPLETED", "completed" -> Color(0xFF00B0FF).copy(alpha = 0.3f)
                         else -> Color(0xFF28252C)
                     })
                 ) {
@@ -5304,6 +6565,7 @@ fun ProofSubmissionCard(
                             "PENDING" -> NeonGold
                             "APPROVED" -> Color(0xFF4CAF50)
                             "REJECTED" -> RedPrimary
+                            "COMPLETED", "completed" -> Color(0xFF00B0FF)
                             else -> GreyText
                         },
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -5399,6 +6661,32 @@ fun ProofSubmissionCard(
                     if (!join.adminNotes.isNullOrEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Admin comment: \"${join.adminNotes}\"", fontSize = 10.sp, color = GreyText, style = androidx.compose.ui.text.TextStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic))
+                    }
+                }
+                "COMPLETED", "completed" -> {
+                    Text(
+                        text = "This match has been completed! The tournament winner has been declared, and results have been sealed by the administrator.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF00B0FF),
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF0D1B2A), RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, Color(0xFF1B4965)), RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("MATCH END STATUS", fontSize = 9.sp, color = GreyText)
+                            Text("COMPLETED", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00B0FF))
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("ADMIN REMARK", fontSize = 9.sp, color = GreyText)
+                            Text("GAMES SEALED", fontSize = 11.sp, color = Color(0xFF00B0FF), fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 "REJECTED" -> {
@@ -5948,10 +7236,18 @@ fun AdminDepositsTab(
 
     var instagramSettingState by remember { mutableStateOf(viewModel.getInstagramSetting()) }
     var telegramSettingState by remember { mutableStateOf(viewModel.getTelegramSetting()) }
+    var youtubeSettingState by remember { mutableStateOf(viewModel.getYoutubeSetting()) }
+
+    var defaultTimingStartState by remember { mutableStateOf(viewModel.getDefaultTimingStart()) }
+    var defaultTimingEndState by remember { mutableStateOf(viewModel.getDefaultTimingEnd()) }
 
     var razorpayKeyIdState by remember { mutableStateOf(viewModel.getRazorpayKeyId()) }
     var cashfreeClientIdState by remember { mutableStateOf(viewModel.getCashfreeClientId()) }
     var cashfreeSecretKeyState by remember { mutableStateOf(viewModel.getCashfreeSecretKey()) }
+
+    var minDepositState by remember { mutableStateOf(viewModel.getMinDepositAmount().toString()) }
+    var minDebitState by remember { mutableStateOf(viewModel.getMinDebitAmount().toString()) }
+    var minWithdrawalState by remember { mutableStateOf(viewModel.getMinWithdrawalAmount().toString()) }
 
     Column(
         modifier = Modifier
@@ -6040,52 +7336,13 @@ fun AdminDepositsTab(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFF28252C), thickness = 1.dp)
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text("RAZORPAY & CASHFREE APIS (PRODUCTION GATEWAY)", fontSize = 10.sp, color = NeonGold, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Input your API merchant credentials from Razorpay / Cashfree dashboards to activate direct automated gateway payments.", fontSize = 8.sp, color = GreyText)
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = razorpayKeyIdState,
-                    onValueChange = { razorpayKeyIdState = it },
-                    label = { Text("Razorpay Key ID (rzp_live_...)") },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = cashfreeClientIdState,
-                        onValueChange = { cashfreeClientIdState = it },
-                        label = { Text("Cashfree Client ID") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = cashfreeSecretKeyState,
-                        onValueChange = { cashfreeSecretKeyState = it },
-                        label = { Text("Cashfree Client Secret") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
-                        modifier = Modifier.weight(1.2f)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
                         viewModel.updatePaymentConfig(upiState, payeeState, bankAccState, bankIfscState, bankNameState, gatewayModeState)
-                        viewModel.updateRazorpayConfig(razorpayKeyIdState)
-                        viewModel.updateCashfreeConfig(cashfreeClientIdState, cashfreeSecretKeyState)
                         scope.launch {
-                            snackbarHost.showSnackbar("Payment Gateway & API details saved successfully!")
+                            snackbarHost.showSnackbar("Payment Gateway details saved successfully!")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -6093,6 +7350,143 @@ fun AdminDepositsTab(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("SAVE GATEWAY CONFIGURATIONS", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // BATTLEZONE QUICK SESSIONS ENGINE Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("BATTLEZONE AUTOMATED LOBBY GENERATOR", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Instantly generate standard 1.5-hour tournaments from $defaultTimingStartState to $defaultTimingEndState with preset entry criteria (₹45 fee, ₹100 winning payouts).", fontSize = 9.sp, color = GreyText)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = defaultTimingStartState,
+                        onValueChange = { defaultTimingStartState = it },
+                        label = { Text("Start Time (e.g. 07:00 PM)") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = defaultTimingEndState,
+                        onValueChange = { defaultTimingEndState = it },
+                        label = { Text("End Time (e.g. 11:00 PM)") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
+                        scope.launch {
+                            snackbarHost.showSnackbar("Daily automatic sessions timeframe changed successfully!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("SAVE AUTOMATIC TIMING TIMEFRAME", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.generateDefaultSessions { count ->
+                            scope.launch {
+                                snackbarHost.showSnackbar("Automated generator processed! $count new lobby sessions successfully live on Firebase.")
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FlashOn, contentDescription = "Flash", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("GENERATE DEFAULT DAILY SESSIONS ($defaultTimingStartState - $defaultTimingEndState)", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // BATTLEZONE MINIMUM TRANSACTION LIMITS Config Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("BATTLEZONE TRANSACTION LIMIT CONFIGURATIONS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Dynamically customize minimum boundaries for user recharges (deposits), join game entries (debits), and withdrawal payouts.", fontSize = 9.sp, color = GreyText)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = minDepositState,
+                        onValueChange = { minDepositState = it },
+                        label = { Text("Min Deposit (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = minDebitState,
+                        onValueChange = { minDebitState = it },
+                        label = { Text("Min Debit (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = minWithdrawalState,
+                        onValueChange = { minWithdrawalState = it },
+                        label = { Text("Min Payout (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        modifier = Modifier.weight(1.1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        val dep = minDepositState.toDoubleOrNull() ?: 10.0
+                        val deb = minDebitState.toDoubleOrNull() ?: 0.0
+                        val wit = minWithdrawalState.toDoubleOrNull() ?: 50.0
+                        viewModel.updateMinLimitsConfig(dep, deb, wit)
+                        scope.launch {
+                            snackbarHost.showSnackbar("Minimum boundaries pushed to Firebase in real-time!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("SAVE TRANSACTION LIMIT BOUNDARIES", fontSize = 11.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -6256,7 +7650,7 @@ fun AdminDepositsTab(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("BATTLEZONE SOCIAL OFFICIAL CHANNELS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Configure your active official Instagram and Telegram channels. Clients will immediately auto-forward to these handles from their dashboard buttons.", fontSize = 9.sp, color = GreyText)
+                Text("Configure your active official Instagram, Telegram, and YouTube channels. Clients will immediately auto-forward to these handles from their dashboard buttons.", fontSize = 9.sp, color = GreyText)
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -6278,12 +7672,22 @@ fun AdminDepositsTab(
                     placeholder = { Text("e.g. battlezone_esports_official or full URL") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = youtubeSettingState,
+                    onValueChange = { youtubeSettingState = it },
+                    label = { Text("YouTube URL / Channel Name") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    placeholder = { Text("e.g. @battlezone_esports or full URL") },
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Button(
                     onClick = {
-                        viewModel.updateSocialConfig(instagramSettingState, telegramSettingState)
+                        viewModel.updateSocialConfig(instagramSettingState, telegramSettingState, youtubeSettingState)
                         scope.launch {
                             snackbarHost.showSnackbar("Social official channels updated successfully!")
                         }
@@ -6293,6 +7697,59 @@ fun AdminDepositsTab(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("SAVE SOCIAL CONFIGS", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Part 1.7: Default tournament timings configuration card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("DEFAULT TOURNAMENT TIME LIMITS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Set default starting and ending tournament times (Default: 07:00 PM to 11:00 PM). New tournaments will default to this window.", fontSize = 9.sp, color = GreyText)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = defaultTimingStartState,
+                        onValueChange = { defaultTimingStartState = it },
+                        label = { Text("Default Start Time") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        placeholder = { Text("e.g. 07:00 PM") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = defaultTimingEndState,
+                        onValueChange = { defaultTimingEndState = it },
+                        label = { Text("Default End Time") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        placeholder = { Text("e.g. 11:00 PM") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
+                        scope.launch {
+                            snackbarHost.showSnackbar("Default tournament timings updated successfully!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("SAVE DEFAULT TIMINGS", fontSize = 11.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -6340,7 +7797,7 @@ fun AdminDepositsTab(
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(dp.title, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                        Text("Invoice Ref: ${dp.invoiceId} | Date: ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(dp.timestamp)}", fontSize = 8.sp, color = GreyText)
+                        Text("Invoice Ref: ${dp.invoiceId} | Date: ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.US).format(dp.timestamp)}", fontSize = 8.sp, color = GreyText)
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -6614,8 +8071,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var authStep by remember { mutableStateOf("FORM") } // "FORM" or "OTP"
     var generatedOtp by remember { mutableStateOf("") }
     var enteredOtp by remember { mutableStateOf("") }
-    var otpFlowType by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN", "REGISTER", "GOOGLE"
+    var otpFlowType by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN", "REGISTER", "GOOGLE", "GOOGLE_LINKED"
     var otpErrorMsg by remember { mutableStateOf<String?>(null) }
+
+    val lastRegisteredUserId = remember { viewModel.getLastRegisteredUserId() }
+    var cachedUserDetails by remember { mutableStateOf<UserEntity?>(null) }
+    var isReentryActive by remember { mutableStateOf(lastRegisteredUserId.isNotBlank()) }
+
+    var showGooglePhoneLinking by remember { mutableStateOf(false) }
+    var linkingGoogleEmail by remember { mutableStateOf("") }
+    var linkingGoogleName by remember { mutableStateOf("") }
+    var linkingPhoneInput by remember { mutableStateOf("") }
+    var linkingPhoneError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(lastRegisteredUserId) {
+        if (lastRegisteredUserId.isNotBlank()) {
+            cachedUserDetails = viewModel.getUserSync(lastRegisteredUserId)
+        }
+    }
 
     val savedUserId = viewModel.getSavedLoggedInUserId()
     var savedUser by remember { mutableStateOf<UserEntity?>(null) }
@@ -6647,6 +8120,14 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var showCustomGoogleFields by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val activity = remember(context) {
+        var c = context
+        while (c is android.content.ContextWrapper) {
+            if (c is android.app.Activity) break
+            c = c.baseContext
+        }
+        c as? android.app.Activity
+    }
     val gPrefs = remember { context.getSharedPreferences("google_accounts_cache", android.content.Context.MODE_PRIVATE) }
     
     val saveGoogleEmailCache = remember {
@@ -6829,12 +8310,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             OutlinedTextField(
                                 value = enteredOtp,
                                 onValueChange = { 
-                                    enteredOtp = it.filter { c -> c.isDigit() }.take(4) 
+                                    enteredOtp = it.filter { c -> c.isDigit() }.take(6) 
                                     otpErrorMsg = null
                                 },
-                                label = { Text("Enter 4-Digit OTP Code") },
+                                label = { Text("Enter Verification Code") },
                                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "otp", tint = RedPrimary) },
-                                placeholder = { Text("e.g. 5824") },
+                                placeholder = { Text("e.g. 582479") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = RedPrimary,
@@ -6856,10 +8337,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                             Button(
                                 onClick = {
-                                    if (enteredOtp == generatedOtp || (viewModel.getSmsGatewayMode() == "TEST_MODE" && enteredOtp == "1212")) {
+                                    val isMockOtpValid = (enteredOtp == generatedOtp || (enteredOtp == "1212" && viewModel.getSmsGatewayMode() == "TEST_MODE"))
+                                     if (isMockOtpValid && (viewModel.getSmsGatewayMode() == "TEST_MODE" || viewModel.firebaseVerificationId == null)) {
+                                        // Bypass for debugging test mode
                                         if (otpFlowType == "SIGN_IN") {
                                             viewModel.loginExistingUser(
-                                                phone = signInPhoneInput.trim(),
+                                                phone = "+91" + signInPhoneInput.trim(),
                                                 onFinished = { success, error ->
                                                     if (success) {
                                                         authStep = "FORM"
@@ -6869,29 +8352,153 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 }
                                             )
                                         } else if (otpFlowType == "REGISTER") {
+                                            val determinedPhone = "+91" + phoneInput.trim()
+                                            val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
                                             viewModel.loginUser(
                                                 ign = ignInput.trim(),
                                                 ffUid = ffUidInput.trim(),
-                                                phone = phoneInput.trim(),
-                                                extraMobile = extraMobileInput.trim(),
+                                                phone = determinedPhone,
+                                                extraMobile = determinedExtra,
                                                 email = emailInput.trim(),
                                                 onFinished = {
                                                     authStep = "FORM"
                                                 }
                                             )
-                                        } else if (otpFlowType == "GOOGLE") {
-                                            viewModel.loginWithGoogle(
-                                                email = customGoogleEmail.trim().lowercase(),
-                                                name = customGoogleName.trim(),
-                                                onFinished = {
-                                                    authStep = "FORM"
+                                        }
+                                       else if (otpFlowType == "GOOGLE") {
+                                             viewModel.loginWithGoogle(
+                                                 email = customGoogleEmail.trim().lowercase(),
+                                                 name = customGoogleName.trim(),
+                                                 onFinished = {
+                                                     authStep = "FORM"
+                                                 }
+                                             )
+                                         } else if (otpFlowType == "GOOGLE_LINKED") {
+                                             viewModel.loginWithGoogleLinked(
+                                                 email = customGoogleEmail.trim().lowercase(),
+                                                 name = customGoogleName.trim(),
+                                                 phone = extraMobileInput.trim(),
+                                                 onFinished = {
+                                                     authStep = "FORM"
+                                                 }
+                                             )
+                                         }
+                                     } else if (viewModel.firebaseVerificationId != null) {
+                                        // Real Firebase Verification flow
+                                        viewModel.verifyFirebasePhoneOtp(enteredOtp) { success, error ->
+                                            if (success) {
+                                                if (otpFlowType == "SIGN_IN") {
+                                                    viewModel.loginExistingUser(
+                                                        phone = "+91" + signInPhoneInput.trim(),
+                                                        onFinished = { logSuccess, logError ->
+                                                            if (logSuccess) {
+                                                                authStep = "FORM"
+                                                            } else {
+                                                                otpErrorMsg = logError ?: "Login verification failed."
+                                                            }
+                                                        }
+                                                    )
+                                                } else if (otpFlowType == "REGISTER") {
+                                                    val determinedPhone = "+91" + phoneInput.trim()
+                                                    val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                                    viewModel.loginUser(
+                                                        ign = ignInput.trim(),
+                                                        ffUid = ffUidInput.trim(),
+                                                        phone = determinedPhone,
+                                                        extraMobile = determinedExtra,
+                                                        email = emailInput.trim(),
+                                                        onFinished = {
+                                                            authStep = "FORM"
+                                                        }
+                                                    )
+                                                 } else if (otpFlowType == "GOOGLE") {
+                                                 viewModel.loginWithGoogle(
+                                                     email = customGoogleEmail.trim().lowercase(),
+                                                     name = customGoogleName.trim(),
+                                                     onFinished = {
+                                                         authStep = "FORM"
+                                                     }
+                                                 )
+                                             } else if (otpFlowType == "GOOGLE_LINKED") {
+                                                 viewModel.loginWithGoogleLinked(
+                                                     email = customGoogleEmail.trim().lowercase(),
+                                                     name = customGoogleName.trim(),
+                                                     phone = extraMobileInput.trim(),
+                                                     onFinished = {
+                                                         authStep = "FORM"
+                                                     }
+                                                 )
+                                             } else if (false) { // Skip redundant block below to preserve alignment
+                                                    viewModel.loginWithGoogle(
+                                                        email = customGoogleEmail.trim().lowercase(),
+                                                        name = customGoogleName.trim(),
+                                                        onFinished = {
+                                                            authStep = "FORM"
+                                                        }
+                                                    )
+                                                } else if (otpFlowType == "GOOGLE_LINKED") {
+                                                    viewModel.loginWithGoogleLinked(
+                                                        email = customGoogleEmail.trim().lowercase(),
+                                                        name = customGoogleName.trim(),
+                                                        phone = extraMobileInput.trim(),
+                                                        onFinished = {
+                                                            authStep = "FORM"
+                                                        }
+                                                    )
+                                                } else if (false) { // Skip redundant block below to preserve alignment
+                                                    viewModel.loginWithGoogle(
+                                                        email = customGoogleEmail.trim().lowercase(),
+                                                        name = customGoogleName.trim(),
+                                                        onFinished = {
+                                                            authStep = "FORM"
+                                                        }
+                                                    )
                                                 }
-                                            )
+                                            } else {
+                                                otpErrorMsg = error ?: "Verification failed. Please enter the correct 6-digit code received via SMS."
+                                            }
                                         }
                                     } else {
-                                        otpErrorMsg = "Incorrect OTP! The lobby remains locked. Try again."
-                                    }
-                                },
+                                        // Fallback legacy system check
+                                        if (enteredOtp == generatedOtp) {
+                                            if (otpFlowType == "SIGN_IN") {
+                                                viewModel.loginExistingUser(
+                                                    phone = "+91" + signInPhoneInput.trim(),
+                                                    onFinished = { success, error ->
+                                                        if (success) {
+                                                            authStep = "FORM"
+                                                        } else {
+                                                            otpErrorMsg = error ?: "Login verification failed."
+                                                        }
+                                                     }
+                                                 )
+                                            } else if (otpFlowType == "REGISTER") {
+                                                val determinedPhone = "+91" + phoneInput.trim()
+                                                val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                                viewModel.loginUser(
+                                                    ign = ignInput.trim(),
+                                                    ffUid = ffUidInput.trim(),
+                                                    phone = determinedPhone,
+                                                    extraMobile = determinedExtra,
+                                                    email = emailInput.trim(),
+                                                    onFinished = {
+                                                        authStep = "FORM"
+                                                    }
+                                                )
+                                            } else if (otpFlowType == "GOOGLE") {
+                                                viewModel.loginWithGoogle(
+                                                    email = customGoogleEmail.trim().lowercase(),
+                                                    name = customGoogleName.trim(),
+                                                    onFinished = {
+                                                        authStep = "FORM"
+                                                    }
+                                                )
+                                            }
+                                         } else {
+                                             otpErrorMsg = "Incorrect OTP! The lobby remains locked. Try again."
+                                         }
+                                     }
+                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_submit_btn")
@@ -7170,13 +8777,18 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                                     OutlinedTextField(
                                         value = signInPhoneInput,
-                                        onValueChange = { 
-                                            signInPhoneInput = it 
-                                            errorMsg = null
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 10) {
+                                                signInPhoneInput = digits
+                                                errorMsg = null
+                                            }
                                         },
                                         label = { Text("Enter WhatsApp/Mobile Number") },
+                                        prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. +91 88877 66554") },
+                                        placeholder = { Text("Enter 10 Digits") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7206,39 +8818,54 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         onClick = {
                                             if (signInPhoneInput.isBlank()) {
                                                 errorMsg = "Please enter your WhatsApp/Mobile number to sign in!"
+                                            } else if (signInPhoneInput.length != 10 || !(signInPhoneInput.startsWith("6") || signInPhoneInput.startsWith("7") || signInPhoneInput.startsWith("8") || signInPhoneInput.startsWith("9"))) {
+                                                errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
                                             } else {
                                                 scope.launch {
-                                                    val registeredUser = viewModel.getRegisteredUserByPhone(signInPhoneInput.trim())
+                                                    val determinedPhone = "+91" + signInPhoneInput.trim()
+                                                    val registeredUser = viewModel.getRegisteredUserByPhone(determinedPhone)
                                                     val exists = registeredUser != null
                                                     if (exists) {
-                                                        val otp = (1000..9999).random().toString()
-                                                        val targetNumber = registeredUser?.phoneNumber ?: signInPhoneInput.trim()
-                                                        viewModel.sendOtpSms(targetNumber, otp) { success, errMsg ->
-                                                            if (success) {
-                                                                generatedOtp = otp
-                                                                otpFlowType = "SIGN_IN"
-                                                                authStep = "OTP"
-                                                                enteredOtp = ""
-                                                                otpErrorMsg = null
-                                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                                    viewModel.showToast(
-                                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                        message = "Your BattleZone entry verification OTP is: $otp. Input this code to enter.",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                } else {
+                                                        val targetNumber = registeredUser?.phoneNumber ?: determinedPhone
+                                                        if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
+                                                            // Under simulated test mode, generate a simple 4 digit OTP fallback
+                                                            val phoneDigits = signInPhoneInput.filter { it.isDigit() }
+                                                            val baseSeed = if (phoneDigits.length >= 4) phoneDigits.takeLast(4).toIntOrNull() ?: 1212 else 1212
+                                                            val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
+                                                            generatedOtp = otp
+                                                            otpFlowType = "SIGN_IN"
+                                                            authStep = "OTP"
+                                                            enteredOtp = ""
+                                                            otpErrorMsg = null
+                                                            viewModel.firebaseVerificationId = null // set null to signify mock mode
+                                                            viewModel.showToast(
+                                                                title = "🔒 SECURE ACCOUNT VERIFICATION",
+                                                                message = "TEST_MODE Active. Use verification OTP: $otp to enter.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        } else {
+                                                            // Real Firebase OTP Dispatch
+                                                            viewModel.sendFirebasePhoneOtp(
+                                                                phoneNumber = targetNumber,
+                                                                activity = activity,
+                                                                onCodeSent = {
+                                                                    otpFlowType = "SIGN_IN"
+                                                                    authStep = "OTP"
+                                                                    enteredOtp = ""
+                                                                    otpErrorMsg = null
                                                                     viewModel.showToast(
                                                                         title = "✉️ SMS OTP DISPATCHED",
-                                                                        message = "A BattleZone verification code has been sent securely via SMS. Please check your phone inbox!",
+                                                                        message = "Firebase verification code dispatched to your mobile number via SMS.",
                                                                         type = NotificationType.SUCCESS
                                                                     )
+                                                                },
+                                                                onVerificationFailed = { err ->
+                                                                    errorMsg = err
                                                                 }
-                                                            } else {
-                                                                errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
-                                                            }
+                                                            )
                                                         }
                                                     } else {
-                                                        errorMsg = "No registered account found with Mobile Number: ${signInPhoneInput.trim()}. Please register first!"
+                                                        errorMsg = "No registered account found with Mobile Number: +91 ${signInPhoneInput.trim()}. Please register first!"
                                                     }
                                                 }
                                             }
@@ -7256,6 +8883,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             letterSpacing = 1.sp,
                                             fontSize = 13.sp,
                                             color = Color.White
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(18.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFF28252C).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, NeonGold.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "🎮 Registrations are active! If you don't have an esports account, tap the REGISTER tab at the top to secure your profile and compete in tournaments instantly.",
+                                            color = NeonGold,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            lineHeight = 15.sp
                                         )
                                     }
                                 }
@@ -7278,7 +8923,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         },
                                         label = { Text("Game Name (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. Rogue_Gamer") },
+                                        placeholder = { Text("Enter Game Name") },
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7320,13 +8965,18 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                                     OutlinedTextField(
                                         value = phoneInput,
-                                        onValueChange = { 
-                                            phoneInput = it 
-                                            errorMsg = null
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 10) {
+                                                phoneInput = digits
+                                                errorMsg = null
+                                            }
                                         },
                                         label = { Text("Mobile Number (Required)") },
+                                        prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. +91 9876543210") },
+                                        placeholder = { Text("Enter 10 Digits") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7344,13 +8994,18 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                                     OutlinedTextField(
                                         value = extraMobileInput,
-                                        onValueChange = { 
-                                            extraMobileInput = it 
-                                            errorMsg = null
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 10) {
+                                                extraMobileInput = digits
+                                                errorMsg = null
+                                            }
                                         },
                                         label = { Text("WhatsApp Contact Number (Optional)") },
+                                        prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. +91 9123456789") },
+                                        placeholder = { Text("Enter 10 Digits") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7431,9 +9086,15 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         onClick = {
                                             if (ignInput.isBlank() || phoneInput.isBlank()) {
                                                 errorMsg = "Please fill in your Game Name and Mobile Number!"
+                                            } else if (phoneInput.length != 10 || !(phoneInput.startsWith("6") || phoneInput.startsWith("7") || phoneInput.startsWith("8") || phoneInput.startsWith("9"))) {
+                                                errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
+                                            } else if (extraMobileInput.isNotBlank() && (extraMobileInput.length != 10 || !(extraMobileInput.startsWith("6") || extraMobileInput.startsWith("7") || extraMobileInput.startsWith("8") || extraMobileInput.startsWith("9")))) {
+                                                errorMsg = "WhatsApp Number must be a valid 10-digit Indian number."
                                             } else {
+                                                val determinedPhone = "+91" + phoneInput.trim()
+                                                val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
                                                 val determinedEmail = if (emailInput.isBlank()) {
-                                                    "gamer_${phoneInput.trim().replace(" ", "").replace("+", "").replace("-", "")}@battlezone.com".lowercase()
+                                                    "gamer_${phoneInput.trim()}@battlezone.com".lowercase()
                                                 } else {
                                                     emailInput.trim()
                                                 }
@@ -7445,8 +9106,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 viewModel.firebaseRegisterWithEmailAndPassword(
                                                     ign = ignInput.trim(),
                                                     ffUid = ffUidInput.trim(),
-                                                    phone = phoneInput.trim(),
-                                                    extraMobile = extraMobileInput.trim(),
+                                                    phone = determinedPhone,
+                                                    extraMobile = determinedExtra,
                                                     emailInput = determinedEmail,
                                                     passwordInput = determinedPassword,
                                                     onFinished = { success, error ->
@@ -7532,13 +9193,18 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                                     OutlinedTextField(
                                         value = phoneInput,
-                                        onValueChange = { 
-                                            phoneInput = it 
-                                            errorMsg = null
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 10) {
+                                                phoneInput = digits
+                                                errorMsg = null
+                                            }
                                         },
                                         label = { Text("Mobile Number (Required)") },
+                                        prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. +91 9876543210") },
+                                        placeholder = { Text("Enter 10 Digits") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7556,13 +9222,18 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                                     OutlinedTextField(
                                         value = extraMobileInput,
-                                        onValueChange = { 
-                                            extraMobileInput = it 
-                                            errorMsg = null
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 10) {
+                                                extraMobileInput = digits
+                                                errorMsg = null
+                                            }
                                         },
                                         label = { Text("WhatsApp Contact Number (Optional)") },
+                                        prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
-                                        placeholder = { Text("e.g. +91 9123456789") },
+                                        placeholder = { Text("Enter 10 Digits") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = RedPrimary,
                                             unfocusedBorderColor = Color(0xFF28252C),
@@ -7617,31 +9288,47 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         onClick = {
                                             if (ignInput.isBlank() || phoneInput.isBlank()) {
                                                 errorMsg = "Please fill in your Game Name and Mobile Number to register!"
+                                            } else if (phoneInput.length != 10 || !(phoneInput.startsWith("6") || phoneInput.startsWith("7") || phoneInput.startsWith("8") || phoneInput.startsWith("9"))) {
+                                                errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
+                                            } else if (extraMobileInput.isNotBlank() && (extraMobileInput.length != 10 || !(extraMobileInput.startsWith("6") || extraMobileInput.startsWith("7") || extraMobileInput.startsWith("8") || extraMobileInput.startsWith("9")))) {
+                                                errorMsg = "WhatsApp Number must be a valid 10-digit Indian number."
                                             } else {
-                                                val otp = (1000..9999).random().toString()
-                                                viewModel.sendOtpSms(phoneInput.trim(), otp) { success, errMsg ->
-                                                    if (success) {
-                                                        generatedOtp = otp
-                                                        otpFlowType = "REGISTER"
-                                                        authStep = "OTP"
-                                                        enteredOtp = ""
-                                                        otpErrorMsg = null
-                                                        if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                            viewModel.showToast(
-                                                                title = "🔒 NEW REGISTRATION OTP",
-                                                                message = "Your BattleZone account setup verification OTP is: $otp. Please input this code to verify.",
-                                                                type = NotificationType.SUCCESS
-                                                            )
-                                                        } else {
+                                                val determinedPhone = "+91" + phoneInput.trim()
+                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
+                                                    val phoneDigits = phoneInput.filter { it.isDigit() }
+                                                    val baseSeed = if (phoneDigits.length >= 4) phoneDigits.takeLast(4).toIntOrNull() ?: 1212 else 1212
+                                                    val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
+                                                    generatedOtp = otp
+                                                    otpFlowType = "REGISTER"
+                                                    authStep = "OTP"
+                                                    enteredOtp = ""
+                                                    otpErrorMsg = null
+                                                    viewModel.firebaseVerificationId = null // mock mode
+                                                    viewModel.showToast(
+                                                        title = "🔒 NEW REGISTRATION OTP",
+                                                        message = "TEST_MODE Active. Use account setup verification OTP: $otp to verify.",
+                                                        type = NotificationType.SUCCESS
+                                                    )
+                                                } else {
+                                                    // Real Firebase Register OTP Dispatch
+                                                    viewModel.sendFirebasePhoneOtp(
+                                                        phoneNumber = determinedPhone,
+                                                        activity = activity,
+                                                        onCodeSent = {
+                                                            otpFlowType = "REGISTER"
+                                                            authStep = "OTP"
+                                                            enteredOtp = ""
+                                                            otpErrorMsg = null
                                                             viewModel.showToast(
                                                                 title = "✉️ SMS OTP DISPATCHED",
-                                                                message = "A registration verification code has been sent securely via SMS. Please check your phone!",
+                                                                message = "Firebase registration verification code has been dispatched to your mobile number.",
                                                                 type = NotificationType.SUCCESS
                                                             )
+                                                        },
+                                                        onVerificationFailed = { err ->
+                                                            errorMsg = err
                                                         }
-                                                    } else {
-                                                        errorMsg = errMsg ?: "Failed to dispatch SMS OTP. Please try again or contact support."
-                                                    }
+                                                    )
                                                 }
                                             }
                                         },
@@ -7748,7 +9435,175 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (isGoogleWebLoginActive) {
+                    if (showGooglePhoneLinking) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(text = "G", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "o", color = Color(0xFFFBBC05), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "g", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Link Mobile Number",
+                            color = googleThemeText,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Bind secure phone identification to ${linkingGoogleEmail}",
+                            color = Color.LightGray,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        val detectedCellId = android.provider.Settings.Secure.getString(
+                            context.contentResolver,
+                            android.provider.Settings.Secure.ANDROID_ID
+                        ) ?: "DEVICE_EMULATED_ID"
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF292A2D)),
+                            border = BorderStroke(1.dp, Color(0xFF3C4043)),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "SECURE PROTOCOLS ACTIVE:",
+                                    color = NeonGold,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "• Cell Hardware Bound\n• Auto-Detected Device ID: $detectedCellId",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = linkingPhoneInput,
+                            onValueChange = { 
+                                linkingPhoneInput = it.filter { c -> c.isDigit() }.take(10)
+                                linkingPhoneError = null
+                            },
+                            label = { Text("WhatsApp/Mobile (10 digits)", color = Color.LightGray) },
+                            prefix = { Text("+91 ", color = Color.White) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1A73E8),
+                                unfocusedBorderColor = Color(0xFFDADCE0),
+                                focusedLabelColor = Color(0xFF1A73E8),
+                                unfocusedLabelColor = Color.LightGray,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        linkingPhoneError?.let { err ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(err, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Button(
+                            onClick = {
+                                if (linkingPhoneInput.length != 10 || !(linkingPhoneInput.startsWith("6") || linkingPhoneInput.startsWith("7") || linkingPhoneInput.startsWith("8") || linkingPhoneInput.startsWith("9"))) {
+                                    linkingPhoneError = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
+                                } else {
+                                    scope.launch {
+                                        val phoneWithCountry = "+91" + linkingPhoneInput.trim()
+                                        val existingUserByPhone = viewModel.getRegisteredUserByPhone(phoneWithCountry)
+                                        if (existingUserByPhone != null) {
+                                            linkingPhoneError = "This Mobile Number is already linked to another account."
+                                        } else {
+                                            isGoogleLoading = true
+                                            delay(1000)
+                                            isGoogleLoading = false
+
+                                            if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
+                                                val secureOtp = (1000..9999).random().toString()
+                                                generatedOtp = secureOtp
+                                                otpFlowType = "GOOGLE_LINKED"
+                                                customGoogleEmail = linkingGoogleEmail
+                                                customGoogleName = linkingGoogleName
+                                                extraMobileInput = linkingPhoneInput
+                                                authStep = "OTP"
+                                                enteredOtp = ""
+                                                otpErrorMsg = null
+                                                showGoogleDialog = false
+                                                showGooglePhoneLinking = false
+                                                isGoogleWebLoginActive = false
+                                                viewModel.firebaseVerificationId = null
+                                                viewModel.showToast(
+                                                    title = "🔒 ONBOARDING SECURE OTP",
+                                                    message = "Use verification OTP: $secureOtp to link phone $phoneWithCountry to Google.",
+                                                    type = NotificationType.SUCCESS
+                                                )
+                                            } else {
+                                                viewModel.sendFirebasePhoneOtp(
+                                                    phoneNumber = phoneWithCountry,
+                                                    activity = activity,
+                                                    onCodeSent = {
+                                                        otpFlowType = "GOOGLE_LINKED"
+                                                        customGoogleEmail = linkingGoogleEmail
+                                                        customGoogleName = linkingGoogleName
+                                                        extraMobileInput = linkingPhoneInput
+                                                        authStep = "OTP"
+                                                        enteredOtp = ""
+                                                        otpErrorMsg = null
+                                                        showGoogleDialog = false
+                                                        showGooglePhoneLinking = false
+                                                        isGoogleWebLoginActive = false
+                                                        viewModel.showToast(
+                                                            title = "✉️ SMS OTP DISPATCHED",
+                                                            message = "Onboarding verification code sent to your mobile: $phoneWithCountry.",
+                                                            type = NotificationType.SUCCESS
+                                                        )
+                                                    },
+                                                    onVerificationFailed = { err ->
+                                                        linkingPhoneError = err ?: "Firebase SMS OTP failed."
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("SEND VERIFICATION OTP", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        TextButton(
+                            onClick = {
+                                showGooglePhoneLinking = false
+                            }
+                        ) {
+                            Text("BACK", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (isGoogleWebLoginActive) {
                         // 1. MOCK CHROME CUSTOM TAB / SECURE BROWSER BAR
                         Row(
                             modifier = Modifier
@@ -7901,56 +9756,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     
                                     Button(
                                         onClick = {
-                                            if (customGoogleEmail.isNotBlank() && customGoogleEmail.contains("@") && customGoogleEmail.contains(".")) {
-                                                saveGoogleEmailCache(customGoogleEmail)
+                                            val targetEmail = customGoogleEmail.trim().lowercase()
+                                            if (targetEmail.isNotBlank() && targetEmail.contains("@") && targetEmail.contains(".")) {
+                                                saveGoogleEmailCache(targetEmail)
                                                 isGoogleLoading = true
                                                 scope.launch {
                                                     delay(1200)
                                                     isGoogleLoading = false
-                                                    val autoName = customGoogleEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
-                                                    val registeredPhone = viewModel.getGoogleUserPhone(customGoogleEmail.trim().lowercase())
-                                                    if (!registeredPhone.isNullOrBlank() && !registeredPhone.startsWith("+91 123456")) {
-                                                        val otp = (1000..9999).random().toString()
-                                                        viewModel.sendOtpSms(registeredPhone, otp) { success, errMsg ->
-                                                            if (success) {
-                                                                generatedOtp = otp
-                                                                otpFlowType = "GOOGLE"
-                                                                customGoogleEmail = customGoogleEmail.trim().lowercase()
-                                                                customGoogleName = autoName
-                                                                authStep = "OTP"
-                                                                enteredOtp = ""
-                                                                otpErrorMsg = null
-                                                                showGoogleDialog = false
-                                                                isGoogleWebLoginActive = false
-                                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                                    viewModel.showToast(
-                                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                        message = "Google Account: $customGoogleEmail has registered phone: $registeredPhone. OTP code is: $otp",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                } else {
-                                                                    viewModel.showToast(
-                                                                        title = "✉️ SMS OTP DISPATCHED",
-                                                                        message = "A verification code has been sent securely via SMS to your registered number: $registeredPhone.",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                }
-                                                            } else {
-                                                                showGoogleDialog = false
-                                                                isGoogleWebLoginActive = false
-                                                                viewModel.showToast(
-                                                                    title = "⚠️ Verification Error",
-                                                                    message = "Could not deliver secure OTP to registered number: $registeredPhone. Detail: $errMsg",
-                                                                    type = NotificationType.WARNING
-                                                                )
-                                                            }
-                                                        }
-                                                    } else {
+                                                    val matchedUser = viewModel.allUsers.value.find { it.email.trim().lowercase() == targetEmail }
+                                                    if (matchedUser != null) {
                                                         showGoogleDialog = false
                                                         isGoogleWebLoginActive = false
-                                                        viewModel.loginWithGoogle(email = customGoogleEmail.trim().lowercase(), name = autoName) {
-                                                            authStep = "FORM"
-                                                        }
+                                                        viewModel.loginDirectly(matchedUser.id)
+                                                    } else {
+                                                        linkingGoogleEmail = targetEmail
+                                                        linkingGoogleName = targetEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                                        linkingPhoneInput = ""
+                                                        linkingPhoneError = null
+                                                        showGooglePhoneLinking = true
                                                     }
                                                 }
                                             } else {
@@ -8034,49 +9857,17 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 scope.launch {
                                                     delay(1000)
                                                     isGoogleLoading = false
-                                                    val registeredPhone = viewModel.getGoogleUserPhone(accEmail)
-                                                    if (!registeredPhone.isNullOrBlank() && !registeredPhone.startsWith("+91 123456")) {
-                                                        val otp = (1000..9999).random().toString()
-                                                        viewModel.sendOtpSms(registeredPhone, otp) { success, errMsg ->
-                                                            if (success) {
-                                                                generatedOtp = otp
-                                                                otpFlowType = "GOOGLE"
-                                                                customGoogleEmail = accEmail
-                                                                customGoogleName = accName
-                                                                authStep = "OTP"
-                                                                enteredOtp = ""
-                                                                otpErrorMsg = null
-                                                                showGoogleDialog = false
-                                                                isGoogleWebLoginActive = false
-                                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE") {
-                                                                    viewModel.showToast(
-                                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                        message = "Google Account: $accEmail has registered phone: $registeredPhone. OTP code is: $otp",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                } else {
-                                                                    viewModel.showToast(
-                                                                        title = "✉️ SMS OTP DISPATCHED",
-                                                                        message = "A verification code has been sent securely via SMS to your registered number: $registeredPhone.",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                }
-                                                            } else {
-                                                                showGoogleDialog = false
-                                                                isGoogleWebLoginActive = false
-                                                                viewModel.showToast(
-                                                                    title = "⚠️ Verification Error",
-                                                                    message = "Could not deliver secure OTP to registered number: $registeredPhone. Detail: $errMsg",
-                                                                    type = NotificationType.WARNING
-                                                                )
-                                                            }
-                                                        }
-                                                    } else {
+                                                    val matchedUser = viewModel.allUsers.value.find { it.email.trim().lowercase() == accEmail.trim().lowercase() }
+                                                    if (matchedUser != null) {
                                                         showGoogleDialog = false
                                                         isGoogleWebLoginActive = false
-                                                        viewModel.loginWithGoogle(email = accEmail, name = accName) {
-                                                            authStep = "FORM"
-                                                        }
+                                                        viewModel.loginDirectly(matchedUser.id)
+                                                    } else {
+                                                        linkingGoogleEmail = accEmail
+                                                        linkingGoogleName = accName
+                                                        linkingPhoneInput = ""
+                                                        linkingPhoneError = null
+                                                        showGooglePhoneLinking = true
                                                     }
                                                 }
                                             }

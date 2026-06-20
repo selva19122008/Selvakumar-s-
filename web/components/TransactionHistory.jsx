@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getFirestore, 
   collection, 
   onSnapshot, 
   doc, 
@@ -11,6 +9,7 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 /**
  * TransactionHistory Component
@@ -29,7 +28,7 @@ export default function TransactionHistory({
 }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isLiveConnection, setIsLiveConnection] = useState(false);
+  const [isLiveConnection, setIsLiveConnection] = useState(true);
   const [errorStatus, setErrorStatus] = useState(null);
   const [notification, setNotification] = useState(null);
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'DEPOSIT' | 'WITHDRAWAL' | 'ENTRY_FEE'
@@ -58,22 +57,21 @@ export default function TransactionHistory({
 
     // Dynamic fallback Firebase configuration
     const activeConfig = firebaseConfig || {
-      apiKey: "AIzaSyFakeKey_BattleZone_19122008",
-      authDomain: "battlezone-esports.firebaseapp.com",
-      projectId: "battlezone-esports",
-      storageBucket: "battlezone-esports.appspot.com",
-      messagingSenderId: "101185877248",
-      appId: "1:101185877248:web:abcdef123"
+      apiKey: "AIzaSyDr0LJeBUoQcBzrxuZTb0sUcy3SCKP-eEU",
+      authDomain: "battle-zone-ff-3b23f.firebaseapp.com",
+      projectId: "battle-zone-ff-3b23f",
+      storageBucket: "battle-zone-ff-3b23f.firebasestorage.app",
+      messagingSenderId: "178066056608",
+      appId: "1:178066056608:web:3b52f63c046ff4382970c5"
     };
 
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApps().length === 0 ? initializeApp(activeConfig) : getApp();
-        const db = getFirestore(app);
+        const activeDb = db;
         
         // Listen to the user's specific sub-collection or overall ledger collection
-        const txRef = collection(db, 'transactions');
+        const txRef = collection(activeDb, 'transactions');
         const q = query(txRef, orderBy('createdAt', 'desc'));
 
         unsubscribe = onSnapshot(q, (snapshot) => {
@@ -163,9 +161,6 @@ export default function TransactionHistory({
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApp();
-        const db = getFirestore(app);
-        
         await addDoc(collection(db, 'transactions'), {
           ...payload,
           createdAt: serverTimestamp()
@@ -205,8 +200,6 @@ export default function TransactionHistory({
     if (isLiveConnection) {
       setLoading(true);
       try {
-        const app = getApp();
-        const db = getFirestore(app);
         const docRef = doc(db, 'transactions', item.id);
         
         // Updates internal ledger to SUCCESS after API validation check
