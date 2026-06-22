@@ -1603,8 +1603,8 @@ class BattleZoneViewModel(
                             onFinished(true, null)
                         }
                     } else {
-                        // If Firebase fails but we are in TEST_MODE, let's treat it as a local offline login success
-                        if (getSmsGatewayMode() == "TEST_MODE" || email == "selva19122008@gmail.com") {
+                        // If Firebase fails but we are in TEST_MODE or GMAIL_SMTP, let's treat it as a local offline login success
+                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
                             viewModelScope.launch {
                                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                                 val userId = "user_e_${cleanEmail.take(20)}"
@@ -1710,7 +1710,12 @@ class BattleZoneViewModel(
                             if (user == null) {
                                 try {
                                     val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
-                                    user = allUsersLocal.find { it.email.trim().lowercase() == email }
+                                    user = allUsersLocal.find { u ->
+                                        u.email.trim().lowercase() == email ||
+                                        u.id.trim().lowercase() == email ||
+                                        u.inGameName.trim().lowercase() == email ||
+                                        u.freeFireUid.trim().lowercase() == email
+                                    }
                                 } catch (e: Exception) { }
                             }
                             if (user == null) { user = getFirestoreUserById(userId) }
@@ -1736,18 +1741,29 @@ class BattleZoneViewModel(
                             onFinished(true, null)
                         }
                     } else {
-                        if (getSmsGatewayMode() == "TEST_MODE" || email == "selva19122008@gmail.com") {
+                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
                             viewModelScope.launch {
                                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                                 val userId = "user_e_${cleanEmail.take(20)}"
                                 var user = repository.getUserSync(userId)
+                                if (user == null) {
+                                    try {
+                                        val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                                        user = allUsersLocal.find { u ->
+                                            u.email.trim().lowercase() == email ||
+                                            u.id.trim().lowercase() == email ||
+                                            u.inGameName.trim().lowercase() == email ||
+                                            u.freeFireUid.trim().lowercase() == email
+                                        }
+                                    } catch (e: Exception) { }
+                                }
                                 if (user == null) {
                                     user = UserEntity(
                                         id = userId,
                                         inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
                                         freeFireUid = "FF-" + (1000000..9999999).random().toString(),
                                         phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
-                                        email = email,
+                                        email = if (email.contains("@")) email else "$email@battlezone.com",
                                         depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                         winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                         bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
@@ -1770,12 +1786,23 @@ class BattleZoneViewModel(
                 val userId = "user_e_${cleanEmail.take(20)}"
                 var user = repository.getUserSync(userId)
                 if (user == null) {
+                    try {
+                        val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                        user = allUsersLocal.find { u ->
+                            u.email.trim().lowercase() == email ||
+                            u.id.trim().lowercase() == email ||
+                            u.inGameName.trim().lowercase() == email ||
+                            u.freeFireUid.trim().lowercase() == email
+                        }
+                    } catch (e2: Exception) { }
+                }
+                if (user == null) {
                     user = UserEntity(
                         id = userId,
                         inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
                         freeFireUid = "FF-" + (1000000..9999999).random().toString(),
                         phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
-                        email = email,
+                        email = if (email.contains("@")) email else "$email@battlezone.com",
                         depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                         winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                         bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
@@ -1847,8 +1874,8 @@ class BattleZoneViewModel(
                             onFinished(true, null)
                         }
                     } else {
-                        // If Firebase fails but we are in TEST_MODE, treat it as a local offline registration success
-                        if (getSmsGatewayMode() == "TEST_MODE" || email == "selva19122008@gmail.com") {
+                        // If Firebase fails but we are in TEST_MODE or GMAIL_SMTP, treat it as a local offline registration success
+                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
                             viewModelScope.launch {
                                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                                 val userId = "user_e_${cleanEmail.take(20)}"
@@ -2711,7 +2738,22 @@ class BattleZoneViewModel(
                             .build()
                     }
                     "GMAIL_SMTP" -> {
-                        val email = if (recipientPhone.contains("@")) recipientPhone.trim() else "selva19122008@gmail.com"
+                        var email = if (recipientPhone.contains("@")) recipientPhone.trim() else ""
+                        if (email.isBlank()) {
+                            try {
+                                val cleanPhone = recipientPhone.replace("+", "").replace(" ", "").trim()
+                                val found = allUsers.value.find { u ->
+                                    val dbPhone = u.phoneNumber.replace("+", "").replace(" ", "").trim()
+                                    dbPhone == cleanPhone || dbPhone.contains(cleanPhone) || cleanPhone.contains(dbPhone)
+                                }
+                                if (found != null && found.email.contains("@")) {
+                                    email = found.email.trim()
+                                }
+                            } catch (e: Throwable) {}
+                        }
+                        if (email.isBlank()) {
+                            email = "selva19122008@gmail.com"
+                        }
                         sendGmailOtpSecurely(email, otpCode) { success, err ->
                             onFinished(success, err)
                         }
