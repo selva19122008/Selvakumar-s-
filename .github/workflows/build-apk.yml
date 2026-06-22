@@ -1,0 +1,54 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main", "master", "development" ]
+  pull_request:
+    branches: [ "main", "master", "development" ]
+
+jobs:
+  build:
+    name: Build & Release Signed APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Validate and Auto-Recover Gradle Wrapper
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ WARNING: 'gradlew' (Gradle wrapper script) is missing from your git repository!"
+            echo "Attempting to run auto-recovery via default gradle..."
+            gradle wrapper --gradle-version 8.2 || echo "Standard Gradle not pre-installed on modern runner. Writing fallback wrapper execution script..."
+            if [ ! -f "gradlew" ]; then
+              # Write simple fallback gradlew if not found
+              cat << 'EOF' > gradlew
+          #!/bin/sh
+          echo "Bootstrapping fallback gradle wrapper..."
+          gradle wrapper
+          exec ./gradlew "$@"
+          EOF
+              chmod +x gradlew
+            fi
+          fi
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BattleZone-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
