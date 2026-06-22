@@ -7378,6 +7378,8 @@ fun AdminDepositsTab(
     var twilioPhone by remember { mutableStateOf(viewModel.getTwilioPhone()) }
     var customSmsUrl by remember { mutableStateOf(viewModel.getCustomSmsUrl()) }
     var gmailBackendUrlState by remember { mutableStateOf(viewModel.getGmailOtpBackendUrl()) }
+    var gmailSmtpUser by remember { mutableStateOf(viewModel.getGmailUser()) }
+    var gmailSmtpPassword by remember { mutableStateOf(viewModel.getGmailAppPassword()) }
 
     var instagramSettingState by remember { mutableStateOf(viewModel.getInstagramSetting()) }
     var telegramSettingState by remember { mutableStateOf(viewModel.getTelegramSetting()) }
@@ -7769,16 +7771,25 @@ fun AdminDepositsTab(
                     }
                     "GMAIL_SMTP" -> {
                         OutlinedTextField(
-                            value = gmailBackendUrlState,
-                            onValueChange = { gmailBackendUrlState = it },
-                            label = { Text("Gmail OTP Secure Backend Gateway URL") },
+                            value = gmailSmtpUser,
+                            onValueChange = { gmailSmtpUser = it },
+                            label = { Text("Gmail Sender Address (Email)") },
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
-                            placeholder = { Text("Enter custom hosted URL path...") },
+                            placeholder = { Text("e.g. your_email@gmail.com") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = gmailSmtpPassword,
+                            onValueChange = { gmailSmtpPassword = it },
+                            label = { Text("Gmail 16-Digit App Password") },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                            placeholder = { Text("e.g. abcd efgh ijkl mnop") },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "✅ FREE & SECURE GMAIL SMTP GATEWAY: Using GMAIL_USER and GMAIL_APP_PASSWORD configured securely inside the AI Studio Secrets panel. This delivers completely free, lightning-fast OTP emails directly to your users' email boxes with zero cell charges!",
+                            "✅ DIRECT SECURE SMTP GATEWAY: Fully secure on-device direct SSL connection. Set up a regular Gmail address, enable 2-Step Verification in your Google Account settings, generate a '16-character App Password', and enter details above. Completely free, no registration dependencies!",
                             color = Color(0xFF81C784),
                             fontSize = 9.sp
                         )
@@ -7797,7 +7808,7 @@ fun AdminDepositsTab(
                             twilioPhone = twilioPhone,
                             customUrl = customSmsUrl
                         )
-                        viewModel.updateGmailOtpBackendUrl(gmailBackendUrlState)
+                        viewModel.updateGmailSmtpConfig(gmailSmtpUser, gmailSmtpPassword)
                         scope.launch {
                             snackbarHost.showSnackbar("Gateway routing configurations successfully dynamic saved!")
                         }
