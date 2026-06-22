@@ -436,7 +436,10 @@ class BattleZoneViewModel(
                    }
                    if (snapshot != null) {
                        viewModelScope.launch {
+                           var isProcessed = false
                            for (doc in snapshot.documents) {
+                               if (isProcessed) continue
+                               isProcessed = true
                                val m = doc.data
                                if (m != null) {
                                    val tournament = mapToTournament(m)
@@ -506,7 +509,10 @@ class BattleZoneViewModel(
                     }
                     if (snapshot != null) {
                         viewModelScope.launch {
+                            var isProcessed = false
                             for (doc in snapshot.documents) {
+                                if (isProcessed) continue
+                                isProcessed = true
                                 val m = doc.data
                                 if (m != null) {
                                     val joinObj = mapToJoin(m)
@@ -2193,6 +2199,9 @@ class BattleZoneViewModel(
              kotlinx.coroutines.delay(3000) // initial loading settle grace period
              while (true) {
                  kotlinx.coroutines.delay(5000)
+                 if (_userRole.value != "admin" && firestore != null) {
+                     continue
+                 }
                  val currentTime = System.currentTimeMillis()
                  val allT = allTournaments.value
                  
@@ -2304,17 +2313,27 @@ class BattleZoneViewModel(
         }
     }
 
+    private val pendingLivePromotions = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
+
     fun setTournamentLive(tournamentId: Int) {
+        if (!pendingLivePromotions.add(tournamentId)) return
         viewModelScope.launch {
-            val tourney = repository.getTournamentSync(tournamentId)
-            if (tourney != null && tourney.status == "UPCOMING") {
-                val liveTourney = tourney.copy(
-                    status = "LIVE",
-                    roomId = if (tourney.roomId.isNullOrBlank()) "992" + (1000..9999).random().toString() else tourney.roomId,
-                    roomPassword = if (tourney.roomPassword.isNullOrBlank()) "BZONE_" + (10..99).random().toString() else tourney.roomPassword
-                )
-                repository.updateTournament(liveTourney)
-                pushTournamentToFirestore(liveTourney)
+            try {
+                if (_userRole.value != "admin" && firestore != null) {
+                    return@launch
+                }
+                val tourney = repository.getTournamentSync(tournamentId)
+                if (tourney != null && tourney.status == "UPCOMING") {
+                    val liveTourney = tourney.copy(
+                        status = "LIVE",
+                        roomId = if (tourney.roomId.isNullOrBlank()) "992" + (1000..9999).random().toString() else tourney.roomId,
+                        roomPassword = if (tourney.roomPassword.isNullOrBlank()) "BZONE_" + (10..99).random().toString() else tourney.roomPassword
+                    )
+                    repository.updateTournament(liveTourney)
+                    pushTournamentToFirestore(liveTourney)
+                }
+            } finally {
+                pendingLivePromotions.remove(tournamentId)
             }
         }
     }

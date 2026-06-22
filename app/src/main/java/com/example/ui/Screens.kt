@@ -1,5 +1,4 @@
 package com.example.ui
-
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
@@ -60,13 +59,11 @@ import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-
 // Simple format helper
 fun Double.toCurrency(): String {
     val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     return format.format(this).replace("INR", "₹").replace("Rs.", "₹")
 }
-
 @Composable
 fun AdminAccessWrapper(
     userRole: String,
@@ -125,15 +122,12 @@ fun AdminAccessWrapper(
         onAccessDenied()
     }
 }
-
 @Composable
 fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     var isSplashScreenVisible by remember { mutableStateOf(true) }
-
     var selectedTab by remember { mutableStateOf(0) }
     var isAdminMode by remember { mutableStateOf(false) }
     var activeTournamentIdForDetails by remember { mutableStateOf<Int?>(null) }
-
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val userRole by viewModel.userRole.collectAsStateWithLifecycle()
     val isUserAdmin = user?.email == "selva19122008@gmail.com" && userRole == "admin" && viewModel.isFirebaseUserAdmin()
@@ -141,14 +135,11 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordInput by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
-
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
     val userJoins by viewModel.currentUserJoins.collectAsStateWithLifecycle()
     val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsStateWithLifecycle()
-
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
     if (isSplashScreenVisible) {
         SplashScreen(onTimeout = { isSplashScreenVisible = false })
     } else if (!isUserLoggedIn) {
@@ -266,7 +257,6 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         }
                     }
                 }
-
                 // Transient Toast Notifications Layer
                 val toastNotifications by viewModel.toastNotifications.collectAsStateWithLifecycle()
                 ToastOverlay(
@@ -277,7 +267,6 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
             }
         }
     }
-
     // Dynamic Start-Time Room Credentials Pop-up Dialog
     val activeCredentialsPopup by viewModel.activeCredentialsPopup.collectAsStateWithLifecycle()
     if (activeCredentialsPopup != null) {
@@ -310,9 +299,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             modifier = Modifier.size(28.dp)
                         )
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Text(
                         text = "⚔️ LOBBY CREDENTIALS READY",
                         color = Color.White,
@@ -321,9 +308,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         letterSpacing = 1.5.sp,
                         textAlign = TextAlign.Center
                     )
-
                     Spacer(modifier = Modifier.height(4.dp))
-
                     Text(
                         text = tourney.title.uppercase(),
                         color = NeonGold,
@@ -332,9 +317,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         letterSpacing = 1.sp,
                         textAlign = TextAlign.Center
                     )
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Text(
                         text = "Use the details below to join the custom room in Free Fire right now. Do not share these credentials with non-participants!",
                         color = GreyText,
@@ -343,9 +326,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
-
                     Spacer(modifier = Modifier.height(20.dp))
-
                     // Room ID segment
                     val roomIdText = tourney.roomId ?: "LOBBY_GENERATING"
                     Column(
@@ -393,9 +374,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // Room Password segment
                     val roomPassText = tourney.roomPassword ?: "NO_PASSWORD"
                     Column(
@@ -443,9 +422,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(24.dp))
-
                     // Buttons
                     Button(
                         onClick = { viewModel.dismissCredentialsPopup() },
@@ -463,9 +440,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             fontSize = 13.sp
                         )
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
-
                     TextButton(
                         onClick = { viewModel.dismissCredentialsPopup() }
                     ) {
@@ -481,7 +456,6 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
             }
         }
     }
-
     // Secure Admin Lock Password Prompt Dialog
     if (showPasswordDialog) {
         Dialog(onDismissRequest = {
@@ -515,9 +489,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             modifier = Modifier.size(24.dp)
                         )
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Text(
                         text = "SECURE MASTER ACCESS",
                         color = Color.White,
@@ -525,9 +497,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         fontSize = 14.sp,
                         letterSpacing = 1.sp
                     )
-
                     Spacer(modifier = Modifier.height(6.dp))
-
                     Text(
                         text = "Enter master password to access administrative configurations.",
                         color = GreyText,
@@ -535,9 +505,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         textAlign = TextAlign.Center,
                         lineHeight = 15.sp
                     )
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     OutlinedTextField(
                         value = passwordInput,
                         onValueChange = {
@@ -570,7 +538,6 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         isError = passwordError != null,
                         modifier = Modifier.fillMaxWidth().testTag("admin_password_input")
                     )
-
                     if (passwordError != null) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -580,9 +547,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-
                     Spacer(modifier = Modifier.height(20.dp))
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -597,7 +562,6 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         ) {
                             Text("ABORT", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-
                         Button(
                             onClick = {
                                 if (passwordInput.trim() == "Selva@2008" && user?.email == "selva19122008@gmail.com") {
@@ -624,29 +588,24 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
         }
     }
 }
-
 @Composable
 fun SplashScreen(onTimeout: () -> Unit) {
     var startAnimation by remember { mutableStateOf(false) }
-
     val alphaAnim by animateFloatAsState(
         targetValue = if (startAnimation) 1f else 0f,
         animationSpec = tween(durationMillis = 1200),
         label = "alpha"
     )
-
     val scaleAnim by animateFloatAsState(
         targetValue = if (startAnimation) 1.0f else 0.8f,
         animationSpec = tween(durationMillis = 1200),
         label = "scale"
     )
-
     LaunchedEffect(Unit) {
         startAnimation = true
         delay(3000) // Show logo for 3 seconds
         onTimeout()
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -666,7 +625,6 @@ fun SplashScreen(onTimeout: () -> Unit) {
                     )
                 )
         )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -703,9 +661,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                     modifier = Modifier.fillMaxSize()
                 )
             }
-
             Spacer(modifier = Modifier.height(26.dp))
-
             // Text Heading
             Text(
                 text = "BATTLE ZONE",
@@ -715,9 +671,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 letterSpacing = 4.sp,
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             // Sub-caption
             Text(
                 text = "ESPORTS TOURNAMENTS & LOBBIES",
@@ -727,9 +681,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 letterSpacing = 1.5.sp,
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(48.dp))
-
             // Loading indicator
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -742,9 +694,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                     color = RedPrimary,
                     trackColor = Color(0xFF28252C)
                 )
-
                 Spacer(modifier = Modifier.height(10.dp))
-
                 Text(
                     text = "INITIATING SECURE CORE...",
                     color = RedPrimary.copy(alpha = 0.7f),
@@ -754,7 +704,6 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 )
             }
         }
-
         // Footer brand alignment
         Box(
             modifier = Modifier
@@ -773,7 +722,6 @@ fun SplashScreen(onTimeout: () -> Unit) {
         }
     }
 }
-
 @Composable
 fun ToastOverlay(
     toasts: List<ToastNotification>,
@@ -819,7 +767,6 @@ fun ToastOverlay(
         }
     }
 }
-
 @Composable
 fun GamingToastItem(
     toast: ToastNotification,
@@ -832,7 +779,6 @@ fun GamingToastItem(
         NotificationType.SUCCESS -> Color(0xFF00E676)
         NotificationType.INFO -> Color(0xFF29B6F6)
     }
-
     val icon = when (toast.type) {
         NotificationType.MATCH_START -> Icons.Filled.SportsEsports
         NotificationType.MATCH_RESULT -> Icons.Filled.EmojiEvents
@@ -840,9 +786,7 @@ fun GamingToastItem(
         NotificationType.SUCCESS -> Icons.Filled.CheckCircle
         NotificationType.INFO -> Icons.Filled.Notifications
     }
-
     val shadowColor = borderColor.copy(alpha = 0.25f)
-
     Surface(
         color = Color(0xFF16141A).copy(alpha = 0.95f),
         shape = RoundedCornerShape(10.dp),
@@ -872,9 +816,7 @@ fun GamingToastItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             // Text section
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -891,9 +833,7 @@ fun GamingToastItem(
                     lineHeight = 15.sp
                 )
             }
-
             Spacer(modifier = Modifier.width(8.dp))
-
             // Action/Close Button
             IconButton(
                 onClick = onDismiss,
@@ -909,7 +849,6 @@ fun GamingToastItem(
         }
     }
 }
-
 // TOP RUNNING BAR
 @Composable
 fun BattleZoneTopBar(
@@ -966,7 +905,6 @@ fun BattleZoneTopBar(
                         )
                     }
                 }
-
                 // Dual Role Changer Badge - hidden in public place, only shown if isAdminUnlocked
                 if (isAdminUnlocked) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -997,9 +935,7 @@ fun BattleZoneTopBar(
                                 )
                             }
                         }
-
                         Spacer(modifier = Modifier.width(8.dp))
-
                         IconButton(
                             onClick = onLockAdmin,
                             modifier = Modifier
@@ -1018,7 +954,6 @@ fun BattleZoneTopBar(
                     }
                 }
             }
-
             // Interactive Persistent User Wallet Horizontal Indicator
             if (!isAdmin && user != null) {
                 Divider(color = Color(0xFF1E1C24), thickness = 1.dp)
@@ -1035,7 +970,6 @@ fun BattleZoneTopBar(
                     val winnings = user.winningBalance
                     val bonus = user.bonusBalance
                     val totalB = deposit + winnings + bonus
-
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -1067,7 +1001,6 @@ fun BattleZoneTopBar(
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
-
                         // Winning Balance Badge
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1092,7 +1025,6 @@ fun BattleZoneTopBar(
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
-
                         // Bonus Balance Badge
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1118,9 +1050,7 @@ fun BattleZoneTopBar(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.width(6.dp))
-
                     // Total Wallet Pill
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -1148,7 +1078,6 @@ fun BattleZoneTopBar(
         }
     }
 }
-
 // NAVIGATION ROW
 @Composable
 fun GamerBottomNav(selectedTab: Int, onTabSelected: (Int) -> Unit) {
@@ -1166,7 +1095,6 @@ fun GamerBottomNav(selectedTab: Int, onTabSelected: (Int) -> Unit) {
             Triple("Support", Icons.Filled.SupportAgent, 3),
             Triple("Profile", Icons.Default.Person, 4)
         )
-
         items.forEach { (label, icon, index) ->
             NavigationBarItem(
                 selected = selectedTab == index,
@@ -1196,8 +1124,6 @@ fun GamerBottomNav(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         }
     }
 }
-
-
 // --- 1. LOBBY MATCHES SCREEN ---
 @Composable
 fun LobbyScreen(
@@ -1209,7 +1135,6 @@ fun LobbyScreen(
     val userRole by viewModel.userRole.collectAsStateWithLifecycle()
     val isAdmin = userRole == "admin" || viewModel.isFirebaseUserAdmin()
     var activeFilterTab by remember { mutableStateOf("UPCOMING") } // "UPCOMING", "LIVE", "COMPLETED"
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1217,7 +1142,6 @@ fun LobbyScreen(
     ) {
         // Banner announcement
         GamingBannerSlider()
-
         // Filter tabs
         Row(
             modifier = Modifier
@@ -1253,7 +1177,6 @@ fun LobbyScreen(
                 }
             }
         }
-
         val filteredTournaments = tournaments
             .filter { match ->
                 if (match.status == activeFilterTab) {
@@ -1268,7 +1191,6 @@ fun LobbyScreen(
                 }
             }
             .sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.timestamp })
-
         if (filteredTournaments.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -1316,7 +1238,6 @@ fun LobbyScreen(
         }
     }
 }
-
 @Composable
 fun GamingBannerSlider() {
     Card(
@@ -1377,7 +1298,6 @@ fun GamingBannerSlider() {
         }
     }
 }
-
 @Composable
 fun TournamentCard(
     match: TournamentEntity,
@@ -1447,9 +1367,7 @@ fun TournamentCard(
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(10.dp))
-
             // Title
             Text(
                 text = match.title,
@@ -1459,7 +1377,6 @@ fun TournamentCard(
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1
             )
-
             // Countdown timer row for UPCOMING tournaments
             if (match.status == "UPCOMING") {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1470,9 +1387,7 @@ fun TournamentCard(
                     }
                 )
             }
-
             Spacer(modifier = Modifier.height(14.dp))
-
             // Big Statistics
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1487,7 +1402,6 @@ fun TournamentCard(
                         color = NeonGold
                     )
                 }
-
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("ENTRY FEE", fontSize = 9.sp, color = GreyText)
                     Text(
@@ -1497,7 +1411,6 @@ fun TournamentCard(
                         color = if (match.entryFee == 0.0) Color(0xFF00E676) else Color.White
                     )
                 }
-
                 Column(horizontalAlignment = Alignment.End) {
                     Text("MAP SECT", fontSize = 9.sp, color = GreyText)
                     Text(
@@ -1508,14 +1421,11 @@ fun TournamentCard(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(14.dp))
-
             // Slots loading bar
             val progress = if (match.slotsTotal > 0) {
                 (match.slotsTotal - match.slotsRemaining).toFloat() / match.slotsTotal.toFloat()
             } else 0f
-
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1548,21 +1458,31 @@ fun TournamentCard(
         }
     }
 }
-
 @Composable
 fun CountdownTimer(
     targetTimestamp: Long,
     onTimerFinished: () -> Unit
 ) {
     var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    var hasTriggeredFinished by remember(targetTimestamp) { mutableStateOf(false) }
     
     LaunchedEffect(targetTimestamp) {
+        if (System.currentTimeMillis() >= targetTimestamp) {
+            if (!hasTriggeredFinished) {
+                hasTriggeredFinished = true
+                onTimerFinished()
+            }
+            return@LaunchedEffect
+        }
         while (System.currentTimeMillis() < targetTimestamp) {
             currentTime = System.currentTimeMillis()
             delay(1000)
         }
         currentTime = System.currentTimeMillis()
-        onTimerFinished()
+        if (!hasTriggeredFinished) {
+            hasTriggeredFinished = true
+            onTimerFinished()
+        }
     }
     
     val diff = targetTimestamp - currentTime
@@ -1667,8 +1587,6 @@ fun CountdownTimer(
         }
     }
 }
-
-
 // --- 2. TOURNAMENT DETAILS & SEAT MAP & DYNAMIC KEYS ---
 @Composable
 fun TournamentDetailsScreen(
@@ -1682,21 +1600,17 @@ fun TournamentDetailsScreen(
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
     val match = tournaments.find { it.id == tournamentId }
-
     val userJoins by viewModel.currentUserJoins.collectAsStateWithLifecycle()
     val isAlreadyJoined = userJoins.any { it.tournamentId == tournamentId }
-
     if (match == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Match details missing. Let's return.", color = Color.White)
         }
         return
     }
-
     // Dynamic timer checking calculation: Room credentials visible if:
     // status == LIVE or COMPLETED or starting in < 10 mins (simulated as custom trigger button or immediate display once registered)
     var revealRoomDetails by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1736,7 +1650,6 @@ fun TournamentDetailsScreen(
                 }
             }
         }
-
         Column(modifier = Modifier.padding(16.dp)) {
             // Stats Panel
             Row(
@@ -1745,22 +1658,29 @@ fun TournamentDetailsScreen(
                     .background(DarkSurface, RoundedCornerShape(12.dp))
                     .border(BorderStroke(1.dp, Color(0xFF1F1C25)), RoundedCornerShape(12.dp))
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("PRIZE POOL", fontSize = 9.sp, color = GreyText)
-                    Text(match.prizePool.toCurrency(), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = NeonGold)
+                    Text(match.prizePool.toCurrency(), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = NeonGold)
                 }
                 Divider(
                     modifier = Modifier
                         .height(34.dp)
                         .width(1.dp), color = Color(0xFF28252C)
                 )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("ENTRY FEE", fontSize = 9.sp, color = GreyText)
                     Text(
                         if (match.entryFee == 0.0) "FREE" else match.entryFee.toCurrency(),
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
@@ -1770,14 +1690,15 @@ fun TournamentDetailsScreen(
                         .height(34.dp)
                         .width(1.dp), color = Color(0xFF28252C)
                 )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.weight(1.2f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("GAME DATE", fontSize = 9.sp, color = GreyText)
-                    Text(match.dateTimeStr, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = RedSecondary)
+                    Text(match.dateTimeStr, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = RedSecondary, maxLines = 1)
                 }
             }
-
             Spacer(modifier = Modifier.height(16.dp))
-
             // -- INNER CREDENTIALS DISTRIBUTION PANEL ---
             if (isAlreadyJoined) {
                 Card(
@@ -1810,7 +1731,6 @@ fun TournamentDetailsScreen(
                             color = GreyText
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-
                         if (revealRoomDetails) {
                             Column(
                                 modifier = Modifier
@@ -1874,12 +1794,10 @@ fun TournamentDetailsScreen(
                         snackbarHostState = snackbarHostState
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // Refund Request block
                     var showRefundPrompt by remember { mutableStateOf(false) }
                     val liveRefunds by viewModel.currentUserRefunds.collectAsStateWithLifecycle()
                     val existingRefund = liveRefunds.find { it.tournamentId == tournamentId }
-
                     if (existingRefund != null) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF281C16)),
@@ -1934,11 +1852,9 @@ fun TournamentDetailsScreen(
                             }
                         }
                     }
-
                     if (showRefundPrompt) {
                         var refundReason by remember { mutableStateOf("Tournament was not conducted by the admin") }
                         var refundDestination by remember { mutableStateOf("WALLET") } // "WALLET" or "BANK_WALLET"
-
                         Dialog(onDismissRequest = { showRefundPrompt = false }) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -1949,12 +1865,9 @@ fun TournamentDetailsScreen(
                                     Text("REQUEST ENTRY FEE REFUND", color = NeonGold, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text("Select the exact reason and destination for manual processing or wallet reversals.", fontSize = 9.sp, color = GreyText)
-
                                     Spacer(modifier = Modifier.height(14.dp))
-
                                     Text("SELECT REFUND REASON", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
-
                                     val refundReasons = listOf("Tournament was not conducted by the admin", "Match was rescheduled / Timing issue")
                                     refundReasons.forEach { r ->
                                         Row(
@@ -1973,12 +1886,9 @@ fun TournamentDetailsScreen(
                                             Text(r, color = Color.White, fontSize = 11.sp)
                                         }
                                     }
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     Text("RETURN DESTINATION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
-
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Box(
                                             modifier = Modifier
@@ -2007,9 +1917,7 @@ fun TournamentDetailsScreen(
                                             }
                                         }
                                     }
-
                                     Spacer(modifier = Modifier.height(16.dp))
-
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                         TextButton(onClick = { showRefundPrompt = false }) {
                                             Text("CANCEL", color = GreyText)
@@ -2037,11 +1945,9 @@ fun TournamentDetailsScreen(
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
             // Rules Box
             Text("MATCH RULES & REGULATIONS", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(6.dp))
@@ -2058,13 +1964,10 @@ fun TournamentDetailsScreen(
                     lineHeight = 16.sp
                 )
             }
-
             Spacer(modifier = Modifier.height(18.dp))
-
             // Action / Join button
             if (!isAlreadyJoined) {
                 var showInGameNamePrompt by remember { mutableStateOf(false) }
-
                 Button(
                     onClick = {
                         if (user?.freeFireUid == "FF-837492047" || user?.inGameName == "Alpha_Gamer") {
@@ -2092,12 +1995,10 @@ fun TournamentDetailsScreen(
                         color = Color.White
                     )
                 }
-
                 if (showInGameNamePrompt) {
                     var inGameNameInput by remember { mutableStateOf(user?.inGameName ?: "Alpha_Gamer") }
                     var uidInput by remember { mutableStateOf(user?.freeFireUid ?: "FF-837492047") }
                     var registrationStep by remember { mutableStateOf(1) }
-
                     Dialog(onDismissRequest = { showInGameNamePrompt = false }) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -2121,7 +2022,6 @@ fun TournamentDetailsScreen(
                                         color = GreyText
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     OutlinedTextField(
                                         value = inGameNameInput,
                                         onValueChange = { inGameNameInput = it },
@@ -2133,7 +2033,6 @@ fun TournamentDetailsScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-
                                     OutlinedTextField(
                                         value = uidInput,
                                         onValueChange = { uidInput = it },
@@ -2144,9 +2043,7 @@ fun TournamentDetailsScreen(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     )
-
                                     Spacer(modifier = Modifier.height(16.dp))
-
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                         TextButton(onClick = { showInGameNamePrompt = false }) {
                                             Text("CANCEL", color = GreyText)
@@ -2171,12 +2068,10 @@ fun TournamentDetailsScreen(
                                 val depAva = user?.depositBalance ?: 0.0
                                 val winAva = user?.winningBalance ?: 0.0
                                 val totalRealCash = depAva + winAva
-
                                 val depositDeduct = minOf(requiredFee, depAva)
                                 val remainingForWin = maxOf(0.0, requiredFee - depositDeduct)
                                 val winningsDeduct = minOf(remainingForWin, winAva)
                                 val isSufficient = (depositDeduct + winningsDeduct) >= requiredFee
-
                                 Column(modifier = Modifier.padding(18.dp)) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -2202,9 +2097,7 @@ fun TournamentDetailsScreen(
                                         fontSize = 10.sp,
                                         color = GreyText
                                     )
-
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     // Match details summary
                                     Card(
                                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1C24)),
@@ -2234,9 +2127,7 @@ fun TournamentDetailsScreen(
                                             )
                                         }
                                     }
-
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     // Payment Breakdown
                                     Text(
                                         "ESTIMATED DEDUCTIONS",
@@ -2246,7 +2137,6 @@ fun TournamentDetailsScreen(
                                         letterSpacing = 1.sp
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
-
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -2266,12 +2156,10 @@ fun TournamentDetailsScreen(
                                                 color = if (requiredFee == 0.0) Color(0xFF00E676) else Color.White
                                             )
                                         }
-
                                         if (requiredFee > 0.0) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Divider(color = Color(0xFF28252C))
                                             Spacer(modifier = Modifier.height(8.dp))
-
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -2279,9 +2167,7 @@ fun TournamentDetailsScreen(
                                                 Text("From Deposit Wallet:", fontSize = 11.sp, color = GreyText)
                                                 Text("-${depositDeduct.toCurrency()}", fontSize = 11.sp, color = Color.White)
                                             }
-
                                             Spacer(modifier = Modifier.height(4.dp))
-
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -2289,9 +2175,7 @@ fun TournamentDetailsScreen(
                                                 Text("From Winnings Wallet:", fontSize = 11.sp, color = GreyText)
                                                 Text("-${winningsDeduct.toCurrency()}", fontSize = 11.sp, color = NeonGold)
                                             }
-
                                             Spacer(modifier = Modifier.height(4.dp))
-
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -2304,7 +2188,6 @@ fun TournamentDetailsScreen(
                                             }
                                         }
                                     }
-
                                     if (requiredFee > 0.0) {
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
@@ -2314,9 +2197,7 @@ fun TournamentDetailsScreen(
                                             lineHeight = 12.sp
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(16.dp))
-
                                     // Wallet Status or Insufficient Warning
                                     if (isSufficient) {
                                         // Success state breakdown
@@ -2337,9 +2218,7 @@ fun TournamentDetailsScreen(
                                             Text("Remaining Winnings:", fontSize = 11.sp, color = GreyText)
                                             Text((winAva - winningsDeduct).toCurrency(), fontSize = 11.sp, color = NeonGold)
                                         }
-
                                         Spacer(modifier = Modifier.height(20.dp))
-
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.End,
@@ -2414,9 +2293,7 @@ fun TournamentDetailsScreen(
                                                 lineHeight = 14.sp
                                             )
                                         }
-
                                         Spacer(modifier = Modifier.height(20.dp))
-
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.End,
@@ -2459,13 +2336,10 @@ fun TournamentDetailsScreen(
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
-
-
 // --- 3. PERSISTENT WALLET ENGINE ---
 @Composable
 fun WalletScreen(
@@ -2477,14 +2351,12 @@ fun WalletScreen(
     val transactions by viewModel.currentUserTransactions.collectAsStateWithLifecycle()
     val withdrawals by viewModel.currentUserWithdrawals.collectAsStateWithLifecycle(emptyList())
     var approvedToShowDialog by remember { mutableStateOf<WithdrawalRequestEntity?>(null) }
-
     LaunchedEffect(withdrawals) {
         val unnotified = withdrawals.find { it.status == "APPROVED" && !viewModel.hasNotifiedApproval(it.id) }
         if (unnotified != null) {
             approvedToShowDialog = unnotified
         }
     }
-
     if (approvedToShowDialog != null) {
         AlertDialog(
             onDismissRequest = {
@@ -2521,10 +2393,8 @@ fun WalletScreen(
             tonalElevation = 6.dp
         )
     }
-
     var showDepositDialog by remember { mutableStateOf(false) }
     var showWithdrawalDialog by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2539,7 +2409,6 @@ fun WalletScreen(
             letterSpacing = 1.sp
         )
         Spacer(modifier = Modifier.height(8.dp))
-
         // Gamer credit visual panel
         Card(
             modifier = Modifier
@@ -2564,7 +2433,6 @@ fun WalletScreen(
                 val winnings = user?.winningBalance ?: 0.0
                 val bonus = user?.bonusBalance ?: 0.0
                 val totalB = deposit + winnings + bonus
-
                 Column(
                     modifier = Modifier.fillMaxHeight(),
                     verticalArrangement = Arrangement.SpaceBetween
@@ -2587,7 +2455,6 @@ fun WalletScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-
                     Column {
                         Text(
                             text = "TOTAL VALUE BALANCE",
@@ -2602,7 +2469,6 @@ fun WalletScreen(
                             color = Color.White
                         )
                     }
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -2623,9 +2489,7 @@ fun WalletScreen(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(14.dp))
-
         // Action Buttons Row
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2644,7 +2508,6 @@ fun WalletScreen(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("ADD MONEY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
-
             Button(
                 onClick = { showWithdrawalDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
@@ -2660,9 +2523,7 @@ fun WalletScreen(
                 Text("WITHDRAWAL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = NeonGold)
             }
         }
-
         Spacer(modifier = Modifier.height(20.dp))
-
         // History logs
         Text(
             text = "TRANSACTION STATEMENTS HISTORY",
@@ -2671,7 +2532,6 @@ fun WalletScreen(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
-
         if (transactions.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -2694,7 +2554,6 @@ fun WalletScreen(
             }
         }
     }
-
     // Money deposit simulated popup
     if (showDepositDialog) {
         var depositAmountInput by remember { mutableStateOf("100") }
@@ -2702,9 +2561,7 @@ fun WalletScreen(
         var depositMethodRoute by remember { mutableStateOf("UPI_INTENT") } // "UPI_INTENT", "BANK_TRANSFER", "TEST_SIMULATION"
         var referenceIdInput by remember { mutableStateOf("") }
         val gatewayMode = viewModel.getPaymentGatewayMode() // "REAL_UPI" or "TEST_PREFILLED"
-
         val context = LocalContext.current
-
         Dialog(onDismissRequest = { showDepositDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -2728,7 +2585,6 @@ fun WalletScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(14.dp))
-
                     if (currentDepositStep == 1) {
                         // STATE 1: Choose amount and method
                         OutlinedTextField(
@@ -2743,11 +2599,9 @@ fun WalletScreen(
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
-
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("PRE-BUDGET QUICK RECHARGES:", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2768,11 +2622,9 @@ fun WalletScreen(
                                 }
                             }
                         }
-
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("SELECT ACTIVE GATEWAY SYSTEM:", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-
                         // Method 1: Instant UPI App Intent
                         Card(
                             modifier = Modifier
@@ -2803,7 +2655,6 @@ fun WalletScreen(
                                 }
                             }
                         }
-
                         // Method 2: Manual Bank IMPS/NEFT Transfer
                         Card(
                             modifier = Modifier
@@ -2834,9 +2685,7 @@ fun WalletScreen(
                                 }
                             }
                         }
-
                         Spacer(modifier = Modifier.height(20.dp))
-
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { showDepositDialog = false }) {
                                 Text("CANCEL", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -2857,22 +2706,18 @@ fun WalletScreen(
                                 Text("PROCEED TO CHECKOUT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-
                     } else if (currentDepositStep == 2) {
                         // STATE 2: Actual checkout processes
                         val amtNum = depositAmountInput.toDoubleOrNull() ?: 100.0
-
                         if (depositMethodRoute == "UPI_INTENT") {
                             val targetUpiId = viewModel.getAdminUpiId()
                             val targetPayee = viewModel.getAdminPayeeName()
                             val trRefNote = "BB-${viewModel.currentUserId}-${System.currentTimeMillis().toString().takeLast(6)}"
-
                             Text("UPI INSTANT MONEY FORWARDING", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Open your payment app, complete the transaction of ₹$amtNum to our recipient account, then copy the 12-Digit Reference No (UTR) below.", fontSize = 9.sp, color = GreyText)
                             
                             Spacer(modifier = Modifier.height(14.dp))
-
                             // Target panel
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
@@ -2896,9 +2741,7 @@ fun WalletScreen(
                                     }
                                 }
                             }
-
                             Spacer(modifier = Modifier.height(14.dp))
-
                             // Large forwarding action
                             Button(
                                 onClick = {
@@ -2920,9 +2763,7 @@ fun WalletScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("LAUNCH THE PAYMENT APPS FORK", fontSize = 11.sp, fontWeight = FontWeight.Black)
                             }
-
                             Spacer(modifier = Modifier.height(14.dp))
-
                             // Input UTR Number
                             OutlinedTextField(
                                 value = referenceIdInput,
@@ -2936,9 +2777,7 @@ fun WalletScreen(
                                 placeholder = { Text("Enter the 100% real GPay/PhonePe UTR link", fontSize = 10.sp) },
                                 modifier = Modifier.fillMaxWidth()
                             )
-
                             Spacer(modifier = Modifier.height(16.dp))
-
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 TextButton(onClick = { currentDepositStep = 1 }) {
                                     Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -2962,19 +2801,15 @@ fun WalletScreen(
                                     Text("SUBMIT TRANSACTION PROOF", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                                 }
                             }
-
                         } else if (depositMethodRoute == "BANK_TRANSFER") {
                             val bankName = viewModel.getAdminBankName()
                             val bankAcc = viewModel.getAdminBankAccount()
                             val bankIfsc = viewModel.getAdminBankIfsc()
                             val payeeName = viewModel.getAdminPayeeName()
-
                             Text("DIRECT BANK WIRE TRANSFER", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Manually transfer ₹$amtNum to our official bank account details listed below. Upload reference ID of the transaction transfer once finished.", fontSize = 9.sp, color = GreyText)
-
                             Spacer(modifier = Modifier.height(12.dp))
-
                             // Bank Details Card with convenient Copy triggers
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
@@ -2994,7 +2829,6 @@ fun WalletScreen(
                                         Text(payeeName, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
-
                                     // Account Number Row + Copy Option
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -3021,7 +2855,6 @@ fun WalletScreen(
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
-
                                     // IFSC Row + Copy Option
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -3054,9 +2887,7 @@ fun WalletScreen(
                                     }
                                 }
                             }
-
                             Spacer(modifier = Modifier.height(14.dp))
-
                             // Enter Reference
                             OutlinedTextField(
                                 value = referenceIdInput,
@@ -3069,9 +2900,7 @@ fun WalletScreen(
                                 placeholder = { Text("Enter bank transaction ref number", fontSize = 10.sp) },
                                 modifier = Modifier.fillMaxWidth()
                             )
-
                             Spacer(modifier = Modifier.height(16.dp))
-
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 TextButton(onClick = { currentDepositStep = 1 }) {
                                     Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3099,13 +2928,10 @@ fun WalletScreen(
                             val razorpayKey = viewModel.getRazorpayKeyId().ifBlank { "[No live Key ID Configured under Admin panel]" }
                             var mockUpiIdInput by remember { mutableStateOf("${viewModel.currentUserId}@paytm") }
                             var razorpayStep by remember { mutableStateOf(1) } // 1 = Review, 2 = Pay Details
-
                             Text("RAZORPAY SECURE GATEWAY", fontSize = 11.sp, color = Color(0xFF3395FF), fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Automatic client-side order routing node. Verification completed dynamically.", fontSize = 9.sp, color = GreyText)
-
                             Spacer(modifier = Modifier.height(12.dp))
-
                             if (razorpayStep == 1) {
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
@@ -3129,9 +2955,7 @@ fun WalletScreen(
                                         }
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { currentDepositStep = 1 }) {
                                         Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3147,7 +2971,6 @@ fun WalletScreen(
                             } else if (razorpayStep == 2) {
                                 Text("SELECT SECURE PAYMENT INSTRUMENTS", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 OutlinedTextField(
                                     value = mockUpiIdInput,
                                     onValueChange = { mockUpiIdInput = it },
@@ -3155,9 +2978,7 @@ fun WalletScreen(
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF3395FF), unfocusedBorderColor = Color(0xFF28252C)),
                                     modifier = Modifier.fillMaxWidth()
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { razorpayStep = 1 }) {
                                         Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3187,13 +3008,10 @@ fun WalletScreen(
                             val cashfreeClient = viewModel.getCashfreeClientId().ifBlank { "[No live Cashfree Client ID Configured under Admin panel]" }
                             var mockUpiIdInput by remember { mutableStateOf("${viewModel.currentUserId}@paytm") }
                             var cashfreeStep by remember { mutableStateOf(1) } // 1 = Review, 2 = Process
-
                             Text("CASHFREE INSTANT CHECKOUT", fontSize = 11.sp, color = Color(0xFF00C853), fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Automatic client-side order routing node. Verification completed dynamically.", fontSize = 9.sp, color = GreyText)
-
                             Spacer(modifier = Modifier.height(12.dp))
-
                             if (cashfreeStep == 1) {
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E12)),
@@ -3217,9 +3035,7 @@ fun WalletScreen(
                                         }
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { currentDepositStep = 1 }) {
                                         Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3235,7 +3051,6 @@ fun WalletScreen(
                             } else if (cashfreeStep == 2) {
                                 Text("SELECT SECURE PAYMENT INSTRUMENTS", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 OutlinedTextField(
                                     value = mockUpiIdInput,
                                     onValueChange = { mockUpiIdInput = it },
@@ -3243,9 +3058,7 @@ fun WalletScreen(
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00C853), unfocusedBorderColor = Color(0xFF28252C)),
                                     modifier = Modifier.fillMaxWidth()
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
-
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { cashfreeStep = 1 }) {
                                         Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3277,12 +3090,10 @@ fun WalletScreen(
             }
         }
     }
-
     // Money withdrawal request simulated popup
     if (showWithdrawalDialog) {
         var withdrawalAmountInput by remember { mutableStateOf("100") }
         var upiIdInput by remember { mutableStateOf("gamer@ybl") }
-
         Dialog(onDismissRequest = { showWithdrawalDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -3306,18 +3117,14 @@ fun WalletScreen(
                         color = GreyText
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
                     val userWinningBalance = user?.winningBalance ?: 0.0
                     val minWithdrawal = viewModel.getMinWithdrawalAmount()
                     val isWinningBalanceSufficientForMin = userWinningBalance >= minWithdrawal
-
                     val amtNum = withdrawalAmountInput.toDoubleOrNull() ?: 0.0
                     val isAmountValid = amtNum >= minWithdrawal && amtNum <= userWinningBalance
                     val isAmountFormatOk = withdrawalAmountInput.isNotBlank() && withdrawalAmountInput.toDoubleOrNull() != null
                     val isUpiValid = upiIdInput.isNotBlank() && upiIdInput.contains("@")
-
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // Available winnings balance display card
                     Surface(
                         color = Color(0xFF1E1B24),
@@ -3343,9 +3150,7 @@ fun WalletScreen(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // If user's winning balance is below the minimum required withdrawal threshold
                     if (!isWinningBalanceSufficientForMin) {
                         Surface(
@@ -3375,7 +3180,6 @@ fun WalletScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-
                     OutlinedTextField(
                         value = withdrawalAmountInput,
                         onValueChange = { withdrawalAmountInput = it },
@@ -3404,9 +3208,7 @@ fun WalletScreen(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
-
                     Spacer(modifier = Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = upiIdInput,
                         onValueChange = { upiIdInput = it },
@@ -3426,9 +3228,7 @@ fun WalletScreen(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
-
                     Spacer(modifier = Modifier.height(18.dp))
-
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showWithdrawalDialog = false }) {
                             Text("CANCEL", color = GreyText)
@@ -3467,7 +3267,6 @@ fun WalletScreen(
         }
     }
 }
-
 @Composable
 fun TransactionRow(tx: TransactionEntity) {
     Card(
@@ -3499,11 +3298,9 @@ fun TransactionRow(tx: TransactionEntity) {
                     else if (tx.type == "WITHDRAWAL") Icons.Filled.VerticalAlignTop
                     else if (tx.type == "ENTRY_FEE") Icons.Filled.SportsEsports
                     else Icons.Filled.EmojiEvents
-
                     val color = if (tx.type == "DEPOSIT" || tx.type == "PRIZE_WINNING" || tx.type == "BONUS_ADD")
                         Color(0xFF81C784)
                     else Color(0xFFE57373)
-
                     Icon(imageVector = icon, contentDescription = "tx", tint = color, modifier = Modifier.size(16.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
@@ -3512,7 +3309,6 @@ fun TransactionRow(tx: TransactionEntity) {
                     Text(text = tx.invoiceId, fontSize = 9.sp, color = GreyText)
                 }
             }
-
             Column(horizontalAlignment = Alignment.End) {
                 val prefix = if (tx.type == "DEPOSIT" || tx.type == "PRIZE_WINNING" || tx.type == "BONUS_ADD") "+" else "-"
                 val col = if (prefix == "+") Color(0xFF00E676) else RedPrimary
@@ -3532,8 +3328,6 @@ fun TransactionRow(tx: TransactionEntity) {
         }
     }
 }
-
-
 // --- 4. LEADERBOARD RANKINGS ---
 @Composable
 fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
@@ -3549,7 +3343,6 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
         Triple("Dynamo_Kid", 1100.0, 9),
         Triple("SilentScout", 900.0, 10)
     )
-
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -3558,7 +3351,6 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
         val width = maxWidth
         val height = maxHeight
         val isLandscape = width > height
-
         if (isLandscape) {
             // High-fidelity landscape / split columns adaptive layout
             Row(
@@ -3592,9 +3384,7 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
-
                     // Adaptive compact podium row for horizontal screens
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3606,7 +3396,6 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                         PodiumCard(name = "ViperFF_God", prize = "₹3,200", rank = 3, sizeModifier = 0.65f, modifier = Modifier.weight(1f))
                     }
                 }
-
                 // Divider Line
                 Box(
                     modifier = Modifier
@@ -3614,7 +3403,6 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                         .width(1.dp)
                         .background(Color(0xFF1E1C24))
                 )
-
                 // Right Column: Scroll list
                 Column(
                     modifier = Modifier
@@ -3628,7 +3416,6 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
-
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -3663,10 +3450,8 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-
                 // Scale down podium size slightly on compact screens to ensure spacing looks fantastic
                 val podiumScaleFactor = if (height < 650.dp) 0.8f else 1.0f
-
                 // Top 3 Podium Cards
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -3677,9 +3462,7 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
                     PodiumCard(name = "Shadow_Hunter", prize = "₹4,500", rank = 1, sizeModifier = 1.00f * podiumScaleFactor, modifier = Modifier.weight(1.1f))
                     PodiumCard(name = "ViperFF_God", prize = "₹3,200", rank = 3, sizeModifier = 0.80f * podiumScaleFactor, modifier = Modifier.weight(1f))
                 }
-
                 Spacer(modifier = Modifier.height(18.dp))
-
                 // Standard Scroll list
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -3693,14 +3476,12 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
         }
     }
 }
-
 @Composable
 fun LeaderboardRowItem(name: String, points: Double) {
     // Overloaded to keep backward-compatibility if any other file called this signature,
     // but we support rank below as primary
     LeaderboardRowItem(name = name, points = points, rank = 0)
 }
-
 @Composable
 fun LeaderboardRowItem(name: String, points: Double, rank: Int) {
     Card(
@@ -3747,12 +3528,10 @@ fun LeaderboardRowItem(name: String, points: Double, rank: Int) {
         }
     }
 }
-
 @Composable
 fun PodiumCard(name: String, prize: String, rank: Int, sizeModifier: Float, modifier: Modifier = Modifier) {
     val borderColor = if (rank == 1) NeonGold else if (rank == 2) Color(0xFFC0C0C0) else Color(0xFFCD7F32)
     val cardHeight = (130 * sizeModifier).dp
-
     Card(
         modifier = modifier
             .height(cardHeight)
@@ -3807,8 +3586,6 @@ fun PodiumCard(name: String, prize: String, rank: Int, sizeModifier: Float, modi
         }
     }
 }
-
-
 // --- 5. SUPPORT & CUSTOM TICKETS ---
 @Composable
 fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHostState) {
@@ -3816,7 +3593,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
     var ticketTitle by remember { mutableStateOf("") }
     var ticketMsg by remember { mutableStateOf("") }
     val tickets by viewModel.currentUserTickets.collectAsStateWithLifecycle()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -3828,7 +3604,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
         Spacer(modifier = Modifier.height(4.dp))
         Text("Encountered matches or wallet transfer delays? Create tickets for instant support replies.", fontSize = 10.sp, color = GreyText)
         Spacer(modifier = Modifier.height(8.dp))
-
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3854,9 +3629,7 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(14.dp))
-
         OutlinedTextField(
             value = ticketTitle,
             onValueChange = { ticketTitle = it },
@@ -3865,7 +3638,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
-
         OutlinedTextField(
             value = ticketMsg,
             onValueChange = { ticketMsg = it },
@@ -3875,9 +3647,7 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
                 .fillMaxWidth()
                 .height(90.dp)
         )
-
         Spacer(modifier = Modifier.height(12.dp))
-
         Button(
             onClick = {
                 if (ticketTitle.isNotBlank() && ticketMsg.isNotBlank()) {
@@ -3895,12 +3665,9 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
         ) {
             Text("SUBMIT TICKET", fontWeight = FontWeight.Bold)
         }
-
         Spacer(modifier = Modifier.height(24.dp))
-
         Text("YOUR RAISED TICKETS HISTORY", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
-
         if (tickets.isEmpty()) {
             Text("No support tickets filed matching user context.", color = GreyText, fontSize = 11.sp)
         } else {
@@ -3934,7 +3701,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(ticket.message, color = GreyText, fontSize = 11.sp)
-
                         if (ticket.adminReply != null) {
                             Spacer(modifier = Modifier.height(10.dp))
                             Box(
@@ -3955,7 +3721,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
         Card(
             modifier = Modifier.fillMaxWidth().testTag("notification_simulator_card"),
@@ -4047,8 +3812,6 @@ fun SupportScreen(viewModel: BattleZoneViewModel, snackbarHostState: SnackbarHos
         }
     }
 }
-
-
 // --- 6. USER PROFILE & REFERRALS ---
 @Composable
 fun ProfileScreen(
@@ -4061,16 +3824,13 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val securityMetrics by viewModel.securityMetrics.collectAsStateWithLifecycle()
     var isEditing by remember { mutableStateOf(false) }
-
     var ignState by remember(user) { mutableStateOf(user?.inGameName ?: "Alpha_Gamer") }
     var ffUidState by remember(user) { mutableStateOf(user?.freeFireUid ?: "FF-837492047") }
     var phoneState by remember(user) { mutableStateOf(user?.phoneNumber ?: "+91 91929 39495") }
     var extraPhoneState by remember(user) { mutableStateOf(user?.extraMobileNumber ?: "") }
     var emailState by remember(user) { mutableStateOf(user?.email ?: "gamer@battlezone.com") }
     var bioState by remember(user) { mutableStateOf(user?.profilePicture ?: "🎯 Free Fire Pro Challenger!") }
-
     var referralCodePrompt by remember { mutableStateOf("") }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -4106,7 +3866,6 @@ fun ProfileScreen(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-
         // Avatar banner
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -4170,9 +3929,7 @@ fun ProfileScreen(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // Profile Editing toggle card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -4194,7 +3951,6 @@ fun ProfileScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-
                 if (isEditing) {
                     OutlinedTextField(
                         value = ignState,
@@ -4204,7 +3960,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = ffUidState,
                         onValueChange = { ffUidState = it },
@@ -4213,7 +3968,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = bioState,
                         onValueChange = { bioState = it },
@@ -4222,7 +3976,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = phoneState,
                         onValueChange = { phoneState = it },
@@ -4231,7 +3984,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = extraPhoneState,
                         onValueChange = { extraPhoneState = it },
@@ -4240,7 +3992,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = maskEmail(emailState),
                         onValueChange = {},
@@ -4253,7 +4004,6 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-
                     Button(
                         onClick = {
                             viewModel.updateProfile(ignState, ffUidState, phoneState, extraPhoneState, emailState, bioState) {
@@ -4277,9 +4027,7 @@ fun ProfileScreen(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // Official Instagram and Telegram direct tabs/buttons
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -4292,9 +4040,7 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Tap any option below to auto-forward to our official active channels for tournament live support.", fontSize = 9.sp, color = GreyText)
                 Spacer(modifier = Modifier.height(14.dp))
-
                 val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -4335,7 +4081,6 @@ fun ProfileScreen(
                             Text(viewModel.getInstagramDisplay(), color = Color(0xFFE1306C), fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
-
                     // Telegram Card Button/Tab
                     Card(
                         modifier = Modifier
@@ -4372,7 +4117,6 @@ fun ProfileScreen(
                             Text(viewModel.getTelegramDisplay(), color = Color(0xFF0088CC), fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
-
                     // YouTube Card Button/Tab
                     Card(
                         modifier = Modifier
@@ -4412,9 +4156,7 @@ fun ProfileScreen(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // Referral program widget
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -4427,7 +4169,6 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Invite friends to get bonus deposit funds automatically.", fontSize = 9.sp, color = GreyText)
                 Spacer(modifier = Modifier.height(12.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -4437,7 +4178,6 @@ fun ProfileScreen(
                         Text("YOUR UNIQUE CODE:", fontSize = 9.sp, color = GreyText)
                         Text("BZONEFF77", color = NeonGold, fontSize = 15.sp, fontWeight = FontWeight.Black)
                     }
-
                     Box(
                         modifier = Modifier
                             .background(Color(0xFF231E15), RoundedCornerShape(6.dp))
@@ -4452,14 +4192,11 @@ fun ProfileScreen(
                         Text("COPY CODE", color = NeonGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
                 Divider(color = Color(0xFF1E1B24))
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Text("REDEEM REFERRAL/PROMO CODE", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -4474,7 +4211,6 @@ fun ProfileScreen(
                         ),
                         modifier = Modifier.weight(1f)
                     )
-
                     Button(
                         onClick = {
                             if (referralCodePrompt.isNotBlank()) {
@@ -4497,9 +4233,7 @@ fun ProfileScreen(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // BattleZone Security Guardian Protection Hub
         SecurityGuardianShieldCard(
             metrics = securityMetrics,
@@ -4510,10 +4244,8 @@ fun ProfileScreen(
                 }
             }
         )
-
         if (isAdminUnlocked) {
             Spacer(modifier = Modifier.height(16.dp))
-
             // Admin fast toggle button inside user Profile screen for easy testing
             Button(
                 onClick = onEnterAdmin,
@@ -4529,7 +4261,6 @@ fun ProfileScreen(
         }
     }
 }
-
 @Composable
 fun ProfileFieldRow(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 6.dp)) {
@@ -4537,7 +4268,6 @@ fun ProfileFieldRow(label: String, value: String) {
         Text(text = value, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Medium)
     }
 }
-
 @Composable
 fun SecurityGuardianShieldCard(
     metrics: SecurityMetrics,
@@ -4593,11 +4323,9 @@ fun SecurityGuardianShieldCard(
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(14.dp))
             Divider(color = Color(0xFF1B5E20).copy(alpha = 0.2f), thickness = 0.8.dp)
             Spacer(modifier = Modifier.height(10.dp))
-
             // Grid of checks
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -4609,7 +4337,6 @@ fun SecurityGuardianShieldCard(
                     isActive = true,
                     badgeText = "BYPASSED IN PREVIEW"
                 )
-
                 // Check 2: Root Detection
                 SecurityCheckRow(
                     title = "DEVICE INTEGRITY TAMPER PROBE",
@@ -4617,7 +4344,6 @@ fun SecurityGuardianShieldCard(
                     isActive = !metrics.isRooted,
                     badgeText = if (metrics.isRooted) "COMPROMISED" else "VIRGIN CLEAN"
                 )
-
                 // Check 3: ADB/Developer options
                 SecurityCheckRow(
                     title = "USB DEBUGGING GATE KEEPER",
@@ -4625,7 +4351,6 @@ fun SecurityGuardianShieldCard(
                     isActive = !metrics.isAdbEnabled,
                     badgeText = if (metrics.isAdbEnabled) "DEBUGGING DETECTED" else "GUARDED"
                 )
-
                 // Check 4: Emulators/Cheating bots
                 SecurityCheckRow(
                     title = "SANDBOX BOT DEFENSE ENGINE",
@@ -4633,7 +4358,6 @@ fun SecurityGuardianShieldCard(
                     isActive = !metrics.isEmulator,
                     badgeText = if (metrics.isEmulator) "VIRTUAL SYSTEM" else "VERIFIED DEVICE"
                 )
-
                 // Check 5: SQLite Database Injection Shielding
                 SecurityCheckRow(
                     title = "SQLITE DATABASE SANDBOXING",
@@ -4641,7 +4365,6 @@ fun SecurityGuardianShieldCard(
                     isActive = metrics.localDbEncryptedCheck,
                     badgeText = "SANITIZED"
                 )
-
                 // Check 6: Tamper Signature Proof
                 Column {
                     Row(
@@ -4673,7 +4396,6 @@ fun SecurityGuardianShieldCard(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(14.dp))
             Button(
                 onClick = onRefresh,
@@ -4699,7 +4421,6 @@ fun SecurityGuardianShieldCard(
         }
     }
 }
-
 @Composable
 fun SecurityCheckRow(
     title: String,
@@ -4750,8 +4471,6 @@ fun SecurityCheckRow(
         }
     }
 }
-
-
 // --- 7. ADMIN DASHBOARD & CONTROLS ---
 @Composable
 fun AdminDashboardScreen(
@@ -4760,12 +4479,10 @@ fun AdminDashboardScreen(
 ) {
     val scope = rememberCoroutineScope()
     var activeAdminTab by remember { mutableStateOf("METRICS") } // "METRICS", "TOURNAMENTS", "WITHDRAWALS", "TICKETS", "PROOFS", "DEPOSITS", "SECURITY"
-
     val users by viewModel.allUsers.collectAsStateWithLifecycle()
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
     val withdrawals by viewModel.adminAllWithdrawals.collectAsStateWithLifecycle()
     val supportTickets by viewModel.adminAllTickets.collectAsStateWithLifecycle()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -4809,7 +4526,6 @@ fun AdminDashboardScreen(
                 )
             }
         }
-
         when (activeAdminTab) {
             "METRICS" -> AdminMetricsTab(users = users, tourneys = tournaments, withdrawals = withdrawals, viewModel = viewModel, snackbarHost = snackbarHostState)
             "TOURNAMENTS" -> AdminTournamentsTab(tourneys = tournaments, users = users, viewModel = viewModel, snackBars = snackbarHostState)
@@ -4822,7 +4538,6 @@ fun AdminDashboardScreen(
         }
     }
 }
-
 // Stats metrics panel
 @Composable
 fun AdminMetricsTab(
@@ -4836,7 +4551,6 @@ fun AdminMetricsTab(
     var searchUserQuery by remember { mutableStateOf("") }
     var selectUserForWalletAdjust by remember { mutableStateOf<UserEntity?>(null) }
     var showDeleteConfirmUser by remember { mutableStateOf<UserEntity?>(null) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -4845,7 +4559,6 @@ fun AdminMetricsTab(
     ) {
         Text("ADMIN COMMAND METRICS", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
-
         // Grid stats
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -4863,13 +4576,10 @@ fun AdminMetricsTab(
             StatCard(title = "PENDING TRANSFER", value = totalWithdrawalPending.toCurrency(), color = NeonGold, modifier = Modifier.weight(1f))
             StatCard(title = "COMPLETED CUPS", value = "${tourneys.filter { it.status == "COMPLETED" }.size}", color = Color(0xFF00E676), modifier = Modifier.weight(1f))
         }
-
         Spacer(modifier = Modifier.height(24.dp))
-
         // User Accounts management
         Text("USER ACCOUNTS DIRECTORY & WALLET CONTROL", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(6.dp))
-
         OutlinedTextField(
             value = searchUserQuery,
             onValueChange = { searchUserQuery = it },
@@ -4878,14 +4588,11 @@ fun AdminMetricsTab(
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
             modifier = Modifier.fillMaxWidth()
         )
-
         Spacer(modifier = Modifier.height(10.dp))
-
         val filteredUsers = users.filter {
             it.inGameName.contains(searchUserQuery, ignoreCase = true) ||
                     it.freeFireUid.contains(searchUserQuery, ignoreCase = true)
         }
-
         filteredUsers.forEach { usr ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -4932,7 +4639,6 @@ fun AdminMetricsTab(
                             }
                             Text("UID: ${usr.freeFireUid}", color = GreyText, fontSize = 10.sp)
                         }
-
                         // Action controls block (Wallet Credit & Delete User)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -4946,7 +4652,6 @@ fun AdminMetricsTab(
                             ) {
                                 Text("CREDIT WALLET", fontSize = 9.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
                             }
-
                             IconButton(
                                 onClick = { showDeleteConfirmUser = usr },
                                 modifier = Modifier.size(28.dp)
@@ -4960,7 +4665,6 @@ fun AdminMetricsTab(
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -4973,7 +4677,6 @@ fun AdminMetricsTab(
                 }
             }
         }
-
         // Delete Compete Confirmation Dialog overlay
         if (showDeleteConfirmUser != null) {
             val userToDelete = showDeleteConfirmUser!!
@@ -5023,14 +4726,12 @@ fun AdminMetricsTab(
                 }
             }
         }
-
         // Direct Wallet Adjustment drawer dialog
         if (selectUserForWalletAdjust != null) {
             val userToAdjust = selectUserForWalletAdjust!!
             var depositInput by remember { mutableStateOf(userToAdjust.depositBalance.toString()) }
             var winningInput by remember { mutableStateOf(userToAdjust.winningBalance.toString()) }
             var bonusInput by remember { mutableStateOf(userToAdjust.bonusBalance.toString()) }
-
             Dialog(onDismissRequest = { selectUserForWalletAdjust = null }) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -5048,7 +4749,6 @@ fun AdminMetricsTab(
                         )
                         Text("Direct wallet control panel. Specify absolute new amount. Set to 0 to completely clear.", fontSize = 9.sp, color = GreyText)
                         Spacer(modifier = Modifier.height(14.dp))
-
                         OutlinedTextField(
                             value = depositInput,
                             onValueChange = { depositInput = it },
@@ -5057,7 +4757,6 @@ fun AdminMetricsTab(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-
                         OutlinedTextField(
                             value = winningInput,
                             onValueChange = { winningInput = it },
@@ -5066,7 +4765,6 @@ fun AdminMetricsTab(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-
                         OutlinedTextField(
                             value = bonusInput,
                             onValueChange = { bonusInput = it },
@@ -5074,9 +4772,7 @@ fun AdminMetricsTab(
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                             modifier = Modifier.fillMaxWidth()
                         )
-
                         Spacer(modifier = Modifier.height(16.dp))
-
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { selectUserForWalletAdjust = null }) {
                                 Text("CANCEL", color = GreyText)
@@ -5087,7 +4783,6 @@ fun AdminMetricsTab(
                                     val dVal = depositInput.toDoubleOrNull() ?: 0.0
                                     val wVal = winningInput.toDoubleOrNull() ?: 0.0
                                     val bVal = bonusInput.toDoubleOrNull() ?: 0.0
-
                                     viewModel.adminSetUserBalances(userToAdjust.id, dVal, wVal, bVal)
                                     selectUserForWalletAdjust = null
                                     scope.launch {
@@ -5105,7 +4800,6 @@ fun AdminMetricsTab(
         }
     }
 }
-
 @Composable
 fun AdminRefundsTab(
     viewModel: BattleZoneViewModel,
@@ -5113,7 +4807,6 @@ fun AdminRefundsTab(
 ) {
     val scope = rememberCoroutineScope()
     val allRefunds by viewModel.adminAllRefunds.collectAsStateWithLifecycle()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -5131,9 +4824,7 @@ fun AdminRefundsTab(
                 Text("Process players' requested match reimbursement claims. Approvals automatically reverse the original match fee transaction back to original destination.", fontSize = 9.sp, color = GreyText)
             }
         }
-
         Spacer(modifier = Modifier.height(14.dp))
-
         if (allRefunds.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -5193,14 +4884,12 @@ fun AdminRefundsTab(
                                 }
                             }
                             Spacer(modifier = Modifier.height(6.dp))
-
                             Text("Tournament: ${refund.tournamentTitle} (ID #${refund.tournamentId})", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             Text("Player Uid: ${refund.userId}", fontSize = 10.sp, color = GreyText)
                             Text("Reason Given: \"${refund.reason}\"", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f))
                             Text("Claim Destination: ${refund.refundDestination}", fontSize = 10.sp, color = GreyText)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Amount: ₹${refund.entryFee} INR", fontSize = 12.sp, color = NeonGold, fontWeight = FontWeight.Black)
-
                             if (refund.status == "PENDING") {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Row(
@@ -5254,7 +4943,6 @@ fun AdminRefundsTab(
         }
     }
 }
-
 @Composable
 fun StatCard(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Card(
@@ -5269,7 +4957,6 @@ fun StatCard(title: String, value: String, color: Color, modifier: Modifier = Mo
         }
     }
 }
-
 // Tournaments / Match creator tab
 @Composable
 fun AdminTournamentsTab(
@@ -5280,7 +4967,6 @@ fun AdminTournamentsTab(
 ) {
     val scope = rememberCoroutineScope()
     var isCreatingMatch by remember { mutableStateOf(false) }
-
     // Forms fields
     var matchTitle by remember { mutableStateOf("Free Fire Weekly Showdown") }
     var entryFeeState by remember { mutableStateOf("45") }
@@ -5308,7 +4994,6 @@ fun AdminTournamentsTab(
 • M10 not allowed.
 • Zone Pack not allowed.
 • Your Free Fire account level must be 40+.
-
 📋 CUSTOM ROOM SETTINGS:
 1. While joining, fill your In-Game Username, NOT your UID (Stylish fonts are not allowed; use normal fonts. Failure to follow this can result in being kicked from the room).
 2. ID Level Must Be 40+.
@@ -5316,14 +5001,12 @@ fun AdminTournamentsTab(
 4. Unlimited ammo & Gloo Wall enabled.
 5. Default coin: 1500.
 6. Character skills: No (No CS).
-
 ⚠️ IMPORTANT NOTES:
 • Record all matches to review suspicious activities.
 • If you find someone hacking, report immediately with a screenshot or video. We will refund you and ban the hacker.
 • If you fail to join the custom match by the start time, we are not responsible, and refunds will not be processed. Make sure to join on time.
 • Do not use abusive language with admins, in-game chat, or customer support. Violations can lead to losing winnings and account termination.
 • The squad team leader is responsible for the behavior of teammates. Bullying is not allowed and can lead to bans without refunds.
-
 🌍 GENERAL RULES:
 - Contact us on Telegram for any problems or doubts.
 - Matches can be rescheduled if the number of registered players is insufficient. Check our notifications, Telegram channel, or app for updates.
@@ -5339,12 +5022,10 @@ fun AdminTournamentsTab(
 - Use only mobile devices to join matches. Hacks and emulators are not allowed.
 - Violating these rules will result in immediate action, including account bans and forfeiture of rewards.
     """.trimIndent()) }
-
     // Direct credentials edit selector
     var editCredentialsForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
     // Distribute victory payouts selector
     var selectWinnersForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -5357,7 +5038,6 @@ fun AdminTournamentsTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("TOURNAMENTS INVENTORY", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
-
             Button(
                 onClick = { isCreatingMatch = !isCreatingMatch },
                 colors = ButtonDefaults.buttonColors(containerColor = if (isCreatingMatch) Color(0xFF232029) else RedPrimary),
@@ -5368,9 +5048,7 @@ fun AdminTournamentsTab(
                 Text(if (isCreatingMatch) "CLOSE CREATOR" else "ADD MATCH", fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
-
         Spacer(modifier = Modifier.height(10.dp))
-
         // Create match form accordion
         AnimatedVisibility(visible = isCreatingMatch) {
             Card(
@@ -5382,7 +5060,6 @@ fun AdminTournamentsTab(
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text("ADD NEW GAME TOURNAMENT SHELF", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-
                     OutlinedTextField(
                         value = matchTitle,
                         onValueChange = { matchTitle = it },
@@ -5391,7 +5068,6 @@ fun AdminTournamentsTab(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(
                             value = entryFeeState,
@@ -5411,7 +5087,6 @@ fun AdminTournamentsTab(
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // FREE FIRE MAPS SELECTION (Detected Available Maps)
                     Text("FREE FIRE MAP SELECTION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -5472,7 +5147,6 @@ fun AdminTournamentsTab(
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // SELECT MATCH FORMAT (Solo/Duo/Squad)
                     Text("SELECT MATCH FORMAT", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -5503,7 +5177,6 @@ fun AdminTournamentsTab(
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // PLAY STYLE selector (Headshot Only vs Normal)
                     Text("PLAY STYLE CRITERIA", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -5534,7 +5207,6 @@ fun AdminTournamentsTab(
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // Date selector custom
                     Text("MATCH DATE", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -5576,7 +5248,6 @@ fun AdminTournamentsTab(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // SPECIFIC START TIME (Instead of ranges)
                     Text("SPECIFIC ACTIONS TIMING", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -5615,7 +5286,6 @@ fun AdminTournamentsTab(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-
                     OutlinedTextField(
                         value = slotsState,
                         onValueChange = { slotsState = it },
@@ -5625,7 +5295,6 @@ fun AdminTournamentsTab(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-
                     OutlinedTextField(
                         value = rulesState,
                         onValueChange = { rulesState = it },
@@ -5635,9 +5304,7 @@ fun AdminTournamentsTab(
                             .fillMaxWidth()
                             .height(68.dp)
                     )
-
                     Spacer(modifier = Modifier.height(12.dp))
-
                     Button(
                         onClick = {
                             val compositeType = if (playStyleSelection == "Headshot Only") "$formatSelection (Headshot)" else formatSelection
@@ -5649,7 +5316,6 @@ fun AdminTournamentsTab(
                             }
                             val timingWithDuration = selectedTime.trim()
                             val constructedDateTime = "$selectedDate, $timingWithDuration"
-
                             viewModel.adminCreateTournament(
                                 title = compositeTitle,
                                 dateTimeStr = constructedDateTime,
@@ -5674,7 +5340,6 @@ fun AdminTournamentsTab(
                 }
             }
         }
-
         // Active management items
         tourneys.sortedWith(compareBy<TournamentEntity> { match -> match.status == "COMPLETED" }.thenBy { match -> match.timestamp }).forEach { match ->
             Card(
@@ -5713,7 +5378,6 @@ fun AdminTournamentsTab(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -5744,7 +5408,6 @@ fun AdminTournamentsTab(
                         Text("•", color = Color.DarkGray, fontSize = 11.sp)
                         Text("Joined: ${match.slotsTotal - match.slotsRemaining}/${match.slotsTotal}", color = GreyText, fontSize = 11.sp)
                     }
-
                     if (match.roomId != null) {
                         Text(
                             text = "Room ID: ${match.roomId} / Pass: ${match.roomPassword}",
@@ -5754,7 +5417,6 @@ fun AdminTournamentsTab(
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
-
                     if (match.winnerName != null) {
                         Text(
                             text = "Champion: ${match.winnerName} (${match.winnerUid})",
@@ -5764,9 +5426,7 @@ fun AdminTournamentsTab(
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
-
                     Spacer(modifier = Modifier.height(10.dp))
-
                     // Buttons array
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -5780,7 +5440,6 @@ fun AdminTournamentsTab(
                         ) {
                             Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = RedPrimary, modifier = Modifier.size(16.dp))
                         }
-
                         Button(
                             onClick = { editCredentialsForTournament = match },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222028)),
@@ -5792,7 +5451,6 @@ fun AdminTournamentsTab(
                         ) {
                             Text("EDIT MATCH DETAILS", fontSize = 9.sp, color = Color.White)
                         }
-
                         if (match.status != "COMPLETED") {
                             if (match.slotsRemaining < match.slotsTotal) {
                                 Button(
@@ -5822,7 +5480,6 @@ fun AdminTournamentsTab(
                             }
                         }
                     }
-
                     if (match.status != "COMPLETED") {
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider(color = Color(0xFF1F1C25))
@@ -5857,7 +5514,6 @@ fun AdminTournamentsTab(
                             ) {
                                 Text("ALERT 10M PRIOR", fontSize = 8.sp, color = Color(0xFFFF9800), fontWeight = FontWeight.Black)
                             }
-
                             Button(
                                 onClick = {
                                     viewModel.adminSendStartedAlert(match.id) { response ->
@@ -5880,7 +5536,6 @@ fun AdminTournamentsTab(
                             ) {
                                 Text("ALERT NOW LIVE", fontSize = 8.sp, color = RedPrimary, fontWeight = FontWeight.Black)
                             }
-
                             Button(
                                 onClick = {
                                     viewModel.adminSendCredentialsAlert(match.id) { response ->
@@ -5908,7 +5563,6 @@ fun AdminTournamentsTab(
                 }
             }
         }
-
         // Room details & comprehensive match editor dialog
         if (editCredentialsForTournament != null) {
             val focusM = editCredentialsForTournament!!
@@ -5922,9 +5576,7 @@ fun AdminTournamentsTab(
             var editTime by remember { mutableStateOf(focusM.dateTimeStr) }
             var rId by remember { mutableStateOf(focusM.roomId ?: "") }
             var rPs by remember { mutableStateOf(focusM.roomPassword ?: "") }
-
             var showCalendarPicker by remember { mutableStateOf(false) }
-
             Dialog(onDismissRequest = { editCredentialsForTournament = null }) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -5941,7 +5593,6 @@ fun AdminTournamentsTab(
                         Text("COMPREHENSIVE MATCH EDITOR", fontWeight = FontWeight.Black, fontSize = 13.sp, color = NeonGold)
                         Text("Edit titles, schedules, maps and keys. Live sync on saving.", fontSize = 9.sp, color = GreyText)
                         Spacer(modifier = Modifier.height(14.dp))
-
                         Text("MATCH TITLE", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
@@ -5951,7 +5602,6 @@ fun AdminTournamentsTab(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-
                         // FREE FIRE MAP SELECTOR
                         Text("FREE FIRE MAP SELECTION", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -5983,7 +5633,6 @@ fun AdminTournamentsTab(
                             }
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-
                         // DATE & TIME WITH CALENDAR TRIGGER
                         Text("SCHEDULE (CALENDAR FORMAT)", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -6003,7 +5652,6 @@ fun AdminTournamentsTab(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-
                         // ENTRY FEE, PRIZE, SLOTS, TYPE
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedTextField(
@@ -6024,7 +5672,6 @@ fun AdminTournamentsTab(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedTextField(
                                 value = editSlots,
@@ -6043,7 +5690,6 @@ fun AdminTournamentsTab(
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-
                         Text("TOURNAMENT SPECIFIC RULES / DETAIL", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
@@ -6055,10 +5701,8 @@ fun AdminTournamentsTab(
                                 .height(68.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-
                         Divider(color = Color(0xFF28252C))
                         Spacer(modifier = Modifier.height(10.dp))
-
                         // GAME KEYS / ROOM INFORMATION
                         Text("CUSTOM GAME ROOM ACCESS DETAILS", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -6079,7 +5723,6 @@ fun AdminTournamentsTab(
                             )
                         }
                         Spacer(modifier = Modifier.height(18.dp))
-
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { editCredentialsForTournament = null }) {
                                 Text("DISCARD", color = GreyText, fontWeight = FontWeight.Bold)
@@ -6110,7 +5753,6 @@ fun AdminTournamentsTab(
                     }
                 }
             }
-
             // Simulated interactive Calendar Format date/time picker dialog
             if (showCalendarPicker) {
                 var selectedDay by remember { mutableStateOf(22) }
@@ -6119,7 +5761,6 @@ fun AdminTournamentsTab(
                 var selectedHour by remember { mutableStateOf("07") }
                 var selectedMinute by remember { mutableStateOf("00") }
                 var selectedAmPm by remember { mutableStateOf("PM") }
-
                 Dialog(onDismissRequest = { showCalendarPicker = false }) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -6143,11 +5784,9 @@ fun AdminTournamentsTab(
                                 }
                             }
                             Spacer(modifier = Modifier.height(10.dp))
-
                             // DAYS GRID MOCK
                             Text("June 2026 Calendar Grid", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
-
                             // Simple Grid simulation in vertical columns of Row
                             val daysInMonth = (1..30).toList()
                             Column {
@@ -6188,7 +5827,6 @@ fun AdminTournamentsTab(
                                 }
                             }
                             Spacer(modifier = Modifier.height(14.dp))
-
                             // Hour Spinner Simulation
                             Text("HOUR & MINUTE SPINNER", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
@@ -6213,9 +5851,7 @@ fun AdminTournamentsTab(
                                         }
                                     }
                                 }
-
                                 Text(":", color = Color.White, fontWeight = FontWeight.Bold)
-
                                 // Minute choosing capsules
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     listOf("00", "15", "30", "45").forEach { mn ->
@@ -6234,7 +5870,6 @@ fun AdminTournamentsTab(
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-
                             // AM/PM Toggle Row
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -6263,9 +5898,7 @@ fun AdminTournamentsTab(
                                     Text("PM", color = Color.White, fontSize = 9.sp)
                                 }
                             }
-
                             Spacer(modifier = Modifier.height(16.dp))
-
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 TextButton(onClick = { showCalendarPicker = false }) {
                                     Text("CANCEL", color = GreyText)
@@ -6295,21 +5928,17 @@ fun AdminTournamentsTab(
                 }
             }
         }
-
         // winner distribution dialog
         if (selectWinnersForTournament != null) {
             val focusMatchWinner = selectWinnersForTournament!!
-
             var winnerFFUid by remember { mutableStateOf("FF-837492047") }
             var winnerInGameName by remember { mutableStateOf("Alpha_Gamer") }
-
             Dialog(onDismissRequest = { selectWinnersForTournament = null }) {
                 Surface(shape = RoundedCornerShape(12.dp), color = DarkSurface, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text("Declare Prize Champions", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                         Text("Selected player will automatically receive ₹${focusMatchWinner.prizePool} credited to winnings balance.", fontSize = 9.sp, color = GreyText)
                         Spacer(modifier = Modifier.height(12.dp))
-
                         OutlinedTextField(
                             value = winnerInGameName,
                             onValueChange = { winnerInGameName = it },
@@ -6318,7 +5947,6 @@ fun AdminTournamentsTab(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-
                         OutlinedTextField(
                             value = winnerFFUid,
                             onValueChange = { winnerFFUid = it },
@@ -6326,9 +5954,7 @@ fun AdminTournamentsTab(
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                             modifier = Modifier.fillMaxWidth()
                         )
-
                         Spacer(modifier = Modifier.height(14.dp))
-
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { selectWinnersForTournament = null }) {
                                 Text("CANCEL", color = GreyText)
@@ -6353,7 +5979,6 @@ fun AdminTournamentsTab(
         }
     }
 }
-
 // Admin withdrawals processor
 @Composable
 fun AdminWithdrawalsTab(
@@ -6363,7 +5988,6 @@ fun AdminWithdrawalsTab(
 ) {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -6371,9 +5995,7 @@ fun AdminWithdrawalsTab(
     ) {
         Text("ACTIVE WITHDRAWALS PROPOSAL QUEUE", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
-
         val activeWithdrawals = withdrawals.filter { it.status == "PENDING" || it.status == "IN_PROGRESS" }
-
         if (activeWithdrawals.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No active withdrawal requests available.", color = GreyText, fontSize = 12.sp)
@@ -6427,7 +6049,6 @@ fun AdminWithdrawalsTab(
                                             modifier = Modifier.testTag("admin_withdrawal_upi_id")
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
-
                                         // Elegant, high-visibility outlined Copy Button
                                         Box(
                                             modifier = Modifier
@@ -6468,7 +6089,6 @@ fun AdminWithdrawalsTab(
                                 Text(req.amount.toCurrency(), color = NeonGold, fontWeight = FontWeight.Black, fontSize = 14.sp)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End,
@@ -6486,7 +6106,6 @@ fun AdminWithdrawalsTab(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
-
                                 Button(
                                     onClick = { viewModel.adminRejectWithdrawal(req.id) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
@@ -6514,7 +6133,6 @@ fun AdminWithdrawalsTab(
         }
     }
 }
-
 // Helpdesk ticket resolver tab
 @Composable
 fun AdminTicketsTab(
@@ -6524,7 +6142,6 @@ fun AdminTicketsTab(
 ) {
     val scope = rememberCoroutineScope()
     var ticketToAnswer by remember { mutableStateOf<SupportTicketEntity?>(null) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -6532,9 +6149,7 @@ fun AdminTicketsTab(
     ) {
         Text("ACTIVE HELPDESK TICKETS", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(10.dp))
-
         val unresolved = tickets.filter { it.status == "OPEN" }
-
         if (unresolved.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("All support desk tickets resolved. Good job admin!", color = Color(0xFF00E676), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -6573,12 +6188,10 @@ fun AdminTicketsTab(
                 }
             }
         }
-
         // Support reply pop-up
         if (ticketToAnswer != null) {
             val ticketModel = ticketToAnswer!!
             var replyTextInput by remember { mutableStateOf("We have fully credited your wallet with the requested promo bonus. Sorry for the delay!") }
-
             Dialog(onDismissRequest = { ticketToAnswer = null }) {
                 Surface(shape = RoundedCornerShape(12.dp), color = DarkSurface, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(18.dp)) {
@@ -6586,7 +6199,6 @@ fun AdminTicketsTab(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Subject: ${ticketModel.title}", color = GreyText, fontSize = 11.sp)
                         Spacer(modifier = Modifier.height(10.dp))
-
                         OutlinedTextField(
                             value = replyTextInput,
                             onValueChange = { replyTextInput = it },
@@ -6596,9 +6208,7 @@ fun AdminTicketsTab(
                                 .fillMaxWidth()
                                 .height(94.dp)
                         )
-
                         Spacer(modifier = Modifier.height(14.dp))
-
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { ticketToAnswer = null }) {
                                 Text("CANCEL", color = GreyText)
@@ -6623,9 +6233,7 @@ fun AdminTicketsTab(
         }
     }
 }
-
 // --- SCREENSHOT PROOF COMPOSABLES AND ADMIN QUEUE SYSTEM ---
-
 @Composable
 fun ProofSubmissionCard(
     join: TournamentJoinEntity,
@@ -6633,7 +6241,6 @@ fun ProofSubmissionCard(
     snackbarHostState: SnackbarHostState
 ) {
     var showSubmitDialog by remember { mutableStateOf(false) }
-
     Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(12.dp),
@@ -6716,9 +6323,7 @@ fun ProofSubmissionCard(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(10.dp))
-
             when (join.proofStatus) {
                 "NONE" -> {
                     Text(
@@ -6857,7 +6462,6 @@ fun ProofSubmissionCard(
             }
         }
     }
-
     if (showSubmitDialog) {
         var killsInput by remember { mutableStateOf("0") }
         var rankInput by remember { mutableStateOf("1") }
@@ -6869,7 +6473,6 @@ fun ProofSubmissionCard(
         )
         var selectedPresetUrl by remember { mutableStateOf(presetScreenshots[0].first) }
         val scope = rememberCoroutineScope()
-
         Dialog(onDismissRequest = { showSubmitDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -6896,7 +6499,6 @@ fun ProofSubmissionCard(
                         color = GreyText
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
                     // Fields
                     OutlinedTextField(
                         value = rankInput,
@@ -6910,7 +6512,6 @@ fun ProofSubmissionCard(
                         modifier = Modifier.fillMaxWidth().testTag("proof_rank_input")
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-
                     OutlinedTextField(
                         value = killsInput,
                         onValueChange = { killsInput = it },
@@ -6923,11 +6524,9 @@ fun ProofSubmissionCard(
                         modifier = Modifier.fillMaxWidth().testTag("proof_kills_input")
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-
                     // Simulated image file select
                     Text("SELECT MATCH RESULT SCREENSHOT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreyText)
                     Spacer(modifier = Modifier.height(6.dp))
-
                     presetScreenshots.forEach { (url, title) ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -6952,9 +6551,22 @@ fun ProofSubmissionCard(
                             }
                         }
                     }
-
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("OR ENTER CUSTOM SCREENSHOT / MATERIALS URL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreyText)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = selectedPresetUrl,
+                        onValueChange = { selectedPresetUrl = it },
+                        label = { Text("Paste materials/screenshot link (e.g. imgur, drive)", fontSize = 11.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = RedPrimary,
+                            unfocusedBorderColor = Color(0xFF28252C)
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("proof_custom_url_input")
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
-
                     // Image loading preview box
                     Box(
                         modifier = Modifier
@@ -6972,9 +6584,7 @@ fun ProofSubmissionCard(
                             contentScale = ContentScale.Crop
                         )
                     }
-
                     Spacer(modifier = Modifier.height(20.dp))
-
                     // Action buttons
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showSubmitDialog = false }) {
@@ -7009,7 +6619,6 @@ fun ProofSubmissionCard(
         }
     }
 }
-
 @Composable
 fun AdminProofsTab(
     viewModel: BattleZoneViewModel,
@@ -7017,15 +6626,12 @@ fun AdminProofsTab(
 ) {
     val proofs by viewModel.adminAllSubmittedProofs.collectAsStateWithLifecycle()
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
-
     var filterOnlyPending by remember { mutableStateOf(true) }
-
     val displayedProofs = if (filterOnlyPending) {
         proofs.filter { it.proofStatus == "PENDING" }
     } else {
         proofs
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -7049,9 +6655,7 @@ fun AdminProofsTab(
                 Text("Pending Only", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
-
         Spacer(modifier = Modifier.height(10.dp))
-
         if (displayedProofs.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -7074,7 +6678,6 @@ fun AdminProofsTab(
                 items(displayedProofs) { proof ->
                     val tTitle = tournaments.find { it.id == proof.tournamentId }?.title ?: "#${proof.tournamentId} Tournament"
                     val tPrize = tournaments.find { it.id == proof.tournamentId }?.prizePool ?: 0.0
-
                     AdminProofCard(
                         proof = proof,
                         tournamentTitle = tTitle,
@@ -7087,7 +6690,6 @@ fun AdminProofsTab(
         }
     }
 }
-
 @Composable
 fun AdminProofCard(
     proof: TournamentJoinEntity,
@@ -7100,7 +6702,6 @@ fun AdminProofCard(
     var adminNotesInput by remember { mutableStateOf("") }
     var distributeRewardCheckbox by remember { mutableStateOf(proof.claimedRank == 1) }
     var showFullImageDialog by remember { mutableStateOf(false) }
-
     Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         border = BorderStroke(1.dp, when (proof.proofStatus) {
@@ -7164,9 +6765,7 @@ fun AdminProofCard(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(10.dp))
-
             // Stats Sub-Panel
             Row(
                 modifier = Modifier
@@ -7188,9 +6787,7 @@ fun AdminProofCard(
                     Text(tournamentPrize.toCurrency(), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                 }
             }
-
             Spacer(modifier = Modifier.height(10.dp))
-
             // Attachment Preview Clickable
             Text("SUBMITTED SCREENSHOT ATTACHMENT:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = GreyText)
             Spacer(modifier = Modifier.height(4.dp))
@@ -7220,9 +6817,7 @@ fun AdminProofCard(
                     Icon(imageVector = Icons.Filled.Fullscreen, contentDescription = "Zoom", tint = Color.White, modifier = Modifier.size(24.dp))
                 }
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
             if (proof.proofStatus == "PENDING") {
                 // Interactive action controls
                 OutlinedTextField(
@@ -7235,7 +6830,6 @@ fun AdminProofCard(
                     ),
                     modifier = Modifier.fillMaxWidth().testTag("admin_proof_notes_${proof.id}")
                 )
-
                 if (proof.claimedRank == 1) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
@@ -7254,9 +6848,7 @@ fun AdminProofCard(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -7285,7 +6877,6 @@ fun AdminProofCard(
                     ) {
                         Text("REJECT", fontSize = 11.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
                     }
-
                     Button(
                         onClick = {
                             viewModel.adminVerifyProof(
@@ -7322,7 +6913,6 @@ fun AdminProofCard(
             }
         }
     }
-
     if (showFullImageDialog) {
         Dialog(onDismissRequest = { showFullImageDialog = false }) {
             Surface(
@@ -7354,7 +6944,6 @@ fun AdminProofCard(
         }
     }
 }
-
 @Composable
 fun AdminDepositsTab(
     viewModel: BattleZoneViewModel,
@@ -7363,7 +6952,6 @@ fun AdminDepositsTab(
     val scope = rememberCoroutineScope()
     val allTransactions by viewModel.adminAllTransactions.collectAsStateWithLifecycle()
     val pendingDeposits = allTransactions.filter { it.type == "DEPOSIT" && it.status == "PENDING" }
-
     var upiState by remember { mutableStateOf(viewModel.getAdminUpiId()) }
     var payeeState by remember { mutableStateOf(viewModel.getAdminPayeeName()) }
     var bankAccState by remember { mutableStateOf(viewModel.getAdminBankAccount()) }
@@ -7380,22 +6968,17 @@ fun AdminDepositsTab(
     var gmailBackendUrlState by remember { mutableStateOf(viewModel.getGmailOtpBackendUrl()) }
     var gmailSmtpUser by remember { mutableStateOf(viewModel.getGmailUser()) }
     var gmailSmtpPassword by remember { mutableStateOf(viewModel.getGmailAppPassword()) }
-
     var instagramSettingState by remember { mutableStateOf(viewModel.getInstagramSetting()) }
     var telegramSettingState by remember { mutableStateOf(viewModel.getTelegramSetting()) }
     var youtubeSettingState by remember { mutableStateOf(viewModel.getYoutubeSetting()) }
-
     var defaultTimingStartState by remember { mutableStateOf(viewModel.getDefaultTimingStart()) }
     var defaultTimingEndState by remember { mutableStateOf(viewModel.getDefaultTimingEnd()) }
-
     var razorpayKeyIdState by remember { mutableStateOf(viewModel.getRazorpayKeyId()) }
     var cashfreeClientIdState by remember { mutableStateOf(viewModel.getCashfreeClientId()) }
     var cashfreeSecretKeyState by remember { mutableStateOf(viewModel.getCashfreeSecretKey()) }
-
     var minDepositState by remember { mutableStateOf(viewModel.getMinDepositAmount().toString()) }
     var minDebitState by remember { mutableStateOf(viewModel.getMinDebitAmount().toString()) }
     var minWithdrawalState by remember { mutableStateOf(viewModel.getMinWithdrawalAmount().toString()) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -7415,7 +6998,6 @@ fun AdminDepositsTab(
                 Text("Edit your real bank credentials & UPI id details dynamically to handle authentic pay-ins on client devices.", fontSize = 9.sp, color = GreyText)
                 
                 Spacer(modifier = Modifier.height(14.dp))
-
                 // Toggle for Gateway Mode
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -7436,9 +7018,7 @@ fun AdminDepositsTab(
                         Text("REAL UPI", color = if (gatewayModeState == "REAL_UPI") RedPrimary else GreyText, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 OutlinedTextField(
                     value = upiState,
                     onValueChange = { upiState = it },
@@ -7447,7 +7027,6 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = payeeState,
                     onValueChange = { payeeState = it },
@@ -7456,7 +7035,6 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = bankNameState,
                     onValueChange = { bankNameState = it },
@@ -7465,7 +7043,6 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = bankAccState,
@@ -7482,9 +7059,7 @@ fun AdminDepositsTab(
                         modifier = Modifier.weight(0.8f)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(16.dp))
-
                 Button(
                     onClick = {
                         viewModel.updatePaymentConfig(upiState, payeeState, bankAccState, bankIfscState, bankNameState, gatewayModeState)
@@ -7500,9 +7075,7 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // BATTLEZONE QUICK SESSIONS ENGINE Card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -7514,9 +7087,7 @@ fun AdminDepositsTab(
                 Text("BATTLEZONE AUTOMATED LOBBY GENERATOR", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Instantly generate standard 1.5-hour tournaments from $defaultTimingStartState to $defaultTimingEndState with preset entry criteria (₹45 fee, ₹100 winning payouts).", fontSize = 9.sp, color = GreyText)
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -7536,9 +7107,7 @@ fun AdminDepositsTab(
                         modifier = Modifier.weight(1f)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
-
                 Button(
                     onClick = {
                         viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
@@ -7552,9 +7121,7 @@ fun AdminDepositsTab(
                 ) {
                     Text("SAVE AUTOMATIC TIMING TIMEFRAME", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
                     onClick = {
                         viewModel.generateDefaultSessions { count ->
@@ -7573,9 +7140,7 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // BATTLEZONE MINIMUM TRANSACTION LIMITS Config Card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -7587,9 +7152,7 @@ fun AdminDepositsTab(
                 Text("BATTLEZONE TRANSACTION LIMIT CONFIGURATIONS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Dynamically customize minimum boundaries for user recharges (deposits), join game entries (debits), and withdrawal payouts.", fontSize = 9.sp, color = GreyText)
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = minDepositState,
@@ -7616,9 +7179,7 @@ fun AdminDepositsTab(
                         modifier = Modifier.weight(1.1f)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(16.dp))
-
                 Button(
                     onClick = {
                         val dep = minDepositState.toDoubleOrNull() ?: 10.0
@@ -7637,9 +7198,7 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier
@@ -7650,12 +7209,9 @@ fun AdminDepositsTab(
                 Text("BATTLEZONE REAL-SMS OTP CONFIGURATIONS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Select & configure your authentic SMS Gateway API to deliver dynamic verification OTPs directly to user mobile phones.", fontSize = 9.sp, color = GreyText)
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Text("SMS GATEWAY CHANNEL MODE", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -7697,9 +7253,7 @@ fun AdminDepositsTab(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.height(12.dp))
-
                 when (smsGatewayMode) {
                     "TEST_MODE" -> {
                         Text(
@@ -7795,9 +7349,7 @@ fun AdminDepositsTab(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
                     onClick = {
                         viewModel.updateSmsConfig(
@@ -7821,9 +7373,7 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // Part 1.5: Social channels configuration card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -7835,9 +7385,7 @@ fun AdminDepositsTab(
                 Text("BATTLEZONE SOCIAL OFFICIAL CHANNELS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Configure your active official Instagram, Telegram, and YouTube channels. Clients will immediately auto-forward to these handles from their dashboard buttons.", fontSize = 9.sp, color = GreyText)
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 OutlinedTextField(
                     value = instagramSettingState,
                     onValueChange = { instagramSettingState = it },
@@ -7847,7 +7395,6 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = telegramSettingState,
                     onValueChange = { telegramSettingState = it },
@@ -7857,7 +7404,6 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = youtubeSettingState,
                     onValueChange = { youtubeSettingState = it },
@@ -7866,9 +7412,7 @@ fun AdminDepositsTab(
                     placeholder = { Text("e.g. @battlezone_esports or full URL") },
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
                     onClick = {
                         viewModel.updateSocialConfig(instagramSettingState, telegramSettingState, youtubeSettingState)
@@ -7884,9 +7428,7 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // Part 1.7: Default tournament timings configuration card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -7898,9 +7440,7 @@ fun AdminDepositsTab(
                 Text("DEFAULT TOURNAMENT TIME LIMITS", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Set default starting and ending tournament times (Default: 07:00 PM to 11:00 PM). New tournaments will default to this window.", fontSize = 9.sp, color = GreyText)
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = defaultTimingStartState,
@@ -7919,9 +7459,7 @@ fun AdminDepositsTab(
                         modifier = Modifier.weight(1f)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
                     onClick = {
                         viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
@@ -7937,13 +7475,10 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(20.dp))
-
         // Part 2: Review user pending deposits
         Text("PENDING GATEWAY DEPOSITS QUEUE (${pendingDeposits.size})", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
-
         if (pendingDeposits.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -7977,14 +7512,11 @@ fun AdminDepositsTab(
                                 Text("PENDING", color = Color(0xFFFF5722), fontSize = 8.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
-
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(dp.title, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Medium)
                         Text("Invoice Ref: ${dp.invoiceId} | Date: ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.US).format(dp.timestamp)}", fontSize = 8.sp, color = GreyText)
-
                         Spacer(modifier = Modifier.height(12.dp))
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -8006,7 +7538,6 @@ fun AdminDepositsTab(
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text("REJECT", color = RedPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
-
                             Button(
                                 onClick = {
                                     viewModel.adminDeleteTransaction(dp.id) { success ->
@@ -8024,7 +7555,6 @@ fun AdminDepositsTab(
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text("DELETE DUP", color = Color(0xFFE53935), fontSize = 9.sp, fontWeight = FontWeight.Black)
                             }
-
                             Button(
                                 onClick = {
                                     viewModel.adminApproveDeposit(dp.id) { success ->
@@ -8047,14 +7577,11 @@ fun AdminDepositsTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
-
         // Part 3: Anti-A Advanced Cloud Protection Antivirus Shield
         var isScanningState by remember { mutableStateOf(false) }
         var scanLogsList by remember { mutableStateOf(listOf<String>("Ready to conduct real-time security cloud sync audit.")) }
         var activeProgress by remember { mutableFloatStateOf(0f) }
-
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier
@@ -8102,13 +7629,10 @@ fun AdminDepositsTab(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 // Security Metrics Snapshot
                 Text("SAFETY INTEGRITY PARAMETERS", fontSize = 9.sp, color = GreyText, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -8147,9 +7671,7 @@ fun AdminDepositsTab(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.height(12.dp))
-
                 // Log terminal block
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E13)),
@@ -8182,7 +7704,6 @@ fun AdminDepositsTab(
                         }
                     }
                 }
-
                 if (isScanningState) {
                     Spacer(modifier = Modifier.height(10.dp))
                     LinearProgressIndicator(
@@ -8194,9 +7715,7 @@ fun AdminDepositsTab(
                         trackColor = Color(0xFF281014)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
                     onClick = {
                         isScanningState = true
@@ -8247,33 +7766,56 @@ fun AdminDepositsTab(
         }
     }
 }
-
+fun deduplicateInput(current: String, incoming: String): String {
+    if (incoming.length == current.length + 2) {
+        if (incoming.endsWith(current)) {
+            val prefix = incoming.substring(0, 2)
+            if (prefix[0] == prefix[1]) {
+                return prefix[0].toString() + current
+            }
+        } else if (incoming.startsWith(current)) {
+            val suffix = incoming.substring(current.length)
+            if (suffix[0] == suffix[1]) {
+                return current + suffix[0].toString()
+            }
+        } else {
+            var mismatchIndex = -1
+            for (i in current.indices) {
+                if (current[i] != incoming[i]) {
+                    mismatchIndex = i
+                    break
+                }
+            }
+            if (mismatchIndex != -1 && mismatchIndex + 1 < incoming.length) {
+                if (incoming[mismatchIndex] == incoming[mismatchIndex + 1]) {
+                    return incoming.removeRange(mismatchIndex, mismatchIndex + 1)
+                }
+            }
+        }
+    }
+    return incoming
+}
 @Composable
 fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var activeAuthTab by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN" or "REGISTER"
-
     var authStep by remember { mutableStateOf("FORM") } // "FORM" or "OTP"
     var generatedOtp by remember { mutableStateOf("") }
     var enteredOtp by remember { mutableStateOf("") }
     var otpFlowType by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN", "REGISTER", "GOOGLE", "GOOGLE_LINKED"
     var otpErrorMsg by remember { mutableStateOf<String?>(null) }
-
     val lastRegisteredUserId = remember { viewModel.getLastRegisteredUserId() }
     var cachedUserDetails by remember { mutableStateOf<UserEntity?>(null) }
     var isReentryActive by remember { mutableStateOf(lastRegisteredUserId.isNotBlank()) }
-
     var showGooglePhoneLinking by remember { mutableStateOf(false) }
     var linkingGoogleEmail by remember { mutableStateOf("") }
     var linkingGoogleName by remember { mutableStateOf("") }
     var linkingPhoneInput by remember { mutableStateOf("") }
     var linkingPhoneError by remember { mutableStateOf<String?>(null) }
-
     LaunchedEffect(lastRegisteredUserId) {
         if (lastRegisteredUserId.isNotBlank()) {
             cachedUserDetails = viewModel.getUserSync(lastRegisteredUserId)
         }
     }
-
     val savedUserId = viewModel.getSavedLoggedInUserId()
     var savedUser by remember { mutableStateOf<UserEntity?>(null) }
     LaunchedEffect(savedUserId) {
@@ -8281,7 +7823,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             savedUser = viewModel.getUserSync(savedUserId)
         }
     }
-
     var ignInput by remember { mutableStateOf("") }
     var ffUidInput by remember { mutableStateOf("") }
     var phoneInput by remember { mutableStateOf("") }
@@ -8302,7 +7843,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var customGoogleName by remember { mutableStateOf("") }
     var customGoogleEmail by remember { mutableStateOf("") }
     var showCustomGoogleFields by remember { mutableStateOf(false) }
-
     val context = LocalContext.current
     val activity = remember(context) {
         var c = context
@@ -8319,7 +7859,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             // Do not cache any logged-in google accounts to protect user privacy and respect user intent
         }
     }
-
     val accountsList = remember { mutableStateListOf<String>() }
     var isGoogleWebLoginActive by remember { mutableStateOf(false) }
     var hasAccountPermission by remember {
@@ -8330,14 +7869,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             hasAccountPermission = isGranted
         }
     )
-
     LaunchedEffect(hasAccountPermission, showGoogleDialog) {
         if (showGoogleDialog) {
             accountsList.clear()
@@ -8371,7 +7908,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             } else {
                 permissionLauncher.launch(Manifest.permission.GET_ACCOUNTS)
             }
-
             // If no actual accounts were fetched from the physical phone, show manual login dialog immediately
             if (accountsList.isEmpty()) {
                 isGoogleWebLoginActive = true
@@ -8380,9 +7916,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             }
         }
     }
-
     val scope = rememberCoroutineScope()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -8402,7 +7936,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     )
                 )
         )
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -8436,9 +7969,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     modifier = Modifier.fillMaxSize()
                 )
             }
-
             Spacer(modifier = Modifier.height(20.dp))
-
             Text(
                 text = "BATTLE ZONE",
                 color = Color.White,
@@ -8446,9 +7977,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 4.sp
             )
-
             Spacer(modifier = Modifier.height(4.dp))
-
             Text(
                 text = "SECURE ESPORTS LOBBY ENTRY",
                 color = GreyText,
@@ -8456,9 +7985,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp
             )
-
             Spacer(modifier = Modifier.height(24.dp))
-
             // Auth Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -8489,11 +8016,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-
                             OutlinedTextField(
                                 value = enteredOtp,
                                 onValueChange = { 
-                                    enteredOtp = it.filter { c -> c.isDigit() }.take(6) 
+                                    val cleaned = deduplicateInput(enteredOtp, it)
+                                    enteredOtp = cleaned.filter { c -> c.isDigit() }.take(6) 
                                     otpErrorMsg = null
                                 },
                                 label = { Text("Enter Verification Code") },
@@ -8510,14 +8037,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 ),
                                 modifier = Modifier.fillMaxWidth().testTag("otp_code_input")
                             )
-
                             otpErrorMsg?.let { msg ->
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Text(msg, color = RedPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
-
                             Spacer(modifier = Modifier.height(18.dp))
-
                             Button(
                                 onClick = {
                                     val currentGateway = viewModel.getSmsGatewayMode()
@@ -8799,9 +8323,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             ) {
                                 Text("VERIFY OTP & OPEN APP", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
                             }
-
                             Spacer(modifier = Modifier.height(10.dp))
-
                             TextButton(
                                 onClick = {
                                     authStep = "FORM"
@@ -8842,7 +8364,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 )
                             }
                         }
-
                         Card(
                             modifier = Modifier
                                 .weight(1f)
@@ -8866,7 +8387,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             }
                         }
                     }
-
                     // Secure Auth Protocol Header (Forced to Email/Password per security policy)
                     Row(
                         modifier = Modifier
@@ -8975,7 +8495,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             }
                         }
                     }}
-
                     AnimatedContent(
                         targetState = activeAuthTab,
                         transitionSpec = {
@@ -8994,12 +8513,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         letterSpacing = 1.sp
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     OutlinedTextField(
                                         value = loginEmailInput,
                                         onValueChange = { 
-                                            loginEmailInput = it 
-                                            errorMsg = null
+                                            loginEmailInput = deduplicateInput(loginEmailInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Email Address") },
                                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
@@ -9017,14 +8535,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_email_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = loginPasswordInput,
                                         onValueChange = { 
-                                            loginPasswordInput = it 
-                                            errorMsg = null
+                                            loginPasswordInput = deduplicateInput(loginPasswordInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Password") },
                                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
@@ -9043,7 +8559,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_password_input")
                                     )
-
                                     errorMsg?.let { msg ->
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
@@ -9053,9 +8568,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(20.dp))
-
                                     Button(
                                         onClick = {
                                             if (loginEmailInput.isBlank() || loginPasswordInput.isBlank()) {
@@ -9072,14 +8585,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         enteredOtp = ""
                                                         otpErrorMsg = null
                                                         viewModel.firebaseVerificationId = null
-
                                                         val currentGateway = viewModel.getSmsGatewayMode()
                                                         val destination = if (currentGateway == "GMAIL_SMTP") {
                                                             userEntity.email.trim()
                                                         } else {
                                                             phoneStr.trim()
                                                         }
-
                                                         if (currentGateway == "TEST_MODE" || activity == null) {
                                                             val baseSeed = 1212
                                                             val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
@@ -9157,11 +8668,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         letterSpacing = 1.sp
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     OutlinedTextField(
                                         value = signInPhoneInput,
                                         onValueChange = { input ->
-                                            val digits = input.filter { it.isDigit() }
+                                            val cleaned = deduplicateInput(signInPhoneInput, input)
+                                            val digits = cleaned.filter { it.isDigit() }
                                             if (digits.length <= 10) {
                                                 signInPhoneInput = digits
                                                 errorMsg = null
@@ -9184,7 +8695,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_phone_input")
                                     )
-
                                     errorMsg?.let { msg ->
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
@@ -9194,9 +8704,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(20.dp))
-
                                     Button(
                                         onClick = {
                                             if (signInPhoneInput.isBlank()) {
@@ -9234,13 +8742,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             enteredOtp = ""
                                                             otpErrorMsg = null
                                                             viewModel.firebaseVerificationId = null
-
                                                             val destination = if (currentGateway == "GMAIL_SMTP") {
                                                                 registeredUser?.email ?: "selva19122008@gmail.com"
                                                             } else {
                                                                 targetNumber
                                                             }
-
                                                             viewModel.sendOtpSms(destination, secureOtp) { success, err ->
                                                                 if (success) {
                                                                     viewModel.showToast(
@@ -9299,7 +8805,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             color = Color.White
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(18.dp))
                                     Row(
                                         modifier = Modifier
@@ -9328,12 +8833,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         letterSpacing = 1.sp
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     OutlinedTextField(
                                         value = ignInput,
                                         onValueChange = { 
-                                            ignInput = it 
-                                            errorMsg = null
+                                            ignInput = deduplicateInput(ignInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Game Name (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
@@ -9350,14 +8854,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_ign_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = ffUidInput,
                                         onValueChange = { 
-                                            ffUidInput = it 
-                                            errorMsg = null
+                                            ffUidInput = deduplicateInput(ffUidInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("User ID (Optional)") },
                                         leadingIcon = { Icon(Icons.Default.Star, contentDescription = "uid", tint = RedPrimary) },
@@ -9374,13 +8876,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_uuid_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = phoneInput,
                                         onValueChange = { input ->
-                                            val digits = input.filter { it.isDigit() }
+                                            val cleaned = deduplicateInput(phoneInput, input)
+                                            val digits = cleaned.filter { it.isDigit() }
                                             if (digits.length <= 10) {
                                                 phoneInput = digits
                                                 errorMsg = null
@@ -9403,14 +8904,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_phone_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = emailInput,
                                         onValueChange = { 
-                                            emailInput = it 
-                                            errorMsg = null
+                                            emailInput = deduplicateInput(emailInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Email Address (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
@@ -9427,14 +8926,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_email_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = registerPasswordInput,
                                         onValueChange = { 
-                                            registerPasswordInput = it 
-                                            errorMsg = null
+                                            registerPasswordInput = deduplicateInput(registerPasswordInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Password (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
@@ -9453,7 +8950,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_password_input")
                                     )
-
                                     errorMsg?.let { msg ->
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
@@ -9464,9 +8960,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             modifier = Modifier.align(Alignment.Start)
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(20.dp))
-
                                     Button(
                                         onClick = {
                                             if (ignInput.isBlank() || phoneInput.isBlank()) {
@@ -9495,14 +8989,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 enteredOtp = ""
                                                 otpErrorMsg = null
                                                 viewModel.firebaseVerificationId = null
-
                                                 val currentGateway = viewModel.getSmsGatewayMode()
                                                 val destination = if (currentGateway == "GMAIL_SMTP") {
                                                     determinedEmail
                                                 } else {
                                                     determinedPhone
                                                 }
-
                                                 if (currentGateway == "TEST_MODE" || activity == null) {
                                                     val cleanPhone = phoneInput.filter { it.isDigit() }
                                                     val baseSeed = if (cleanPhone.length >= 4) cleanPhone.takeLast(4).toIntOrNull() ?: 1212 else 1212
@@ -9574,12 +9066,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         letterSpacing = 1.sp
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-
                                     OutlinedTextField(
                                         value = ignInput,
                                         onValueChange = { 
-                                            ignInput = it 
-                                            errorMsg = null
+                                            ignInput = deduplicateInput(ignInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Game Name (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = "ign", tint = RedPrimary) },
@@ -9596,14 +9087,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_ign_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = ffUidInput,
                                         onValueChange = { 
-                                            ffUidInput = it 
-                                            errorMsg = null
+                                            ffUidInput = deduplicateInput(ffUidInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("User ID (Optional)") },
                                         leadingIcon = { Icon(Icons.Default.Star, contentDescription = "uid", tint = RedPrimary) },
@@ -9620,13 +9109,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_uuid_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = phoneInput,
                                         onValueChange = { input ->
-                                            val digits = input.filter { it.isDigit() }
+                                            val cleaned = deduplicateInput(phoneInput, input)
+                                            val digits = cleaned.filter { it.isDigit() }
                                             if (digits.length <= 10) {
                                                 phoneInput = digits
                                                 errorMsg = null
@@ -9649,14 +9137,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_phone_input")
                                     )
-
                                     Spacer(modifier = Modifier.height(10.dp))
-
                                     OutlinedTextField(
                                         value = emailInput,
                                         onValueChange = { 
-                                            emailInput = it
-                                            errorMsg = null
+                                            emailInput = deduplicateInput(emailInput, it)
+                                             errorMsg = null
                                         },
                                         label = { Text("Email ID (Optional)") },
                                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
@@ -9673,7 +9159,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_email_input")
                                     )
-
                                     errorMsg?.let { msg ->
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
@@ -9684,9 +9169,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             modifier = Modifier.align(Alignment.Start)
                                         )
                                     }
-
                                     Spacer(modifier = Modifier.height(20.dp))
-
                                     Button(
                                         onClick = {
                                             if (ignInput.isBlank() || phoneInput.isBlank()) {
@@ -9721,13 +9204,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     enteredOtp = ""
                                                     otpErrorMsg = null
                                                     viewModel.firebaseVerificationId = null
-
                                                     val targetDestination = if (currentGateway == "GMAIL_SMTP") {
                                                         if (emailInput.isNotBlank()) emailInput.trim() else "selva19122008@gmail.com"
                                                     } else {
                                                         determinedPhone
                                                     }
-
                                                     viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
                                                         if (success) {
                                                             viewModel.showToast(
@@ -9790,9 +9271,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     } // closes FORM of if (authStep == "OTP")
                 }
             }
-
             Spacer(modifier = Modifier.height(18.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -9807,9 +9286,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 )
                 Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF28252C)))
             }
-
             Spacer(modifier = Modifier.height(16.dp))
-
             // Google Sign In button
             Button(
                 onClick = { 
@@ -9838,9 +9315,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                     color = Color(0xFF1F1C25)
                 )
             }
-
             Spacer(modifier = Modifier.height(24.dp))
-
             Text(
                 text = "BY ENTERING, YOU AGREE TO LOBBY FAIR-PLAY RULES",
                 color = GreyText.copy(alpha = 0.5f),
@@ -9850,7 +9325,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             )
         }
     }
-
     // Google Sign-In Account Picker Simulation Dialog
     if (showGoogleDialog) {
         Dialog(onDismissRequest = { 
@@ -9886,9 +9360,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
-
                         Spacer(modifier = Modifier.height(16.dp))
-
                         Text(
                             text = "Link Mobile Number",
                             color = googleThemeText,
@@ -9903,14 +9375,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
                         )
-
                         Spacer(modifier = Modifier.height(18.dp))
-
                         val detectedCellId = android.provider.Settings.Secure.getString(
                             context.contentResolver,
                             android.provider.Settings.Secure.ANDROID_ID
                         ) ?: "DEVICE_EMULATED_ID"
-
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF292A2D)),
                             border = BorderStroke(1.dp, Color(0xFF3C4043)),
@@ -9932,9 +9401,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 )
                             }
                         }
-
                         Spacer(modifier = Modifier.height(16.dp))
-
                         OutlinedTextField(
                             value = linkingPhoneInput,
                             onValueChange = { 
@@ -9954,14 +9421,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
-
                         linkingPhoneError?.let { err ->
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(err, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
-
                         Spacer(modifier = Modifier.height(20.dp))
-
                         Button(
                             onClick = {
                                 if (linkingPhoneInput.length != 10 || !(linkingPhoneInput.startsWith("6") || linkingPhoneInput.startsWith("7") || linkingPhoneInput.startsWith("8") || linkingPhoneInput.startsWith("9"))) {
@@ -9976,7 +9440,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             isGoogleLoading = true
                                             delay(1000)
                                             isGoogleLoading = false
-
                                             val currentGateway = viewModel.getSmsGatewayMode()
                                             if (currentGateway == "TEST_MODE" || activity == null) {
                                                 val secureOtp = (1000..9999).random().toString()
@@ -10011,13 +9474,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 showGooglePhoneLinking = false
                                                 isGoogleWebLoginActive = false
                                                 viewModel.firebaseVerificationId = null
-
                                                 val targetDestination = if (currentGateway == "GMAIL_SMTP") {
                                                     if (linkingGoogleEmail.isNotBlank()) linkingGoogleEmail.trim() else "selva19122008@gmail.com"
                                                 } else {
                                                     phoneWithCountry
                                                 }
-
                                                 viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
                                                     if (success) {
                                                         viewModel.showToast(
@@ -10071,9 +9532,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                         ) {
                             Text("SEND VERIFICATION OTP", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                         }
-
                         Spacer(modifier = Modifier.height(10.dp))
-
                         TextButton(
                             onClick = {
                                 showGooglePhoneLinking = false
@@ -10324,7 +9783,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         1 -> Color(0xFF4285F4)
                                         else -> Color(0xFFDB4437)
                                     }
-
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -10436,7 +9894,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
         }
     }
 }
-
 @Composable
 fun AdminSecurityTab(
     viewModel: BattleZoneViewModel,
@@ -10447,10 +9904,8 @@ fun AdminSecurityTab(
     val anomalies by viewModel.securityAuditAnomalies.collectAsStateWithLifecycle()
     val isAuditRunning by viewModel.isAuditRunning.collectAsStateWithLifecycle()
     val securityMetrics by viewModel.securityMetrics.collectAsStateWithLifecycle()
-
     var activeScanProgress by remember { mutableFloatStateOf(0f) }
     var terminalLogs by remember { mutableStateOf(listOf("System Antivirus module online. Ready to scan Firestore arrays & transaction logs.")) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -10499,9 +9954,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 2. Hardware / Sandbox Integrity Metrics Grid
         Text(
             "HARDWARE & SANDBOX INTEGRITY STATE",
@@ -10510,7 +9963,6 @@ fun AdminSecurityTab(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(6.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -10533,7 +9985,6 @@ fun AdminSecurityTab(
                     )
                 }
             }
-
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -10553,9 +10004,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(8.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -10578,7 +10027,6 @@ fun AdminSecurityTab(
                     )
                 }
             }
-
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -10598,9 +10046,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 3. Scanner Controls Cards
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -10621,9 +10067,7 @@ fun AdminSecurityTab(
                     fontSize = 9.sp,
                     color = GreyText
                 )
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -10668,7 +10112,6 @@ fun AdminSecurityTab(
                             fontWeight = FontWeight.Black
                         )
                     }
-
                     // Auto Mitigate Button
                     Button(
                         onClick = {
@@ -10706,7 +10149,6 @@ fun AdminSecurityTab(
                         )
                     }
                 }
-
                 if (isAuditRunning) {
                     Spacer(modifier = Modifier.height(12.dp))
                     LinearProgressIndicator(
@@ -10720,9 +10162,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 4. Live Terminal View (Matrix Console)
         Text(
             "ANTIVIRUS RUNTIME CONSOLE OUTPUT",
@@ -10731,7 +10171,6 @@ fun AdminSecurityTab(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(6.dp))
-
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0E13)),
             border = BorderStroke(1.dp, Color(0xFF24222B)),
@@ -10749,7 +10188,6 @@ fun AdminSecurityTab(
                 LaunchedEffect(terminalLogs.size) {
                     scrollState.animateScrollTo(scrollState.maxValue)
                 }
-
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -10775,9 +10213,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 5. Detected Threats Details Grid
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -10821,7 +10257,6 @@ fun AdminSecurityTab(
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
-
         if (anomalies.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -10856,7 +10291,6 @@ fun AdminSecurityTab(
                         anomaly.severity == "HIGH" -> Color(0xFFFF6D00)
                         else -> NeonGold
                     }
-
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         modifier = Modifier
@@ -10886,7 +10320,6 @@ fun AdminSecurityTab(
                                         fontWeight = FontWeight.Black
                                     )
                                 }
-
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = colorAccent.copy(alpha = 0.15f)
@@ -10902,7 +10335,6 @@ fun AdminSecurityTab(
                                     )
                                 }
                             }
-
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Affected: ${anomaly.affectedEntity}",
@@ -10921,9 +10353,7 @@ fun AdminSecurityTab(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 6. Platform Logs Auditing history
         Text(
             "HISTORICAL PLATFORM ACTIVITY LOGS (AUDITING FEED)",
@@ -10932,7 +10362,6 @@ fun AdminSecurityTab(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(6.dp))
-
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier
@@ -10969,4 +10398,3 @@ fun AdminSecurityTab(
         }
     }
 }
-
