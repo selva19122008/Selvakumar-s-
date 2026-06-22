@@ -25,20 +25,29 @@ jobs:
 
       - name: Validate and Auto-Recover Gradle Wrapper
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "⚠️ WARNING: 'gradlew' (Gradle wrapper script) is missing from your git repository!"
-            echo "Attempting to run auto-recovery via default gradle..."
-            gradle wrapper --gradle-version 8.2 || echo "Standard Gradle not pre-installed on modern runner. Writing fallback wrapper execution script..."
-            if [ ! -f "gradlew" ]; then
-              # Write simple fallback gradlew if not found
-              cat << 'EOF' > gradlew
-          #!/bin/sh
-          echo "Bootstrapping fallback gradle wrapper..."
-          gradle wrapper
-          exec ./gradlew "$@"
-          EOF
-              chmod +x gradlew
-            fi
+          mkdir -p gradle/wrapper
+          # Detect the configured Gradle version from properties
+          VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties | sed -n 's/.*gradle-\([0-9.]*\)-.*/\1/p')
+          if [ -z "$VERSION" ]; then
+            VERSION="9.3.1"
+          fi
+          echo "✨ Detected Gradle Version: $VERSION"
+          
+          echo "🔄 Fetching pristine Gradle Wrapper binary from official sources to prevent Git line-ending / CRLF corruptions..."
+          curl -sL --retry 3 --retry-delay 2 "https://raw.githubusercontent.com/gradle/gradle/v${VERSION}/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          
+          # Verification check
+          if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "⚠️ Official version-specific jar fetch failed. Fetching standard reliable release build wrapper..."
+            curl -sL --retry 3 --retry-delay 2 "https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          fi
+          
+          # Final size/sanity check
+          if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "❌ CRITICAL: Failed to repair Gradle Wrapper jar. Fallback to generating via Gradle CLI..."
+            gradle wrapper --gradle-version $VERSION || echo "Pre-installed gradle wrapper generation failed"
+          else
+            echo "✅ Gradle Wrapper jar repaired successfully (size: $(wc -c < gradle/wrapper/gradle-wrapper.jar) bytes)."
           fi
 
       - name: Grant Execute Permission to Gradlew

@@ -1,0 +1,17 @@
+# Force Git to recognize these as binary to prevent line ending corruption
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.mp3 binary
+*.wav binary
+*.so binary
+*.aar binary
+*.apk binary
+*.bin binary
+
+# Ensure gradlew (shell script) is checked out with Unix line endings
+gradlew text eol=lf
+gradlew.bat text eol=crlf
