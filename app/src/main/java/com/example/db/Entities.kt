@@ -16,7 +16,8 @@ data class UserEntity(
     val winningBalance: Double = 0.0,
     val bonusBalance: Double = 5.0,
     val referrerId: String? = null,
-    val extraMobileNumber: String = ""
+    val extraMobileNumber: String = "",
+    val isOnline: Boolean = false
 )
 
 @Entity(tableName = "tournaments")

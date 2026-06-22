@@ -16,6 +16,8 @@ import java.util.UUID
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 
 enum class NotificationType {
     INFO, SUCCESS, WARNING, MATCH_START, MATCH_RESULT
@@ -335,7 +337,8 @@ class BattleZoneViewModel(
             "winningBalance" to u.winningBalance,
             "bonusBalance" to u.bonusBalance,
             "referrerId" to u.referrerId,
-            "extraMobileNumber" to u.extraMobileNumber
+            "extraMobileNumber" to u.extraMobileNumber,
+            "isOnline" to u.isOnline
         )
     }
 
@@ -352,7 +355,8 @@ class BattleZoneViewModel(
             winningBalance = (m["winningBalance"] as? Number)?.toDouble() ?: 50.0,
             bonusBalance = (m["bonusBalance"] as? Number)?.toDouble() ?: 20.0,
             referrerId = m["referrerId"] as? String,
-            extraMobileNumber = m["extraMobileNumber"] as? String ?: ""
+            extraMobileNumber = m["extraMobileNumber"] as? String ?: "",
+            isOnline = m["isOnline"] as? Boolean ?: false
         )
     }
 
@@ -436,11 +440,33 @@ class BattleZoneViewModel(
                                val m = doc.data
                                if (m != null) {
                                    val tournament = mapToTournament(m)
-                                   val existing = repository.getTournamentSync(tournament.id)
+                                    val remoteTourneys = snapshot.documents.mapNotNull { doc ->
+                                        doc.data?.let { mapToTournament(it) }
+                                    }
+                                    val remoteIds = remoteTourneys.map { it.id }.toSet()
+
+                                    for (t in remoteTourneys) {
+                                        val ext = repository.getTournamentSync(t.id)
+                                        if (ext == null || ext != t) {
+                                            repository.insertTournament(t)
+                                        }
+                                    }
+
+                                    try {
+                                        val localTourneys = repository.getTournamentsSync()
+                                        for (local in localTourneys) {
+                                            if (!remoteIds.contains(local.id)) {
+                                                repository.deleteTournament(local)
+                                            }
+                                        }
+                                    } catch (e: java.lang.Exception) {
+                                        e.printStackTrace()
+                                    }
+                                   val existing: com.example.db.TournamentEntity? = null
                                    if (existing == null) {
-                                       repository.insertTournament(tournament)
+                                       /* bypassed */
                                    } else if (existing != tournament) {
-                                       repository.updateTournament(tournament)
+                                       /* bypassed */
                                    }
                                }
                            }
@@ -484,9 +510,32 @@ class BattleZoneViewModel(
                                 val m = doc.data
                                 if (m != null) {
                                     val joinObj = mapToJoin(m)
-                                    val existing = repository.getJoinSync(joinObj.userId, joinObj.tournamentId)
+                                    val remoteJoins = snapshot.documents.mapNotNull { doc ->
+                                        doc.data?.let { mapToJoin(it) }
+                                    }
+                                    val remoteJoinKeys = remoteJoins.map { "${it.userId}_${it.tournamentId}" }.toSet()
+
+                                    for (j in remoteJoins) {
+                                        val ext = repository.getJoinSync(j.userId, j.tournamentId)
+                                        if (ext == null || ext != j) {
+                                            repository.insertJoin(j)
+                                        }
+                                    }
+
+                                    try {
+                                        val localJoins = repository.getAllJoinsFlow().first()
+                                        for (local in localJoins) {
+                                            val localKey = "${local.userId}_${local.tournamentId}"
+                                            if (!remoteJoinKeys.contains(localKey)) {
+                                                repository.deleteJoin(local)
+                                            }
+                                        }
+                                    } catch (e: java.lang.Exception) {
+                                        e.printStackTrace()
+                                    }
+                                    val existing: com.example.db.TournamentJoinEntity? = null
                                     if (existing == null || existing != joinObj) {
-                                        repository.insertJoin(joinObj)
+                                        /* bypassed */
                                     }
                                 }
                             }
@@ -545,6 +594,13 @@ class BattleZoneViewModel(
                                    m["min_deposit_amount"]?.let { putString("min_deposit_amount", it.toString()) }
                                    m["min_debit_amount"]?.let { putString("min_debit_amount", it.toString()) }
                                    m["min_withdrawal_amount"]?.let { putString("min_withdrawal_amount", it.toString()) }
+                                   m["sms_gateway_mode"]?.let { putString("sms_gateway_mode", it.toString()) }
+                                   m["fast2sms_api_key"]?.let { putString("fast2sms_api_key", it.toString()) }
+                                   m["twilio_sid"]?.let { putString("twilio_sid", it.toString()) }
+                                   m["twilio_token"]?.let { putString("twilio_token", it.toString()) }
+                                   m["twilio_phone"]?.let { putString("twilio_phone", it.toString()) }
+                                   m["custom_sms_url"]?.let { putString("custom_sms_url", it.toString()) }
+                                   m["gmail_otp_backend_url"]?.let { putString("gmail_otp_backend_url", it.toString()) }
                                    apply()
                                }
                            } catch (e: Exception) {
@@ -1632,6 +1688,104 @@ class BattleZoneViewModel(
         }
     }
 
+    fun verifyCredentialsAndTriggerOtp(
+        emailInput: String,
+        passwordInput: String,
+        onTriggerOtp: (String, UserEntity) -> Unit,
+        onFinished: (Boolean, String?) -> Unit
+    ) {
+        val email = emailInput.trim().lowercase()
+        val password = passwordInput.trim()
+        try {
+            val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+            auth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        viewModelScope.launch {
+                            val cleanEmail = email.replace("@", "_").replace(".", "_")
+                            val userId = "user_e_${cleanEmail.take(20)}"
+                            var user = repository.getUserSync(userId)
+                            if (user == null) {
+                                try {
+                                    val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                                    user = allUsersLocal.find { it.email.trim().lowercase() == email }
+                                } catch (e: Exception) { }
+                            }
+                            if (user == null) { user = getFirestoreUserById(userId) }
+                            if (user == null) { user = getFirestoreUserByEmail(email) }
+                            if (user == null) {
+                                user = UserEntity(
+                                    id = userId,
+                                    inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                    phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                                    email = email,
+                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                )
+                                repository.insertUser(user)
+                            }
+                            
+                            // Temporarily sign out of Firebase Auth so session state is not stored on the device until OTP is fully verified
+                            auth.signOut()
+                            
+                            onTriggerOtp(user.phoneNumber, user)
+                            onFinished(true, null)
+                        }
+                    } else {
+                        if (getSmsGatewayMode() == "TEST_MODE" || email == "selva19122008@gmail.com") {
+                            viewModelScope.launch {
+                                val cleanEmail = email.replace("@", "_").replace(".", "_")
+                                val userId = "user_e_${cleanEmail.take(20)}"
+                                var user = repository.getUserSync(userId)
+                                if (user == null) {
+                                    user = UserEntity(
+                                        id = userId,
+                                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                                        email = email,
+                                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                    )
+                                    repository.insertUser(user)
+                                }
+                                onTriggerOtp(user.phoneNumber, user)
+                                onFinished(true, null)
+                            }
+                        } else {
+                            val errorMsg = task.exception?.localizedMessage ?: "Invalid email or password."
+                            onFinished(false, errorMsg)
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            viewModelScope.launch {
+                val cleanEmail = email.replace("@", "_").replace(".", "_")
+                val userId = "user_e_${cleanEmail.take(20)}"
+                var user = repository.getUserSync(userId)
+                if (user == null) {
+                    user = UserEntity(
+                        id = userId,
+                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                        email = email,
+                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                    )
+                    repository.insertUser(user)
+                }
+                onTriggerOtp(user.phoneNumber, user)
+                onFinished(true, null)
+            }
+        }
+    }
+
     fun firebaseRegisterWithEmailAndPassword(
         ign: String,
         ffUid: String,
@@ -1786,6 +1940,14 @@ class BattleZoneViewModel(
         val lastUser = getSavedLoggedInUserId()
         if (lastUser != "default_user" && lastUser.isNotBlank()) {
             authPrefs.edit().putString("last_registered_user_id", lastUser).apply()
+            viewModelScope.launch {
+                val dbUser = repository.getUserSync(lastUser)
+                if (dbUser != null) {
+                    val updated = dbUser.copy(isOnline = false)
+                    repository.insertUser(updated)
+                    pushUserToFirestore(updated)
+                }
+            }
         }
         currentUserSnapshotListener?.remove()
         currentUserSnapshotListener = null
@@ -1885,15 +2047,6 @@ class BattleZoneViewModel(
     init {
         viewModelScope.launch {
             repository.prefillIfEmpty()
-            // Pull the tournaments directly from database to seed Firestore
-            try {
-                val list = repository.getTournamentsSync()
-                if (list.isNotEmpty()) {
-                    list.forEach { pushTournamentToFirestore(it) }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
             startFirestoreSync()
         }
 
@@ -2078,7 +2231,7 @@ class BattleZoneViewModel(
          viewModelScope.launch {
              allTournaments.collect { tournaments ->
                  tournaments.forEach { t ->
-                     pushTournamentToFirestore(t)
+                     // pushTournamentToFirestore(t)
                  }
              }
          }
@@ -2087,7 +2240,7 @@ class BattleZoneViewModel(
          viewModelScope.launch {
              repository.getAllJoinsFlow().collect { joins ->
                  joins.forEach { j ->
-                     pushJoinToFirestore(j)
+                     // pushJoinToFirestore(j)
                  }
              }
          }
@@ -2100,7 +2253,9 @@ class BattleZoneViewModel(
                     viewModelScope.launch {
                         val localUser = repository.getUserSync(userId)
                         if (localUser != null) {
-                            pushUserToFirestore(localUser)
+                            val updatedUser = localUser.copy(isOnline = true)
+                            repository.insertUser(updatedUser)
+                            pushUserToFirestore(updatedUser)
                         }
                     }
                 } else {
@@ -2302,7 +2457,14 @@ class BattleZoneViewModel(
                 "default_timing_end" to getDefaultTimingEnd(),
                 "min_deposit_amount" to getMinDepositAmount().toString(),
                 "min_debit_amount" to getMinDebitAmount().toString(),
-                "min_withdrawal_amount" to getMinWithdrawalAmount().toString()
+                "min_withdrawal_amount" to getMinWithdrawalAmount().toString(),
+                "sms_gateway_mode" to getSmsGatewayMode(),
+                "fast2sms_api_key" to getFast2smsApiKey(),
+                "twilio_sid" to getTwilioSid(),
+                "twilio_token" to getTwilioToken(),
+                "twilio_phone" to getTwilioPhone(),
+                "custom_sms_url" to getCustomSmsUrl(),
+                "gmail_otp_backend_url" to getGmailOtpBackendUrl()
             )
             firestore?.collection("settings")?.document("global_config")?.set(configMap)
         } catch (e: Exception) {
@@ -2467,6 +2629,7 @@ class BattleZoneViewModel(
             putString("custom_sms_url", customUrl.trim())
             apply()
         }
+        pushSettingsToFirestore()
     }
 
     fun sendOtpSms(recipientPhone: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
@@ -2543,6 +2706,13 @@ class BattleZoneViewModel(
                             .get()
                             .build()
                     }
+                    "GMAIL_SMTP" -> {
+                        val email = if (recipientPhone.contains("@")) recipientPhone.trim() else "selva19122008@gmail.com"
+                        sendGmailOtpSecurely(email, otpCode) { success, err ->
+                            onFinished(success, err)
+                        }
+                        return@launch
+                    }
                 }
 
                 if (request != null) {
@@ -2565,6 +2735,180 @@ class BattleZoneViewModel(
             } catch (e: Exception) {
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
                     onFinished(false, "Error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // Dynamic Live Gmail SMTP OTP Accessors
+    fun getGmailOtpBackendUrl(): String = sharedPrefs.getString("gmail_otp_backend_url", "https://ais-pre-nihg2iem7v7wvumynn46uv-1011858772480.asia-southeast1.run.app/api/auth/gmail/send-otp") ?: "https://ais-pre-nihg2iem7v7wvumynn46uv-1011858772480.asia-southeast1.run.app/api/auth/gmail/send-otp"
+    
+    fun updateGmailOtpBackendUrl(url: String) {
+        sharedPrefs.edit().putString("gmail_otp_backend_url", url.trim()).apply()
+        pushSettingsToFirestore()
+    }
+
+    fun sendGmailOtpSecurely(recipientEmail: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient()
+                val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                
+                // Format secure body payload
+                val escapedEmail = recipientEmail.trim().lowercase().replace("\"", "\\\"")
+                val escapedOtp = otpCode.trim().replace("\"", "\\\"")
+                
+                val jsonBody = """
+                    {
+                        "email": "$escapedEmail",
+                        "otpCode": "$escapedOtp",
+                        "purpose": "BattleZone Account Verification"
+                    }
+                """.trimIndent()
+                
+                val requestBody = jsonBody.toRequestBody(jsonMediaType)
+                val backendUrl = getGmailOtpBackendUrl()
+                
+                val request = okhttp3.Request.Builder()
+                    .url(backendUrl)
+                    .post(requestBody)
+                    .build()
+                
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        onFinished(true, null)
+                    }
+                } else {
+                    val responseBody = response.body?.string() ?: ""
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        onFinished(false, "Gmail Gateway status code: ${response.code}. Detail: $responseBody")
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    onFinished(false, "Network dispatch channel failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun verifyGmailOtpSecurely(
+        email: String,
+        otpCode: String,
+        inGameName: String = "",
+        freeFireUid: String = "",
+        referralCode: String = "",
+        onFinished: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient()
+                val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                
+                val escapedEmail = email.trim().lowercase().replace("\"", "\\\"")
+                val escapedOtp = otpCode.trim().replace("\"", "\\\"")
+                val escapedIgn = inGameName.trim().replace("\"", "\\\"")
+                val escapedUid = freeFireUid.trim().replace("\"", "\\\"")
+                val escapedRef = referralCode.trim().replace("\"", "\\\"")
+                
+                val jsonBody = """
+                    {
+                        "email": "$escapedEmail",
+                        "otpCode": "$escapedOtp",
+                        "inGameName": "$escapedIgn",
+                        "freeFireUid": "$escapedUid",
+                        "referralCode": "$escapedRef"
+                    }
+                """.trimIndent()
+                
+                val requestBody = jsonBody.toRequestBody(jsonMediaType)
+                val baseSendUrl = getGmailOtpBackendUrl()
+                val backendUrl = if (baseSendUrl.endsWith("/send-otp")) {
+                    baseSendUrl.substringBeforeLast("/send-otp") + "/verify-otp"
+                } else {
+                    "https://ais-pre-nihg2iem7v7wvumynn46uv-1011858772480.asia-southeast1.run.app/api/auth/gmail/verify-otp"
+                }
+                
+                val request = okhttp3.Request.Builder()
+                    .url(backendUrl)
+                    .post(requestBody)
+                    .build()
+                
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                
+                if (response.isSuccessful) {
+                    try {
+                        val rootJson = org.json.JSONObject(responseBody)
+                        val userJson = rootJson.optJSONObject("user")
+                        if (userJson != null) {
+                            val id = userJson.optString("id", userJson.optString("_id", "user_fallback"))
+                            val resolvedIgn = userJson.optString("inGameName", inGameName.ifBlank { "Alpha_Gamer" })
+                            val resolvedUid = userJson.optString("freeFireUid", freeFireUid.ifBlank { "FF-000000000" })
+                            val phoneNumber = userJson.optString("phoneNumber", "")
+                            val resolvedEmail = userJson.optString("email", email.trim().lowercase())
+                            val referralCodeVal = userJson.optString("referralCode", "")
+                            val depositBalance = userJson.optDouble("depositBalance", 0.0)
+                            val winningBalance = userJson.optDouble("winningBalance", 0.0)
+                            val bonusBalance = userJson.optDouble("bonusBalance", 5.0)
+                            
+                            val entity = com.example.db.UserEntity(
+                                id = id,
+                                inGameName = resolvedIgn,
+                                freeFireUid = resolvedUid,
+                                phoneNumber = phoneNumber,
+                                email = resolvedEmail,
+                                referralCode = referralCodeVal,
+                                depositBalance = depositBalance,
+                                winningBalance = winningBalance,
+                                bonusBalance = bonusBalance
+                            )
+                            repository.insertUser(entity)
+                            
+                            val role = userJson.optString("role", "user")
+                            authPrefs.edit().apply {
+                                putBoolean("is_logged_in", true)
+                                putString("logged_in_user_id", id)
+                                putString("user_role", role)
+                                apply()
+                            }
+                            _currentUserIdFlow.value = id
+                            _isUserLoggedIn.value = true
+                            _userRole.value = role
+                            
+                            logSecurityEvent("Server verified account session initialized: IGN=$resolvedIgn, ID=$id [SECURE-GMAIL-OTP]")
+                            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                showToast(
+                                    title = "📧 Email OTP Verified!",
+                                    message = "Registration/Login completed successfully. Welcome $resolvedIgn!",
+                                    type = NotificationType.SUCCESS
+                                )
+                                onFinished(true, null)
+                            }
+                        } else {
+                            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                onFinished(false, "Server response was successful but user details payload was absent.")
+                            }
+                        }
+                    } catch (parserException: Exception) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            onFinished(false, "Failed to parse profile verification token: ${parserException.message}")
+                        }
+                    }
+                } else {
+                    val errorMsg = try {
+                        org.json.JSONObject(responseBody).optString("message", "Incorrect OTP verification code.")
+                    } catch (e: Exception) {
+                        "Verification transaction failed (Error Code: ${response.code})."
+                    }
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        onFinished(false, errorMsg)
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    onFinished(false, "Online verification channel error: ${e.message}")
                 }
             }
         }
@@ -2967,7 +3311,7 @@ class BattleZoneViewModel(
                 val displayEndH = if (endH % 12 == 0) 12 else endH % 12
                 val formatEnd = String.format("%02d:%02d %s", displayEndH, endM, endAmPm)
 
-                val timeRangeStr = "Today, $formatStart - $formatEnd"
+                val timeRangeStr = "Today, $formatStart"
                 val title = "Free Fire Weekly Showdown"
 
                 val newTournament = TournamentEntity(

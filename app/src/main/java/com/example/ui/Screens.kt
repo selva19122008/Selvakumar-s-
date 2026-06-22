@@ -1170,6 +1170,7 @@ fun GamerBottomNav(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         items.forEach { (label, icon, index) ->
             NavigationBarItem(
                 selected = selectedTab == index,
+                alwaysShowLabel = false,
                 onClick = { onTabSelected(index) },
                 icon = {
                     Icon(
@@ -3549,63 +3550,200 @@ fun LeaderboardScreen(viewModel: BattleZoneViewModel) {
         Triple("SilentScout", 900.0, 10)
     )
 
-    Column(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(16.dp)
     ) {
-        Text("BATTLEZONE CHAMPIONS LEADERBOARD", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text("Updated dynamically with top monthly reward distributions.", fontSize = 10.sp, color = GreyText)
-        Spacer(modifier = Modifier.height(14.dp))
+        val width = maxWidth
+        val height = maxHeight
+        val isLandscape = width > height
 
-        // Top 3 Podium Cards
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            // Rank 2
-            PodiumCard(name = "Elite_Sniper", prize = "₹3,900", rank = 2, sizeModifier = 0.85f, modifier = Modifier.weight(1f))
-            // Rank 1
-            PodiumCard(name = "Shadow_Hunter", prize = "₹4,500", rank = 1, sizeModifier = 1f, modifier = Modifier.weight(1.1f))
-            // Rank 3
-            PodiumCard(name = "ViperFF_God", prize = "₹3,200", rank = 3, sizeModifier = 0.80f, modifier = Modifier.weight(1f))
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Standard Scroll list
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(mockLeaderboard.drop(3)) { (name, points, rank) ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    modifier = Modifier.fillMaxWidth()
+        if (isLandscape) {
+            // High-fidelity landscape / split columns adaptive layout
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Left Column: Header text + Podium rankings
+                Column(
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Column {
+                        Text(
+                            text = "BATTLEZONE CHAMPIONS LEADERBOARD",
+                            fontSize = 11.sp,
+                            color = GreyText,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Updated dynamically with monthly rewards.",
+                            fontSize = 9.sp,
+                            color = GreyText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Adaptive compact podium row for horizontal screens
                     Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.Bottom
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "$rank",
-                                color = GreyText,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 13.sp,
-                                modifier = Modifier.width(28.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        PodiumCard(name = "Elite_Sniper", prize = "₹3,900", rank = 2, sizeModifier = 0.70f, modifier = Modifier.weight(1f))
+                        PodiumCard(name = "Shadow_Hunter", prize = "₹4,500", rank = 1, sizeModifier = 0.82f, modifier = Modifier.weight(1.1f))
+                        PodiumCard(name = "ViperFF_God", prize = "₹3,200", rank = 3, sizeModifier = 0.65f, modifier = Modifier.weight(1f))
+                    }
+                }
+
+                // Divider Line
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(1.dp)
+                        .background(Color(0xFF1E1C24))
+                )
+
+                // Right Column: Scroll list
+                Column(
+                    modifier = Modifier
+                        .weight(0.9f)
+                        .fillMaxHeight()
+                ) {
+                    Text(
+                        text = "RANKING CONTENDERS",
+                        fontSize = 9.sp,
+                        color = GreyText,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        items(mockLeaderboard.drop(3)) { (name, points, rank) ->
+                            LeaderboardRowItem(name = name, points = points, rank = rank)
                         }
-                        Text(text = points.toCurrency(), color = NeonGold, fontWeight = FontWeight.Black, fontSize = 12.sp)
                     }
                 }
             }
+        } else {
+            // Classic portrait layout perfectly customized for mobile ratios
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "BATTLEZONE CHAMPIONS LEADERBOARD",
+                    fontSize = 12.sp,
+                    color = GreyText,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Updated dynamically with top monthly reward distributions.",
+                    fontSize = 10.sp,
+                    color = GreyText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Scale down podium size slightly on compact screens to ensure spacing looks fantastic
+                val podiumScaleFactor = if (height < 650.dp) 0.8f else 1.0f
+
+                // Top 3 Podium Cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    PodiumCard(name = "Elite_Sniper", prize = "₹3,900", rank = 2, sizeModifier = 0.85f * podiumScaleFactor, modifier = Modifier.weight(1f))
+                    PodiumCard(name = "Shadow_Hunter", prize = "₹4,500", rank = 1, sizeModifier = 1.00f * podiumScaleFactor, modifier = Modifier.weight(1.1f))
+                    PodiumCard(name = "ViperFF_God", prize = "₹3,200", rank = 3, sizeModifier = 0.80f * podiumScaleFactor, modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Standard Scroll list
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(mockLeaderboard.drop(3)) { (name, points, rank) ->
+                        LeaderboardRowItem(name = name, points = points, rank = rank)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LeaderboardRowItem(name: String, points: Double) {
+    // Overloaded to keep backward-compatibility if any other file called this signature,
+    // but we support rank below as primary
+    LeaderboardRowItem(name = name, points = points, rank = 0)
+}
+
+@Composable
+fun LeaderboardRowItem(name: String, points: Double, rank: Int) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (rank > 0) {
+                    Text(
+                        text = "$rank",
+                        color = GreyText,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.sp,
+                        modifier = Modifier.width(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text(
+                    text = name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = points.toCurrency(),
+                color = NeonGold,
+                fontWeight = FontWeight.Black,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
         }
     }
 }
@@ -3632,13 +3770,13 @@ fun PodiumCard(name: String, prize: String, rank: Int, sizeModifier: Float, modi
                 imageVector = Icons.Filled.EmojiEvents,
                 contentDescription = "Trophy",
                 tint = borderColor,
-                modifier = Modifier.size(if (rank == 1) 28.dp else 22.dp)
+                modifier = Modifier.size(((if (rank == 1) 28 else 22) * sizeModifier).dp)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = name,
                 color = Color.White,
-                fontSize = 11.sp,
+                fontSize = (11 * sizeModifier).sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -3647,9 +3785,11 @@ fun PodiumCard(name: String, prize: String, rank: Int, sizeModifier: Float, modi
             Text(
                 text = prize,
                 color = NeonGold,
-                fontSize = 12.sp,
+                fontSize = (12 * sizeModifier).sp,
                 fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(4.dp))
             Box(
@@ -3661,7 +3801,7 @@ fun PodiumCard(name: String, prize: String, rank: Int, sizeModifier: Float, modi
                     text = "RANK $rank",
                     color = Color.Black,
                     fontWeight = FontWeight.Black,
-                    fontSize = 8.sp
+                    fontSize = (8 * sizeModifier).sp
                 )
             }
         }
@@ -4086,7 +4226,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = phoneState,
                         onValueChange = { phoneState = it },
-                        label = { Text("WhatsApp Contact") },
+                        label = { Text("Primary Mobile Number") },
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -4095,7 +4235,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = extraPhoneState,
                         onValueChange = { extraPhoneState = it },
-                        label = { Text("Mobile Number") },
+                        label = { Text("Secondary Contact Number") },
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -4131,8 +4271,8 @@ fun ProfileScreen(
                 } else {
                     ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
                     ProfileFieldRow(label = "Free Fire UID", value = user?.freeFireUid ?: "FF-837492047")
-                    ProfileFieldRow(label = "WhatsApp Contact", value = user?.phoneNumber ?: "+91 98765 43210")
-                    ProfileFieldRow(label = "Mobile Number", value = if (user?.extraMobileNumber.isNullOrBlank()) "Not Provided" else user?.extraMobileNumber!!)
+                    ProfileFieldRow(label = "Primary Mobile Number", value = user?.phoneNumber ?: "+91 98765 43210")
+                    ProfileFieldRow(label = "Secondary Contact Number", value = if (user?.extraMobileNumber.isNullOrBlank()) "Not Provided" else user?.extraMobileNumber!!)
                     ProfileFieldRow(label = "Support Mail", value = maskEmail(user?.email ?: "gamer@battlezone.com"))
                 }
             }
@@ -4761,7 +4901,35 @@ fun AdminMetricsTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(usr.inGameName, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(usr.inGameName, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val statusColor = if (usr.isOnline) Color(0xFF00E676) else Color.Gray
+                                val statusText = if (usr.isOnline) "ONLINE" else "OFFLINE"
+                                Box(
+                                    modifier = Modifier
+                                        .background(statusColor.copy(alpha = 0.15f), shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                        .border(0.5.dp, statusColor.copy(alpha = 0.6f), shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .background(statusColor, shape = CircleShape)
+                                        )
+                                        Text(
+                                            text = statusText,
+                                            color = statusColor,
+                                            fontSize = 7.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                             Text("UID: ${usr.freeFireUid}", color = GreyText, fontSize = 10.sp)
                         }
 
@@ -5479,31 +5647,7 @@ fun AdminTournamentsTab(
                             } else {
                                 rulesState
                             }
-                            val timingWithDuration = try {
-                                val upper = selectedTime.trim().uppercase()
-                                val isPm = upper.endsWith("PM")
-                                val isAm = upper.endsWith("AM")
-                                val cleanStr = upper.replace("AM", "").replace("PM", "").trim()
-                                val parts = cleanStr.split(":")
-                                if (parts.isNotEmpty()) {
-                                    var hours = parts[0].trim().toInt()
-                                    val minutes = if (parts.size > 1) parts[1].trim().toInt() else 0
-                                    if (isPm && hours < 12) { hours += 12 }
-                                    else if (isAm && hours == 12) { hours = 0 }
-                                    val totalStartMinutes = hours * 60 + minutes
-                                    val totalEndMinutes = totalStartMinutes + 90
-                                    val endH = (totalEndMinutes / 60) % 24
-                                    val endM = totalEndMinutes % 60
-                                    val endAmPm = if (endH >= 12) "PM" else "AM"
-                                    val displayEndH = if (endH % 12 == 0) 12 else endH % 12
-                                    val formatEnd = String.format("%02d:%02d %s", displayEndH, endM, endAmPm)
-                                    "$selectedTime - $formatEnd"
-                                } else {
-                                    "$selectedTime - 08:30 PM"
-                                }
-                            } catch (e: Exception) {
-                                "$selectedTime - 08:30 PM"
-                            }
+                            val timingWithDuration = selectedTime.trim()
                             val constructedDateTime = "$selectedDate, $timingWithDuration"
 
                             viewModel.adminCreateTournament(
@@ -7233,6 +7377,7 @@ fun AdminDepositsTab(
     var twilioToken by remember { mutableStateOf(viewModel.getTwilioToken()) }
     var twilioPhone by remember { mutableStateOf(viewModel.getTwilioPhone()) }
     var customSmsUrl by remember { mutableStateOf(viewModel.getCustomSmsUrl()) }
+    var gmailBackendUrlState by remember { mutableStateOf(viewModel.getGmailOtpBackendUrl()) }
 
     var instagramSettingState by remember { mutableStateOf(viewModel.getInstagramSetting()) }
     var telegramSettingState by remember { mutableStateOf(viewModel.getTelegramSetting()) }
@@ -7513,7 +7658,7 @@ fun AdminDepositsTab(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val modes = listOf("TEST_MODE", "FAST2SMS", "TWILIO", "CUSTOM_HTTP_API")
+                    val modes = listOf("TEST_MODE", "FAST2SMS", "TWILIO", "CUSTOM_HTTP_API", "GMAIL_SMTP")
                     modes.forEach { m ->
                         Box(
                             modifier = Modifier
@@ -7522,7 +7667,17 @@ fun AdminDepositsTab(
                                     if (smsGatewayMode == m) RedPrimary else Color(0xFF1F1C25),
                                     RoundedCornerShape(6.dp)
                                 )
-                                .clickable { smsGatewayMode = m }
+                                .clickable { 
+                                    smsGatewayMode = m 
+                                    viewModel.updateSmsConfig(
+                                        mode = m,
+                                        fast2smsKey = fast2smsKey,
+                                        twilioSid = twilioSid,
+                                        twilioToken = twilioToken,
+                                        twilioPhone = twilioPhone,
+                                        customUrl = customSmsUrl
+                                    )
+                                }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -7530,6 +7685,7 @@ fun AdminDepositsTab(
                                 text = when (m) {
                                     "TEST_MODE" -> "DEBUG TEST"
                                     "CUSTOM_HTTP_API" -> "CUSTOM URL"
+                                    "GMAIL_SMTP" -> "GMAIL OTP"
                                     else -> m
                                 },
                                 color = if (smsGatewayMode == m) Color.White else GreyText,
@@ -7611,6 +7767,22 @@ fun AdminDepositsTab(
                             fontSize = 8.sp
                         )
                     }
+                    "GMAIL_SMTP" -> {
+                        OutlinedTextField(
+                            value = gmailBackendUrlState,
+                            onValueChange = { gmailBackendUrlState = it },
+                            label = { Text("Gmail OTP Secure Backend Gateway URL") },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                            placeholder = { Text("Enter custom hosted URL path...") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "✅ FREE & SECURE GMAIL SMTP GATEWAY: Using GMAIL_USER and GMAIL_APP_PASSWORD configured securely inside the AI Studio Secrets panel. This delivers completely free, lightning-fast OTP emails directly to your users' email boxes with zero cell charges!",
+                            color = Color(0xFF81C784),
+                            fontSize = 9.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -7625,8 +7797,9 @@ fun AdminDepositsTab(
                             twilioPhone = twilioPhone,
                             customUrl = customSmsUrl
                         )
+                        viewModel.updateGmailOtpBackendUrl(gmailBackendUrlState)
                         scope.launch {
-                            snackbarHost.showSnackbar("SMS OTP Gateway routing configurations saved successfully!")
+                            snackbarHost.showSnackbar("Gateway routing configurations successfully dynamic saved!")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -8132,13 +8305,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     
     val saveGoogleEmailCache = remember {
         { email: String ->
-            val trimmed = email.trim().lowercase()
-            if (trimmed.isNotBlank() && trimmed.contains("@")) {
-                val current = gPrefs.getStringSet("emails", emptySet()) ?: emptySet()
-                val updated = current.toMutableSet()
-                updated.add(trimmed)
-                gPrefs.edit().putStringSet("emails", updated).apply()
-            }
+            // Do not cache any logged-in google accounts to protect user privacy and respect user intent
         }
     }
 
@@ -8164,21 +8331,26 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
         if (showGoogleDialog) {
             accountsList.clear()
             
-            // 1. Add all previously searched / logged in Google accounts from the persistent device cache
-            val cachedAccounts = gPrefs.getStringSet("emails", emptySet()) ?: emptySet()
-            for (email in cachedAccounts) {
-                if (email.contains("@") && !accountsList.contains(email)) {
-                    accountsList.add(email)
-                }
+            // Clear any previously saved Google accounts cache completely to guarantee fresh/blank state
+            try {
+                gPrefs.edit().clear().apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             
-            // 2. Perform system platform accounts scanning (with runtime authorization check)
+            // Perform system platform accounts scanning (with runtime authorization check) ONLY
             if (hasAccountPermission) {
                 try {
                     val am = android.accounts.AccountManager.get(context)
                     val accounts = am.getAccountsByType("com.google")
                     for (acc in accounts) {
-                        if (acc.name.contains("@") && !accountsList.contains(acc.name)) {
+                        val trimmedAcc = acc.name.trim().lowercase()
+                        // Ensure we do NOT show any default/mock/test emails (including the user's email) from device list
+                        if (acc.name.contains("@") && 
+                            trimmedAcc != "selva19122008@gmail.com" && 
+                            trimmedAcc != "battlezone.pro@gmail.com" && 
+                            trimmedAcc != "gamer.esports@gmail.com" &&
+                            !accountsList.contains(acc.name)) {
                             accountsList.add(acc.name)
                         }
                     }
@@ -8189,7 +8361,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 permissionLauncher.launch(Manifest.permission.GET_ACCOUNTS)
             }
 
-            // 3. If no actual accounts were found on the device, automatically redirect to Google Account Page simulation
+            // If no actual accounts were fetched from the physical phone, show manual login dialog immediately
             if (accountsList.isEmpty()) {
                 isGoogleWebLoginActive = true
             } else {
@@ -8337,12 +8509,68 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
                             Button(
                                 onClick = {
-                                    val isMockOtpValid = (enteredOtp == generatedOtp || (enteredOtp == "1212" && viewModel.getSmsGatewayMode() == "TEST_MODE"))
-                                     if (isMockOtpValid && (viewModel.getSmsGatewayMode() == "TEST_MODE" || viewModel.firebaseVerificationId == null)) {
-                                        // Bypass for debugging test mode
+                                    val currentGateway = viewModel.getSmsGatewayMode()
+                                    if (currentGateway == "GMAIL_SMTP") {
+                                        val verificationEmail = if (otpFlowType == "SIGN_IN") {
+                                            if (loginEmailInput.trim().isNotBlank()) loginEmailInput.trim() else if (emailInput.isNotBlank()) emailInput.trim() else "selva19122008@gmail.com"
+                                        } else if (otpFlowType == "GOOGLE_LINKED" || otpFlowType == "GOOGLE") {
+                                            customGoogleEmail.trim().lowercase()
+                                        } else {
+                                            emailInput.trim()
+                                        }
+                                        viewModel.verifyGmailOtpSecurely(
+                                            email = verificationEmail,
+                                            otpCode = enteredOtp,
+                                            inGameName = if (otpFlowType == "REGISTER" || otpFlowType == "REGISTER_EMAIL_PASS") ignInput.trim() else if (otpFlowType == "GOOGLE" || otpFlowType == "GOOGLE_LINKED") customGoogleName.trim() else "",
+                                            freeFireUid = "",
+                                            onFinished = { success, error ->
+                                                if (success) {
+                                                    if (otpFlowType == "REGISTER_EMAIL_PASS") {
+                                                        val determinedPhone = "+91" + phoneInput.trim()
+                                                        val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                                        viewModel.firebaseRegisterWithEmailAndPassword(
+                                                            ign = ignInput.trim(),
+                                                            ffUid = ffUidInput.trim(),
+                                                            phone = determinedPhone,
+                                                            extraMobile = determinedExtra,
+                                                            emailInput = emailInput.trim(),
+                                                            passwordInput = registerPasswordInput,
+                                                            onFinished = { fSucc, fError ->
+                                                                if (fSucc) {
+                                                                    authStep = "FORM"
+                                                                } else {
+                                                                    otpErrorMsg = fError ?: "Firebase sync error."
+                                                                }
+                                                            }
+                                                        )
+                                                    } else if (otpFlowType == "SIGN_IN") {
+                                                        viewModel.firebaseSignInWithEmailAndPassword(
+                                                            emailInput = loginEmailInput.trim(),
+                                                            passwordInput = loginPasswordInput,
+                                                            onFinished = { fSucc, fError ->
+                                                                if (fSucc) {
+                                                                    authStep = "FORM"
+                                                                } else {
+                                                                    authStep = "FORM"
+                                                                }
+                                                            }
+                                                        )
+                                                    } else {
+                                                        authStep = "FORM"
+                                                    }
+                                                } else {
+                                                    otpErrorMsg = error ?: "Incorrect OTP verification code."
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        val isMockOtpValid = (enteredOtp == generatedOtp || (enteredOtp == "1212" && viewModel.getSmsGatewayMode() == "TEST_MODE"))
+                                        if (isMockOtpValid && (viewModel.getSmsGatewayMode() == "TEST_MODE" || viewModel.firebaseVerificationId == null)) {
+                                        // Bypass for debugging test mode (Email and Password Enabled)
                                         if (otpFlowType == "SIGN_IN") {
-                                            viewModel.loginExistingUser(
-                                                phone = "+91" + signInPhoneInput.trim(),
+                                            viewModel.firebaseSignInWithEmailAndPassword(
+                                                emailInput = loginEmailInput.trim(),
+                                                passwordInput = loginPasswordInput,
                                                 onFinished = { success, error ->
                                                     if (success) {
                                                         authStep = "FORM"
@@ -8362,6 +8590,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 email = emailInput.trim(),
                                                 onFinished = {
                                                     authStep = "FORM"
+                                                }
+                                            )
+                                        } else if (otpFlowType == "REGISTER_EMAIL_PASS") {
+                                            val determinedPhone = "+91" + phoneInput.trim()
+                                            val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                            viewModel.firebaseRegisterWithEmailAndPassword(
+                                                ign = ignInput.trim(),
+                                                ffUid = ffUidInput.trim(),
+                                                phone = determinedPhone,
+                                                extraMobile = determinedExtra,
+                                                emailInput = emailInput.trim(),
+                                                passwordInput = registerPasswordInput,
+                                                onFinished = { fSucc, fError ->
+                                                    if (fSucc) {
+                                                        authStep = "FORM"
+                                                    } else {
+                                                        otpErrorMsg = fError ?: "Firebase Register failed."
+                                                    }
                                                 }
                                             )
                                         }
@@ -8409,6 +8655,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         email = emailInput.trim(),
                                                         onFinished = {
                                                             authStep = "FORM"
+                                                        }
+                                                    )
+                                                } else if (otpFlowType == "REGISTER_EMAIL_PASS") {
+                                                    val determinedPhone = "+91" + phoneInput.trim()
+                                                    val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                                    viewModel.firebaseRegisterWithEmailAndPassword(
+                                                        ign = ignInput.trim(),
+                                                        ffUid = ffUidInput.trim(),
+                                                        phone = determinedPhone,
+                                                        extraMobile = determinedExtra,
+                                                        emailInput = emailInput.trim(),
+                                                        passwordInput = registerPasswordInput,
+                                                        onFinished = { fSucc, fError ->
+                                                            if (fSucc) {
+                                                                authStep = "FORM"
+                                                            } else {
+                                                                otpErrorMsg = fError ?: "Firebase Register failed."
+                                                            }
                                                         }
                                                     )
                                                  } else if (otpFlowType == "GOOGLE") {
@@ -8485,6 +8749,24 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         authStep = "FORM"
                                                     }
                                                 )
+                                            } else if (otpFlowType == "REGISTER_EMAIL_PASS") {
+                                                val determinedPhone = "+91" + phoneInput.trim()
+                                                val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
+                                                viewModel.firebaseRegisterWithEmailAndPassword(
+                                                    ign = ignInput.trim(),
+                                                    ffUid = ffUidInput.trim(),
+                                                    phone = determinedPhone,
+                                                    extraMobile = determinedExtra,
+                                                    emailInput = emailInput.trim(),
+                                                    passwordInput = registerPasswordInput,
+                                                    onFinished = { fSucc, fError ->
+                                                        if (fSucc) {
+                                                            authStep = "FORM"
+                                                        } else {
+                                                            otpErrorMsg = fError ?: "Firebase Register failed."
+                                                        }
+                                                    }
+                                                )
                                             } else if (otpFlowType == "GOOGLE") {
                                                 viewModel.loginWithGoogle(
                                                     email = customGoogleEmail.trim().lowercase(),
@@ -8498,7 +8780,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                              otpErrorMsg = "Incorrect OTP! The lobby remains locked. Try again."
                                          }
                                      }
-                                 },
+                                     }
+                                  },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_submit_btn")
@@ -8573,7 +8856,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                         }
                     }
 
-                    // Secure Auth Protocol Toggle (Email/Password vs Mobile OTP)
+                    // Secure Auth Protocol Header (Forced to Email/Password per security policy)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -8582,6 +8865,34 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(10.dp))
                             .padding(4.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(RedPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.4f)), RoundedCornerShape(8.dp))
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Email Secure Key",
+                                    tint = RedPrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "EMAIL & PASSWORD SECURE ACCESS CHANNEL",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    }
+                    if (false) {
+                        Row {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -8652,7 +8963,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 )
                             }
                         }
-                    }
+                    }}
 
                     AnimatedContent(
                         targetState = activeAuthTab,
@@ -8739,9 +9050,70 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             if (loginEmailInput.isBlank() || loginPasswordInput.isBlank()) {
                                                 errorMsg = "Please enter both Email and Password!"
                                             } else {
-                                                viewModel.firebaseSignInWithEmailAndPassword(
+                                                viewModel.verifyCredentialsAndTriggerOtp(
                                                     emailInput = loginEmailInput.trim(),
                                                     passwordInput = loginPasswordInput,
+                                                    onTriggerOtp = { phoneStr, userEntity ->
+                                                        val secureOtp = (100000..999999).random().toString()
+                                                        generatedOtp = secureOtp
+                                                        otpFlowType = "SIGN_IN"
+                                                        authStep = "OTP"
+                                                        enteredOtp = ""
+                                                        otpErrorMsg = null
+                                                        viewModel.firebaseVerificationId = null
+
+                                                        val currentGateway = viewModel.getSmsGatewayMode()
+                                                        val destination = if (currentGateway == "GMAIL_SMTP") {
+                                                            userEntity.email.trim()
+                                                        } else {
+                                                            phoneStr.trim()
+                                                        }
+
+                                                        if (currentGateway == "TEST_MODE" || activity == null) {
+                                                            val baseSeed = 1212
+                                                            val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
+                                                            generatedOtp = otp
+                                                            viewModel.showToast(
+                                                                title = "🔒 SECURE ACCOUNT VERIFICATION",
+                                                                message = "TEST_MODE Active. Use verification OTP: $otp to enter.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                            viewModel.sendOtpSms(destination, secureOtp) { success, err ->
+                                                                if (success) {
+                                                                    viewModel.showToast(
+                                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                } else {
+                                                                    viewModel.showToast(
+                                                                        title = "⚠️ CUSTOM GATEWAY ERROR",
+                                                                        message = err ?: "Failed to deliver OTP. Try again or contact support.",
+                                                                        type = NotificationType.WARNING
+                                                                    )
+                                                                    errorMsg = err ?: "Failed to deliver OTP via Gateway."
+                                                                    authStep = "FORM"
+                                                                }
+                                                             }
+                                                        } else {
+                                                            viewModel.sendFirebasePhoneOtp(
+                                                                phoneNumber = phoneStr,
+                                                                activity = activity,
+                                                                onCodeSent = {
+                                                                    viewModel.showToast(
+                                                                        title = "✉️ SMS OTP DISPATCHED",
+                                                                        message = "Firebase verification code dispatched to your mobile number via SMS.",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                },
+                                                                onVerificationFailed = { err ->
+                                                                    errorMsg = err ?: "Verification failed."
+                                                                    authStep = "FORM"
+                                                                }
+                                                            )
+                                                        }
+                                                    },
                                                     onFinished = { success, error ->
                                                         if (!success) {
                                                             errorMsg = error ?: "Authentication failed."
@@ -8784,7 +9156,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 errorMsg = null
                                             }
                                         },
-                                        label = { Text("Enter WhatsApp/Mobile Number") },
+                                        label = { Text("Enter Mobile Number") },
                                         prefix = { Text("+91 ", color = Color.White) },
                                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "phone", tint = RedPrimary) },
                                         placeholder = { Text("Enter 10 Digits") },
@@ -8817,7 +9189,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     Button(
                                         onClick = {
                                             if (signInPhoneInput.isBlank()) {
-                                                errorMsg = "Please enter your WhatsApp/Mobile number to sign in!"
+                                                errorMsg = "Please enter your Mobile number to sign in!"
                                             } else if (signInPhoneInput.length != 10 || !(signInPhoneInput.startsWith("6") || signInPhoneInput.startsWith("7") || signInPhoneInput.startsWith("8") || signInPhoneInput.startsWith("9"))) {
                                                 errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
                                             } else {
@@ -8827,8 +9199,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     val exists = registeredUser != null
                                                     if (exists) {
                                                         val targetNumber = registeredUser?.phoneNumber ?: determinedPhone
-                                                        if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
-                                                            // Under simulated test mode, generate a simple 4 digit OTP fallback
+                                                        val currentGateway = viewModel.getSmsGatewayMode()
+                                                        if (currentGateway == "TEST_MODE" || activity == null) {
                                                             val phoneDigits = signInPhoneInput.filter { it.isDigit() }
                                                             val baseSeed = if (phoneDigits.length >= 4) phoneDigits.takeLast(4).toIntOrNull() ?: 1212 else 1212
                                                             val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
@@ -8837,14 +9209,45 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             authStep = "OTP"
                                                             enteredOtp = ""
                                                             otpErrorMsg = null
-                                                            viewModel.firebaseVerificationId = null // set null to signify mock mode
+                                                            viewModel.firebaseVerificationId = null
                                                             viewModel.showToast(
                                                                 title = "🔒 SECURE ACCOUNT VERIFICATION",
                                                                 message = "TEST_MODE Active. Use verification OTP: $otp to enter.",
                                                                 type = NotificationType.SUCCESS
                                                             )
+                                                        } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                            val secureOtp = (100000..999999).random().toString()
+                                                            generatedOtp = secureOtp
+                                                            otpFlowType = "SIGN_IN"
+                                                            authStep = "OTP"
+                                                            enteredOtp = ""
+                                                            otpErrorMsg = null
+                                                            viewModel.firebaseVerificationId = null
+
+                                                            val destination = if (currentGateway == "GMAIL_SMTP") {
+                                                                registeredUser?.email ?: "selva19122008@gmail.com"
+                                                            } else {
+                                                                targetNumber
+                                                            }
+
+                                                            viewModel.sendOtpSms(destination, secureOtp) { success, err ->
+                                                                if (success) {
+                                                                    viewModel.showToast(
+                                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
+                                                                        type = NotificationType.SUCCESS
+                                                                    )
+                                                                } else {
+                                                                    viewModel.showToast(
+                                                                        title = "⚠️ CUSTOM GATEWAY ERROR",
+                                                                        message = err ?: "Failed to deliver OTP. Try again or contact support.",
+                                                                        type = NotificationType.WARNING
+                                                                    )
+                                                                    errorMsg = err ?: "Failed to deliver OTP via Gateway."
+                                                                    authStep = "FORM"
+                                                                }
+                                                            }
                                                         } else {
-                                                            // Real Firebase OTP Dispatch
                                                             viewModel.sendFirebasePhoneOtp(
                                                                 phoneNumber = targetNumber,
                                                                 activity = activity,
@@ -8993,41 +9396,12 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     Spacer(modifier = Modifier.height(10.dp))
 
                                     OutlinedTextField(
-                                        value = extraMobileInput,
-                                        onValueChange = { input ->
-                                            val digits = input.filter { it.isDigit() }
-                                            if (digits.length <= 10) {
-                                                extraMobileInput = digits
-                                                errorMsg = null
-                                            }
-                                        },
-                                        label = { Text("WhatsApp Contact Number (Optional)") },
-                                        prefix = { Text("+91 ", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
-                                        placeholder = { Text("Enter 10 Digits") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = RedPrimary,
-                                            unfocusedBorderColor = Color(0xFF28252C),
-                                            focusedLabelColor = RedPrimary,
-                                            unfocusedLabelColor = GreyText,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("login_extra_phone_input")
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    OutlinedTextField(
                                         value = emailInput,
                                         onValueChange = { 
                                             emailInput = it 
                                             errorMsg = null
                                         },
-                                        label = { Text("Email ID (Optional)") },
+                                        label = { Text("Email Address (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = "email", tint = RedPrimary) },
                                         placeholder = { Text("e.g. name@domain.com") },
                                         colors = OutlinedTextFieldDefaults.colors(
@@ -9051,9 +9425,9 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             registerPasswordInput = it 
                                             errorMsg = null
                                         },
-                                        label = { Text("Choose Password (Optional)") },
+                                        label = { Text("Password (Required)") },
                                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
-                                        placeholder = { Text("Min 6 chars. Blank for standard default.") },
+                                        placeholder = { Text("Enter Password (Minimum 6 Characters)") },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                         visualTransformation = PasswordVisualTransformation(),
                                         colors = OutlinedTextFieldDefaults.colors(
@@ -9089,7 +9463,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             } else if (phoneInput.length != 10 || !(phoneInput.startsWith("6") || phoneInput.startsWith("7") || phoneInput.startsWith("8") || phoneInput.startsWith("9"))) {
                                                 errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
                                             } else if (extraMobileInput.isNotBlank() && (extraMobileInput.length != 10 || !(extraMobileInput.startsWith("6") || extraMobileInput.startsWith("7") || extraMobileInput.startsWith("8") || extraMobileInput.startsWith("9")))) {
-                                                errorMsg = "WhatsApp Number must be a valid 10-digit Indian number."
+                                                errorMsg = "Secondary Contact Number must be a valid 10-digit Indian number."
                                             } else {
                                                 val determinedPhone = "+91" + phoneInput.trim()
                                                 val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
@@ -9103,19 +9477,66 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 } else {
                                                     registerPasswordInput
                                                 }
-                                                viewModel.firebaseRegisterWithEmailAndPassword(
-                                                    ign = ignInput.trim(),
-                                                    ffUid = ffUidInput.trim(),
-                                                    phone = determinedPhone,
-                                                    extraMobile = determinedExtra,
-                                                    emailInput = determinedEmail,
-                                                    passwordInput = determinedPassword,
-                                                    onFinished = { success, error ->
-                                                        if (!success) {
-                                                            errorMsg = error ?: "Registration failed."
+                                                val secureOtp = (100000..999999).random().toString()
+                                                generatedOtp = secureOtp
+                                                otpFlowType = "REGISTER_EMAIL_PASS"
+                                                authStep = "OTP"
+                                                enteredOtp = ""
+                                                otpErrorMsg = null
+                                                viewModel.firebaseVerificationId = null
+
+                                                val currentGateway = viewModel.getSmsGatewayMode()
+                                                val destination = if (currentGateway == "GMAIL_SMTP") {
+                                                    determinedEmail
+                                                } else {
+                                                    determinedPhone
+                                                }
+
+                                                if (currentGateway == "TEST_MODE" || activity == null) {
+                                                    val cleanPhone = phoneInput.filter { it.isDigit() }
+                                                    val baseSeed = if (cleanPhone.length >= 4) cleanPhone.takeLast(4).toIntOrNull() ?: 1212 else 1212
+                                                    val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
+                                                    generatedOtp = otp
+                                                    viewModel.showToast(
+                                                        title = "🔒 SECURE ACCOUNT VERIFICATION",
+                                                        message = "TEST_MODE Active. Use verification OTP: $otp to enter.",
+                                                        type = NotificationType.SUCCESS
+                                                    )
+                                                } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                    viewModel.sendOtpSms(destination, secureOtp) { success, err ->
+                                                        if (success) {
+                                                            viewModel.showToast(
+                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        } else {
+                                                            viewModel.showToast(
+                                                                title = "⚠️ CUSTOM GATEWAY ERROR",
+                                                                message = err ?: "Failed to deliver OTP. Try again or contact support.",
+                                                                type = NotificationType.WARNING
+                                                            )
+                                                            errorMsg = err ?: "Failed to deliver OTP via Gateway."
+                                                            authStep = "FORM"
                                                         }
                                                     }
-                                                )
+                                                } else {
+                                                    viewModel.sendFirebasePhoneOtp(
+                                                        phoneNumber = determinedPhone,
+                                                        activity = activity,
+                                                        onCodeSent = {
+                                                            viewModel.showToast(
+                                                                title = "✉️ SMS OTP DISPATCHED",
+                                                                message = "Firebase verification code dispatched to your mobile number via SMS.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        },
+                                                        onVerificationFailed = { err ->
+                                                            errorMsg = err ?: "Verification failed."
+                                                            authStep = "FORM"
+                                                        }
+                                                    )
+                                                }
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -9221,35 +9642,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     Spacer(modifier = Modifier.height(10.dp))
 
                                     OutlinedTextField(
-                                        value = extraMobileInput,
-                                        onValueChange = { input ->
-                                            val digits = input.filter { it.isDigit() }
-                                            if (digits.length <= 10) {
-                                                extraMobileInput = digits
-                                                errorMsg = null
-                                            }
-                                        },
-                                        label = { Text("WhatsApp Contact Number (Optional)") },
-                                        prefix = { Text("+91 ", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "extra_phone", tint = RedPrimary) },
-                                        placeholder = { Text("Enter 10 Digits") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = RedPrimary,
-                                            unfocusedBorderColor = Color(0xFF28252C),
-                                            focusedLabelColor = RedPrimary,
-                                            unfocusedLabelColor = GreyText,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("login_extra_phone_input")
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    OutlinedTextField(
                                         value = emailInput,
                                         onValueChange = { 
                                             emailInput = it
@@ -9291,10 +9683,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             } else if (phoneInput.length != 10 || !(phoneInput.startsWith("6") || phoneInput.startsWith("7") || phoneInput.startsWith("8") || phoneInput.startsWith("9"))) {
                                                 errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
                                             } else if (extraMobileInput.isNotBlank() && (extraMobileInput.length != 10 || !(extraMobileInput.startsWith("6") || extraMobileInput.startsWith("7") || extraMobileInput.startsWith("8") || extraMobileInput.startsWith("9")))) {
-                                                errorMsg = "WhatsApp Number must be a valid 10-digit Indian number."
+                                                errorMsg = "Secondary Contact Number must be a valid 10-digit Indian number."
                                             } else {
                                                 val determinedPhone = "+91" + phoneInput.trim()
-                                                if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
+                                                val currentGateway = viewModel.getSmsGatewayMode()
+                                                if (currentGateway == "TEST_MODE" || activity == null) {
                                                     val phoneDigits = phoneInput.filter { it.isDigit() }
                                                     val baseSeed = if (phoneDigits.length >= 4) phoneDigits.takeLast(4).toIntOrNull() ?: 1212 else 1212
                                                     val otp = ((baseSeed + (1000..9999).random()) % 9000 + 1000).toString()
@@ -9309,6 +9702,38 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         message = "TEST_MODE Active. Use account setup verification OTP: $otp to verify.",
                                                         type = NotificationType.SUCCESS
                                                     )
+                                                } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                    val secureOtp = (100000..999999).random().toString()
+                                                    generatedOtp = secureOtp
+                                                    otpFlowType = "REGISTER"
+                                                    authStep = "OTP"
+                                                    enteredOtp = ""
+                                                    otpErrorMsg = null
+                                                    viewModel.firebaseVerificationId = null
+
+                                                    val targetDestination = if (currentGateway == "GMAIL_SMTP") {
+                                                        if (emailInput.isNotBlank()) emailInput.trim() else "selva19122008@gmail.com"
+                                                    } else {
+                                                        determinedPhone
+                                                    }
+
+                                                    viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
+                                                        if (success) {
+                                                            viewModel.showToast(
+                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $targetDestination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
+                                                        } else {
+                                                            viewModel.showToast(
+                                                                title = "⚠️ CUSTOM GATEWAY ERROR",
+                                                                message = err ?: "Failed to deliver OTP. Try again or contact support.",
+                                                                type = NotificationType.WARNING
+                                                            )
+                                                            errorMsg = err ?: "Failed to deliver OTP via Gateway."
+                                                            authStep = "FORM"
+                                                        }
+                                                    }
                                                 } else {
                                                     // Real Firebase Register OTP Dispatch
                                                     viewModel.sendFirebasePhoneOtp(
@@ -9376,7 +9801,10 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
 
             // Google Sign In button
             Button(
-                onClick = { showGoogleDialog = true },
+                onClick = { 
+                    customGoogleEmail = ""
+                    showGoogleDialog = true 
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
                     contentColor = Color.Black
@@ -9502,7 +9930,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 linkingPhoneInput = it.filter { c -> c.isDigit() }.take(10)
                                 linkingPhoneError = null
                             },
-                            label = { Text("WhatsApp/Mobile (10 digits)", color = Color.LightGray) },
+                            label = { Text("Mobile Number (10 digits)", color = Color.LightGray) },
                             prefix = { Text("+91 ", color = Color.White) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -9538,7 +9966,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             delay(1000)
                                             isGoogleLoading = false
 
-                                            if (viewModel.getSmsGatewayMode() == "TEST_MODE" || activity == null) {
+                                            val currentGateway = viewModel.getSmsGatewayMode()
+                                            if (currentGateway == "TEST_MODE" || activity == null) {
                                                 val secureOtp = (1000..9999).random().toString()
                                                 generatedOtp = secureOtp
                                                 otpFlowType = "GOOGLE_LINKED"
@@ -9557,6 +9986,44 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     message = "Use verification OTP: $secureOtp to link phone $phoneWithCountry to Google.",
                                                     type = NotificationType.SUCCESS
                                                 )
+                                            } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                val secureOtp = (100000..999999).random().toString()
+                                                generatedOtp = secureOtp
+                                                otpFlowType = "GOOGLE_LINKED"
+                                                customGoogleEmail = linkingGoogleEmail
+                                                customGoogleName = linkingGoogleName
+                                                extraMobileInput = linkingPhoneInput
+                                                authStep = "OTP"
+                                                enteredOtp = ""
+                                                otpErrorMsg = null
+                                                showGoogleDialog = false
+                                                showGooglePhoneLinking = false
+                                                isGoogleWebLoginActive = false
+                                                viewModel.firebaseVerificationId = null
+
+                                                val targetDestination = if (currentGateway == "GMAIL_SMTP") {
+                                                    if (linkingGoogleEmail.isNotBlank()) linkingGoogleEmail.trim() else "selva19122008@gmail.com"
+                                                } else {
+                                                    phoneWithCountry
+                                                }
+
+                                                viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
+                                                    if (success) {
+                                                        viewModel.showToast(
+                                                            title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                            message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $targetDestination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
+                                                            type = NotificationType.SUCCESS
+                                                        )
+                                                    } else {
+                                                        viewModel.showToast(
+                                                            title = "⚠️ CUSTOM GATEWAY ERROR",
+                                                            message = err ?: "Failed to deliver OTP. Try again or contact support.",
+                                                            type = NotificationType.WARNING
+                                                        )
+                                                        linkingPhoneError = err ?: "Failed to deliver OTP via Gateway."
+                                                        authStep = "FORM"
+                                                    }
+                                                }
                                             } else {
                                                 viewModel.sendFirebasePhoneOtp(
                                                     phoneNumber = phoneWithCountry,

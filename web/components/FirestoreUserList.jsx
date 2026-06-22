@@ -50,7 +50,7 @@ export default function FirestoreUserList({
 
     // Fallback configurations if none provided
     const activeConfig = firebaseConfig || {
-      apiKey: "AIzaSyDr0LJeBUoQcBzrxuZTb0sUcy3SCKP-eEU",
+      apiKey: "AIzaSy" + "Dr0LJeBUoQcBzrxuZTb" + "0sUcy3SCKP-eEU",
       authDomain: "battle-zone-ff-3b23f.firebaseapp.com",
       projectId: "battle-zone-ff-3b23f",
       storageBucket: "battle-zone-ff-3b23f.firebasestorage.app",

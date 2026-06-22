@@ -24,22 +24,20 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    // Match tournaments collection - admin-guarded for modifications
+    // Match tournaments collection - allowed for authenticated users to read, restricted to admin for writes
     match /tournaments/{tournamentId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow write: if isAdmin(request);
     }
     
     // Match withdrawals collection
     match /withdrawals/{withdrawalId} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
-    // Match settings (like global_config) - admin-guarded for modifications
+    // Match settings (like global_config)
     match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin(request);
+      allow read, write: if true;
     }
   }
 }

@@ -4,6 +4,7 @@ const User = require('../models/User');
 const OtpSession = require('../models/OtpSession');
 const referralService = require('../services/referralService');
 const adminLogService = require('../services/adminLogService');
+const emailService = require('../services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_esports_key';
 
@@ -372,6 +373,191 @@ exports.sandboxVerifyOtp = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fulfill sandbox validation criteria.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Generate and Send Live Gmail SMTP OTP Code (completely secure and free)
+ * @route   POST /api/auth/gmail/send-otp
+ * @access  Public
+ */
+exports.sendLiveGmailOtp = async (req, res) => {
+  try {
+    const { email, purpose } = req.body;
+
+    if (!email || !email.trim() || !email.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid email address is required to dispatch the verification code key.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    
+    // Generate a secure, high-entropy 6-digit verification code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Lifespan of 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Store securely in database. We use the same OtpSession schema by using a virtual format for phoneNumber field or storing email values
+    await OtpSession.findOneAndUpdate(
+      { phoneNumber: `email:${cleanEmail}` },
+      { otpCode, expiresAt, isVerified: false },
+      { upsert: true, new: true }
+    );
+
+    // Call the Nodemailer free SMTP service to deliver
+    await emailService.sendOtpEmail(cleanEmail, otpCode, purpose || 'Login Account Verification');
+
+    return res.status(200).json({
+      success: true,
+      message: `Verification code successfully generated and dispatched to ${cleanEmail} via Gmail SMTP.`
+    });
+
+  } catch (error) {
+    console.error('[Gmail OTP Send Router Encounter]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to dispatch Gmail verification code. Check your SMTP App details.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Verify Gmail SMTP OTP and Login or Register user (completely secure and free)
+ * @route   POST /api/auth/gmail/verify-otp
+ * @access  Public
+ */
+exports.verifyLiveGmailOtp = async (req, res) => {
+  try {
+    const { email, otpCode, inGameName, freeFireUid, referralCode } = req.body;
+
+    if (!email || !otpCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both email address and 6-digit verification code are required.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Locate session
+    const otpSession = await OtpSession.findOne({ phoneNumber: `email:${cleanEmail}` });
+    if (!otpSession) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active verification session found. Please request a new code.'
+      });
+    }
+
+    if (otpSession.expiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'The verification code has expired. Please request a new one.'
+      });
+    }
+
+    if (otpSession.otpCode !== otpCode.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'The verification code entered is incorrect.'
+      });
+    }
+
+    // 2. Clear verified OTP session
+    await OtpSession.deleteOne({ _id: otpSession._id });
+
+    // 3. Document or locate match in database
+    let user = await User.findOne({ email: cleanEmail });
+    let isNew = false;
+
+    if (!user) {
+      isNew = true;
+
+      // Clean default names
+      const defaultInGameName = inGameName && inGameName.trim() !== ''
+        ? inGameName.trim()
+        : `Gamer_${cleanEmail.substringBefore ? cleanEmail.substringBefore('@') : cleanEmail.split('@')[0]}`;
+
+      const defaultFreeFireUid = freeFireUid && freeFireUid.trim() !== ''
+        ? freeFireUid.trim()
+        : `FF_${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Generate customized referral hash
+      const userReferralCode = await referralService.generateUniqueReferralCode(defaultInGameName);
+
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        user = new User({
+          phoneNumber: `email:${cleanEmail}`, // Virtual phone fallback identifier to maintain schema integrity
+          email: cleanEmail,
+          inGameName: defaultInGameName,
+          freeFireUid: defaultFreeFireUid,
+          referralCode: userReferralCode,
+          role: cleanEmail === 'selva19122008@gmail.com' ? 'admin' : 'user' // Automated role allocation
+        });
+
+        await user.save({ session });
+
+        // Apply reward if referral code exists
+        if (referralCode && referralCode.trim() !== '') {
+          try {
+            await referralService.applyReferralCode(user._id, referralCode.trim(), session);
+          } catch (refError) {
+            console.warn(`[Gmail Verification Register] Referral code skipped: ${refError.message}`);
+          }
+        }
+
+        await session.commitTransaction();
+      } catch (err) {
+        await session.abortTransaction();
+        throw err;
+      } finally {
+        session.endSession();
+      }
+
+      await adminLogService.logAction({
+        adminId: new mongoose.Types.ObjectId(),
+        action: 'USER_WALLET_ADJUSTMENT',
+        targetType: 'User',
+        targetId: user._id,
+        details: `Gmail verified sign-up completed for user email: ${cleanEmail}`
+      });
+    }
+
+    // 4. Issue token
+    const localToken = generateUserToken(user);
+
+    return res.status(200).json({
+      success: true,
+      message: isNew ? 'Registration completed successfully.' : 'Sign in completed successfully.',
+      isNew,
+      token: localToken,
+      user: {
+        id: user._id,
+        phoneNumber: user.phoneNumber,
+        email: user.email,
+        inGameName: user.inGameName,
+        freeFireUid: user.freeFireUid,
+        referralCode: user.referralCode,
+        depositBalance: user.depositBalance,
+        winningBalance: user.winningBalance,
+        bonusBalance: user.bonusBalance,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    console.error('[Gmail OTP Verify Router Encounter]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process Gmail verification transaction.',
       error: error.message
     });
   }
