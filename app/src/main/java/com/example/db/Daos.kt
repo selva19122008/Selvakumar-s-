@@ -156,3 +156,21 @@ interface RefundDao {
     suspend fun getRefundByUserAndTournamentSync(userId: String, tournamentId: Int): RefundRequestEntity?
 }
 
+@Dao
+interface NotificationDao {
+    @Query("SELECT * FROM notifications WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getNotificationsForUserFlow(userId: String): Flow<List<NotificationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotification(notification: NotificationEntity)
+
+    @Query("UPDATE notifications SET isRead = 1 WHERE userId = :userId AND isRead = 0")
+    suspend fun markAllAsRead(userId: String)
+
+    @Query("DELETE FROM notifications WHERE id = :id")
+    suspend fun deleteNotification(id: Int)
+
+    @Query("DELETE FROM notifications WHERE userId = :userId")
+    suspend fun clearAllForUser(userId: String)
+}
+

@@ -13,9 +13,10 @@ import androidx.room.RoomDatabase
         TransactionEntity::class,
         WithdrawalRequestEntity::class,
         SupportTicketEntity::class,
-        RefundRequestEntity::class
+        RefundRequestEntity::class,
+        NotificationEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun withdrawalDao(): WithdrawalDao
     abstract fun supportDao(): SupportDao
     abstract fun refundDao(): RefundDao
+    abstract fun notificationDao(): NotificationDao
 
     companion object {
         @Volatile

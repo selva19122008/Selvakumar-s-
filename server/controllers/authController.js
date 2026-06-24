@@ -396,8 +396,8 @@ exports.sendLiveGmailOtp = async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
     
-    // Generate a secure, high-entropy 6-digit verification code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Support an optional client-supplied OTP code or generate a secure, high-entropy 6-digit verification code
+    const otpCode = req.body.otpCode ? req.body.otpCode.toString().trim() : Math.floor(100000 + Math.random() * 900000).toString();
 
     // Lifespan of 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);

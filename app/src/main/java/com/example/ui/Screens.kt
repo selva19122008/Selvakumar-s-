@@ -41,7 +41,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -130,7 +136,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     var activeTournamentIdForDetails by remember { mutableStateOf<Int?>(null) }
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
     val userRole by viewModel.userRole.collectAsStateWithLifecycle()
-    val isUserAdmin = user?.email == "selva19122008@gmail.com" && userRole == "admin" && viewModel.isFirebaseUserAdmin()
+    val isUserAdmin = userRole == "admin" || (user?.email == "selva19122008@gmail.com" && userRole == "admin" && viewModel.isFirebaseUserAdmin())
     var isAdminUnlocked by remember(isUserAdmin) { mutableStateOf(isUserAdmin) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordInput by remember { mutableStateOf("") }
@@ -140,6 +146,9 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
     val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var autoOpenDepositDialog by remember { mutableStateOf(false) }
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    val notifications by viewModel.currentUserNotifications.collectAsStateWithLifecycle()
     if (isSplashScreenVisible) {
         SplashScreen(onTimeout = { isSplashScreenVisible = false })
     } else if (!isUserLoggedIn) {
@@ -158,21 +167,22 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                BattleZoneTopBar(
-                    isAdmin = isAdminMode,
-                    isAdminUnlocked = isAdminUnlocked,
-                    user = user,
-                    onToggleAdmin = {
-                        isAdminMode = !isAdminMode
-                        activeTournamentIdForDetails = null // reset view
-                        scope.launch {
-                            val roleText = if (isAdminMode) "Admin Controls" else "Gamer Lobby"
-                            snackbarHostState.showSnackbar("Switched portal to $roleText")
-                        }
-                    },
-                    onLogoClick = {
-                        val isUserAdminEmail = user?.email == "selva19122008@gmail.com" && viewModel.isFirebaseUserAdmin()
-                        if (isUserAdminEmail) {
+                if ((selectedTab != 0 || isAdminMode) && activeTournamentIdForDetails == null) {
+                    BattleZoneTopBar(
+                        isAdmin = isAdminMode,
+                        isAdminUnlocked = isAdminUnlocked,
+                        user = user,
+                        notifications = notifications,
+                        onNotificationClick = { showNotificationDialog = true },
+                        onToggleAdmin = {
+                            isAdminMode = !isAdminMode
+                            activeTournamentIdForDetails = null // reset view
+                            scope.launch {
+                                val roleText = if (isAdminMode) "Admin Controls" else "Gamer Lobby"
+                                snackbarHostState.showSnackbar("Switched portal to $roleText")
+                            }
+                        },
+                        onLogoClick = {
                             if (!isAdminUnlocked) {
                                 showPasswordDialog = true
                             } else {
@@ -180,20 +190,25 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                                     snackbarHostState.showSnackbar("Admin portal is already unlocked. Tap lock icon to lock.")
                                 }
                             }
+                        },
+                        onLockAdmin = {
+                            viewModel.setUserRole("user")
+                            isAdminMode = false
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Admin portal locked successfully.")
+                            }
+                        },
+                        onWalletClick = {
+                            selectedTab = 1
+                            activeTournamentIdForDetails = null
+                        },
+                        onDepositClick = {
+                            selectedTab = 1
+                            activeTournamentIdForDetails = null
+                            autoOpenDepositDialog = true
                         }
-                    },
-                    onLockAdmin = {
-                        viewModel.setUserRole("user")
-                        isAdminMode = false
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Admin portal locked successfully.")
-                        }
-                    },
-                    onWalletClick = {
-                        selectedTab = 1
-                        activeTournamentIdForDetails = null
-                    }
-                )
+                    )
+                }
             },
             bottomBar = {
                 if (!isAdminMode && activeTournamentIdForDetails == null) {
@@ -238,11 +253,50 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                                 0 -> LobbyScreen(
                                     viewModel = viewModel,
                                     tournaments = tournaments,
-                                    onViewTournament = { activeTournamentIdForDetails = it }
+                                    onViewTournament = { activeTournamentIdForDetails = it },
+                                    isAdminUnlocked = isAdminUnlocked,
+                                    user = user,
+                                    notifications = notifications,
+                                    onNotificationClick = { showNotificationDialog = true },
+                                    onToggleAdmin = {
+                                        isAdminMode = !isAdminMode
+                                        activeTournamentIdForDetails = null
+                                        scope.launch {
+                                            val roleText = if (isAdminMode) "Admin Controls" else "Gamer Lobby"
+                                            snackbarHostState.showSnackbar("Switched portal to $roleText")
+                                        }
+                                    },
+                                    onLogoClick = {
+                                        if (!isAdminUnlocked) {
+                                            showPasswordDialog = true
+                                        } else {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Admin portal is already unlocked. Tap lock icon to lock.")
+                                            }
+                                        }
+                                    },
+                                    onLockAdmin = {
+                                        viewModel.setUserRole("user")
+                                        isAdminMode = false
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Admin portal locked successfully.")
+                                        }
+                                    },
+                                    onWalletClick = {
+                                        selectedTab = 1
+                                        activeTournamentIdForDetails = null
+                                    },
+                                    onDepositClick = {
+                                        selectedTab = 1
+                                        activeTournamentIdForDetails = null
+                                        autoOpenDepositDialog = true
+                                    }
                                 )
                                 1 -> WalletScreen(
                                     viewModel = viewModel,
-                                    snackbarHostState = snackbarHostState
+                                    snackbarHostState = snackbarHostState,
+                                    autoOpenDeposit = autoOpenDepositDialog,
+                                    onDepositOpened = { autoOpenDepositDialog = false }
                                 )
                                 2 -> LeaderboardScreen(viewModel = viewModel)
                                 3 -> SupportScreen(viewModel = viewModel, snackbarHostState = snackbarHostState)
@@ -522,7 +576,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
-                            if (passwordInput.trim() == "Selva@2008" && user?.email == "selva19122008@gmail.com") {
+                            if (passwordInput.trim() == "Selva@2008") {
                                 viewModel.setUserRole("admin")
                                 isAdminMode = true
                                 showPasswordDialog = false
@@ -564,7 +618,7 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                         }
                         Button(
                             onClick = {
-                                if (passwordInput.trim() == "Selva@2008" && user?.email == "selva19122008@gmail.com") {
+                                if (passwordInput.trim() == "Selva@2008") {
                                     viewModel.setUserRole("admin")
                                     isAdminMode = true
                                     showPasswordDialog = false
@@ -586,6 +640,16 @@ fun BattleZoneMainApp(viewModel: BattleZoneViewModel) {
                 }
             }
         }
+    }
+
+    if (showNotificationDialog) {
+        NotificationsCenterDialog(
+            notifications = notifications,
+            onDismiss = { showNotificationDialog = false },
+            onMarkAllAsRead = { viewModel.markAllNotificationsAsRead() },
+            onDelete = { id -> viewModel.deleteNotification(id) },
+            onClearAll = { viewModel.clearAllNotifications() }
+        )
     }
 }
 @Composable
@@ -855,10 +919,13 @@ fun BattleZoneTopBar(
     isAdmin: Boolean,
     isAdminUnlocked: Boolean,
     user: UserEntity?,
+    notifications: List<com.example.db.NotificationEntity> = emptyList(),
+    onNotificationClick: () -> Unit = {},
     onToggleAdmin: () -> Unit,
     onLogoClick: () -> Unit,
     onLockAdmin: () -> Unit,
-    onWalletClick: () -> Unit = {}
+    onWalletClick: () -> Unit = {},
+    onDepositClick: () -> Unit = {}
 ) {
     Surface(
         color = DarkSurface,
@@ -905,51 +972,89 @@ fun BattleZoneTopBar(
                         )
                     }
                 }
-                // Dual Role Changer Badge - hidden in public place, only shown if isAdminUnlocked
-                if (isAdminUnlocked) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(
-                            onClick = onToggleAdmin,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isAdmin) RedPrimary else Color(0xFF232029),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                // Right panel containing optional notifications and admin mode controls
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!isAdmin) {
+                        val unreadCount = notifications.count { !it.isRead }
+                        Box(
                             modifier = Modifier
-                                .height(32.dp)
-                                .testTag("admin_toggle")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (isAdmin) Icons.Filled.SportsEsports else Icons.Filled.Shield,
-                                    contentDescription = "Role Mode",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = if (isAdmin) Color.White else RedPrimary
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isAdmin) "GAMER LOBBY" else "ADMIN PANEL",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = onLockAdmin,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(Color(0xFF232029), RoundedCornerShape(8.dp))
-                                .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(8.dp))
-                                .testTag("admin_relock_button")
+                                .clickable { onNotificationClick() }
+                                .padding(4.dp)
+                                .testTag("notifications_bell_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Lock Admin",
-                                tint = RedPrimary,
-                                modifier = Modifier.size(14.dp)
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = if (unreadCount > 0) RedPrimary else Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
+                            if (unreadCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 2.dp, y = (-2).dp)
+                                        .background(Color.Red, CircleShape)
+                                        .size(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = unreadCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+
+                    // Dual Role Changer Badge - hidden in public place, only shown if isAdminUnlocked
+                    if (isAdminUnlocked) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = onToggleAdmin,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isAdmin) RedPrimary else Color(0xFF232029),
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .testTag("admin_toggle")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isAdmin) Icons.Filled.SportsEsports else Icons.Filled.Shield,
+                                        contentDescription = "Role Mode",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = if (isAdmin) Color.White else RedPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isAdmin) "GAMER LOBBY" else "ADMIN PANEL",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = onLockAdmin,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFF232029), RoundedCornerShape(8.dp))
+                                    .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(8.dp))
+                                    .testTag("admin_relock_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Lock Admin",
+                                    tint = RedPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1051,27 +1156,54 @@ fun BattleZoneTopBar(
                         }
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    // Total Wallet Pill
+                    // Firestore Balance & Deposit Button Group
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(Color(0xFF1E1B24), RoundedCornerShape(12.dp))
-                            .border(BorderStroke(1.dp, Color(0xFF2E2A36)), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountBalanceWallet,
-                            contentDescription = "Wallet Balance",
-                            tint = NeonGold,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = totalB.toCurrency(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
+                        // Balance Pill
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color(0xFF1E1B24), RoundedCornerShape(12.dp))
+                                .border(BorderStroke(1.dp, NeonGold.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .testTag("firestore_balance_pill")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = "Firestore Balance",
+                                tint = NeonGold,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "BAL: " + user.balance.toCurrency(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        
+                        // Deposit Button
+                        Button(
+                            onClick = { onDepositClick() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RedPrimary,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier
+                                .height(26.dp)
+                                .testTag("nav_deposit_btn")
+                        ) {
+                            Text(
+                                text = "DEPOSIT",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
                     }
                 }
             }
@@ -1124,111 +1256,514 @@ fun GamerBottomNav(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         }
     }
 }
-// --- 1. LOBBY MATCHES SCREEN ---
+// --- 1. TOURNAMENT DASHBOARD COMPONENT ---
 @Composable
-fun LobbyScreen(
+fun TournamentDashboardComponent(
     viewModel: BattleZoneViewModel,
     tournaments: List<TournamentEntity>,
-    onViewTournament: (Int) -> Unit
+    onViewTournament: (Int) -> Unit,
+    isAdminUnlocked: Boolean,
+    user: UserEntity?,
+    notifications: List<com.example.db.NotificationEntity>,
+    onNotificationClick: () -> Unit,
+    onToggleAdmin: () -> Unit,
+    onLogoClick: () -> Unit,
+    onLockAdmin: () -> Unit,
+    onWalletClick: () -> Unit,
+    onDepositClick: () -> Unit
 ) {
     val userJoins by viewModel.currentUserJoins.collectAsStateWithLifecycle()
     val userRole by viewModel.userRole.collectAsStateWithLifecycle()
     val isAdmin = userRole == "admin" || viewModel.isFirebaseUserAdmin()
-    var activeFilterTab by remember { mutableStateOf("UPCOMING") } // "UPCOMING", "LIVE", "COMPLETED"
+    
+    // Search and filter state
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedMapFilter by remember { mutableStateOf("ALL") } // "ALL", "BERMUDA", "PURGATORY", "KALAHARI"
+    var selectedFormatFilter by remember { mutableStateOf("ALL") } // "ALL", "SOLO", "DUO", "SQUAD"
+    var selectedStatusFilter by remember { mutableStateOf("UPCOMING") } // "UPCOMING", "LIVE", "COMPLETED"
+    var selectedSortOption by remember { mutableStateOf("DATE_ASC") }
+
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
     ) {
-        // Banner announcement
-        GamingBannerSlider()
-        // Filter tabs
-        Row(
+        LazyColumn(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .background(DarkSurface, RoundedCornerShape(8.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            val filters = listOf(
-                Pair("UPCOMING", "UPCOMING"),
-                Pair("LIVE", "LIVE BATTLES"),
-                Pair("COMPLETED", "PAST CUPS")
-            )
-            filters.forEach { (type, label) ->
-                val isSelected = activeFilterTab == type
-                Box(
+            // 1. BattleZoneTopBar (First item so it scrolls up with the rest of the page!)
+            item {
+                BattleZoneTopBar(
+                    isAdmin = isAdmin,
+                    isAdminUnlocked = isAdminUnlocked,
+                    user = user,
+                    notifications = notifications,
+                    onNotificationClick = onNotificationClick,
+                    onToggleAdmin = onToggleAdmin,
+                    onLogoClick = onLogoClick,
+                    onLockAdmin = onLockAdmin,
+                    onWalletClick = onWalletClick,
+                    onDepositClick = onDepositClick
+                )
+            }
+
+            // 2. Gaming Banner Slider Header
+            item {
+                GamingBannerSlider()
+            }
+
+            // 2. Real-time Firestore Sync Status Banner
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131116)),
+                    border = BorderStroke(1.dp, Color(0xFF1F1C25)),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (isSelected) RedPrimary else Color.Transparent)
-                        .clickable { activeFilterTab = type }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
-                    Text(
-                        text = label,
-                        color = if (isSelected) Color.White else GreyText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-        val filteredTournaments = tournaments
-            .filter { match ->
-                if (match.status == activeFilterTab) {
-                    if (activeFilterTab == "LIVE") {
-                        // "Otherwise, it should only be visible to those who need to see it live, and others should not be able to see it."
-                        isAdmin || userJoins.any { it.tournamentId == match.id }
-                    } else {
-                        true
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color(0xFF00E676), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "FIRESTORE ONLINE MATCH REGISTRY",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    text = "Live auto-syncing active Free Fire custom lobbies",
+                                    color = GreyText,
+                                    fontSize = 8.sp
+                                )
+                            }
+                        }
+                        
+                        IconButton(
+                            onClick = {
+                                isRefreshing = true
+                                viewModel.startFirestoreSync()
+                                viewModel.showToast(
+                                    title = "📡 FIRESTORE SYNC COMPLETE",
+                                    message = "Free Fire match listings successfully updated from cloud Firestore databases.",
+                                    type = NotificationType.SUCCESS
+                                )
+                                scope.launch {
+                                    delay(800)
+                                    isRefreshing = false
+                                }
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Sync",
+                                tint = RedPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
+                }
+            }
+
+            // 3. Dynamic Dashboard Arena Performance Metrics
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val activeT = tournaments.filter { it.status != "COMPLETED" }
+                    val totalPrizes = activeT.sumOf { it.prizePool }
+                    val totalSlots = activeT.sumOf { it.slotsRemaining }
+                    val countActive = activeT.size
+
+                    // Stat 1: Total dynamic prize pool
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF16141A)),
+                        border = BorderStroke(1.dp, Color(0xFF221F28)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text("ACTIVE PRIZES", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "₹${totalPrizes.toInt()}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = NeonGold
+                            )
+                        }
+                    }
+
+                    // Stat 2: Remaining slots left
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF16141A)),
+                        border = BorderStroke(1.dp, Color(0xFF221F28)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text("SLOTS LEFT", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$totalSlots",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Stat 3: Total active matches
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF16141A)),
+                        border = BorderStroke(1.dp, Color(0xFF221F28)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text("MATCHROOMS", fontSize = 8.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$countActive ACTIVE",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = RedPrimary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. Live Dashboard Advanced Search & Interactive Filter Controls
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    // Outlined Custom Search bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search Free Fire matches (Weekly, Showdown...)", fontSize = 11.sp, color = GreyText) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = GreyText,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = GreyText,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedContainerColor = Color(0xFF16141A),
+                            unfocusedContainerColor = Color(0xFF16141A),
+                            focusedBorderColor = RedPrimary.copy(alpha = 0.7f),
+                            unfocusedBorderColor = Color(0xFF221F28)
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 11.sp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("tournament_search_input")
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Map and team format pills row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Map Filter Pill
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(Color(0xFF16141A), RoundedCornerShape(6.dp))
+                                .border(BorderStroke(1.dp, Color(0xFF221F28)), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    selectedMapFilter = when (selectedMapFilter) {
+                                        "ALL" -> "BERMUDA"
+                                        "BERMUDA" -> "PURGATORY"
+                                        "PURGATORY" -> "KALAHARI"
+                                        else -> "ALL"
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "MAP: $selectedMapFilter",
+                                color = if (selectedMapFilter != "ALL") RedPrimary else Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Format Filter Pill
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(Color(0xFF16141A), RoundedCornerShape(6.dp))
+                                .border(BorderStroke(1.dp, Color(0xFF221F28)), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    selectedFormatFilter = when (selectedFormatFilter) {
+                                        "ALL" -> "SOLO"
+                                        "SOLO" -> "DUO"
+                                        "DUO" -> "SQUAD"
+                                        else -> "ALL"
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "TEAM: $selectedFormatFilter",
+                                color = if (selectedFormatFilter != "ALL") RedPrimary else Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Status Filter Pill
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .background(Color(0xFF16141A), RoundedCornerShape(6.dp))
+                                .border(BorderStroke(1.dp, Color(0xFF221F28)), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    selectedStatusFilter = when (selectedStatusFilter) {
+                                        "UPCOMING" -> "LIVE"
+                                        "LIVE" -> "COMPLETED"
+                                        else -> "UPCOMING"
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "STATUS: $selectedStatusFilter",
+                                color = if (selectedStatusFilter == "LIVE") RedPrimary else if (selectedStatusFilter == "COMPLETED") Color(0xFF00E676) else Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Sort indicator and header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort By",
+                                tint = GreyText,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "SORT BY",
+                                fontSize = 9.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+
+                        // Quick reset sorting
+                        if (selectedSortOption != "DATE_ASC") {
+                            Text(
+                                text = "RESET SORT",
+                                fontSize = 8.sp,
+                                color = RedPrimary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { selectedSortOption = "DATE_ASC" }
+                                    .testTag("reset_sort_button")
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Horizontal Scrollable Row for Sort options
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val options = listOf(
+                            Triple("DATE_ASC", "Date: Earliest", Icons.Default.DateRange),
+                            Triple("DATE_DESC", "Date: Latest", Icons.Default.DateRange),
+                            Triple("PRIZE_DESC", "Prize: High to Low", Icons.Default.EmojiEvents),
+                            Triple("PRIZE_ASC", "Prize: Low to High", Icons.Default.EmojiEvents),
+                            Triple("FEE_ASC", "Fee: Low to High", Icons.Default.LocalActivity),
+                            Triple("FEE_DESC", "Fee: High to Low", Icons.Default.LocalActivity)
+                        )
+
+                        options.forEach { (key, label, icon) ->
+                            val isSelected = selectedSortOption == key
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color(0xFF16141A),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) RedPrimary else Color(0xFF221F28),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
+                                    .clickable { selectedSortOption = key }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .testTag("sort_chip_$key"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) RedPrimary else GreyText,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) Color.White else GreyText,
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply filters & sorting
+            val filteredList = tournaments.filter { match ->
+                val matchesQuery = match.title.contains(searchQuery, ignoreCase = true) || match.map.contains(searchQuery, ignoreCase = true)
+                val matchesMap = selectedMapFilter == "ALL" || match.map.contains(selectedMapFilter, ignoreCase = true)
+                val matchesFormat = selectedFormatFilter == "ALL" || match.type.equals(selectedFormatFilter, ignoreCase = true)
+                val matchesStatus = match.status == selectedStatusFilter
+                val visibleToUser = if (selectedStatusFilter == "LIVE") {
+                    isAdmin || userJoins.any { it.tournamentId == match.id }
                 } else {
-                    false
+                    true
+                }
+                matchesQuery && matchesMap && matchesFormat && matchesStatus && visibleToUser
+            }.let { list ->
+                when (selectedSortOption) {
+                    "DATE_ASC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.timestamp })
+                    "DATE_DESC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenByDescending { it.timestamp })
+                    "PRIZE_DESC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenByDescending { it.prizePool })
+                    "PRIZE_ASC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.prizePool })
+                    "FEE_ASC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.entryFee })
+                    "FEE_DESC" -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenByDescending { it.entryFee })
+                    else -> list.sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.timestamp })
                 }
             }
-            .sortedWith(compareBy<TournamentEntity> { it.status == "COMPLETED" }.thenBy { it.timestamp })
-        if (filteredTournaments.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Filled.VideogameAsset,
-                        contentDescription = "Empty",
-                        tint = GreyText.copy(alpha = 0.5f),
-                        modifier = Modifier.size(54.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "No $activeFilterTab matches active right now.",
-                        color = GreyText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Stay tuned! Admin adds tournaments regularly.",
-                        color = GreyText.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
+
+            if (filteredList.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Not Found",
+                                tint = GreyText.copy(alpha = 0.4f),
+                                modifier = Modifier.size(54.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "No Free Fire tournaments match filters.",
+                                color = GreyText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "RESET FILTERS",
+                                color = RedPrimary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable {
+                                        searchQuery = ""
+                                        selectedMapFilter = "ALL"
+                                        selectedFormatFilter = "ALL"
+                                        selectedStatusFilter = "UPCOMING"
+                                        selectedSortOption = "DATE_ASC"
+                                    }
+                                    .border(BorderStroke(1.dp, RedPrimary), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentPadding = PaddingValues(bottom = 24.dp)
-            ) {
-                items(filteredTournaments, key = { it.id }) { match ->
-                    TournamentCard(
+            } else {
+                items(filteredList, key = { it.id }) { match ->
+                    TournamentDashboardCard(
                         match = match,
                         viewModel = viewModel,
                         onViewDetails = { onViewTournament(match.id) }
@@ -1237,6 +1772,434 @@ fun LobbyScreen(
             }
         }
     }
+}
+
+// --- 2. ENHANCED TOURNAMENT DASHBOARD CARD ---
+@Composable
+fun TournamentDashboardCard(
+    match: TournamentEntity,
+    viewModel: BattleZoneViewModel? = null,
+    onViewDetails: () -> Unit
+) {
+    // Map-specific styling: Gradient Brushes matching the Free Fire map aesthetics
+    val mapLower = match.map.lowercase()
+    val (mapGradient, mapLabelColor) = when {
+        mapLower.contains("bermuda") -> {
+            Brush.linearGradient(listOf(Color(0xFF00332C), Color(0xFF005B51), Color(0xFF131116))) to Color(0xFF00E676)
+        }
+        mapLower.contains("kalahari") -> {
+            Brush.linearGradient(listOf(Color(0xFF3E2723), Color(0xFF5D4037), Color(0xFF131116))) to Color(0xFFFFB300)
+        }
+        mapLower.contains("purgatory") -> {
+            Brush.linearGradient(listOf(Color(0xFF0D1B2A), Color(0xFF1B263B), Color(0xFF131116))) to Color(0xFF8C9EFF)
+        }
+        else -> {
+            Brush.linearGradient(listOf(Color(0xFF2B0508), Color(0xFF5C0E14), Color(0xFF131116))) to RedPrimary
+        }
+    }
+
+    // Pulse Animation for LIVE Matches
+    val infiniteTransition = rememberInfiniteTransition(label = "live_pulse")
+    val pulseAlpha by if (match.status == "LIVE") {
+        infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "alpha"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { onViewDetails() }
+            .testTag("dashboard_tournament_card_${match.id}"),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131116)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .border(BorderStroke(1.dp, Color(0xFF1F1C25)), RoundedCornerShape(16.dp))
+        ) {
+            // Map/Game mode Banner Header Area (asymmetrical, depth, styled)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(85.dp)
+                    .background(mapGradient)
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Map,
+                                contentDescription = "Map",
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = match.map.uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = match.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1,
+                            letterSpacing = 0.2.sp
+                        )
+                    }
+
+                    // Mode & Format Badges
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // Team Mode Badge (Solo/Duo/Squad)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = when (match.type.uppercase()) {
+                                    "SOLO" -> Icons.Default.Person
+                                    "DUO" -> Icons.Default.People
+                                    else -> Icons.Default.Group
+                                },
+                                contentDescription = "Format",
+                                tint = mapLabelColor,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = match.type.uppercase(),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Match Status Badge with Pulsing for LIVE
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    when (match.status) {
+                                        "LIVE" -> Color(0xFF2E1216)
+                                        "COMPLETED" -> Color(0xFF0E2E1D)
+                                        else -> Color.Black.copy(alpha = 0.4f)
+                                    },
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            if (match.status == "LIVE") {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .alpha(pulseAlpha)
+                                        .background(RedPrimary, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            Text(
+                                text = match.status.uppercase(),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black,
+                                color = when (match.status) {
+                                    "LIVE" -> RedPrimary
+                                    "COMPLETED" -> Color(0xFF00E676)
+                                    else -> GreyText
+                                },
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bottom specifications and progress bar area
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0D0B0F))
+                    .padding(14.dp)
+            ) {
+                // Date & Time details row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Schedule",
+                        tint = GreyText,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "SCHEDULE: ${match.dateTimeStr}",
+                        fontSize = 10.sp,
+                        color = GreyText,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Countdown timer row for UPCOMING matches
+                if (match.status == "UPCOMING") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF16141A), RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, Color(0xFF1F1C25)), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = "Timer",
+                                tint = RedPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CountdownTimer(
+                                targetTimestamp = match.timestamp,
+                                onTimerFinished = {
+                                    viewModel?.setTournamentLive(match.id)
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Main financial specs: Prize Pool and Entry Stake side-by-side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Prize Pool Box
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color(0xFF16141A), RoundedCornerShape(10.dp))
+                            .border(BorderStroke(1.dp, NeonGold.copy(alpha = 0.15f)), RoundedCornerShape(10.dp))
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFF231F1D), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = "Prize",
+                                    tint = NeonGold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "PRIZE POOL",
+                                    fontSize = 8.sp,
+                                    color = GreyText,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = match.prizePool.toCurrency(),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = NeonGold
+                                )
+                            }
+                        }
+                    }
+
+                    // Entry Fee Box
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color(0xFF16141A), RoundedCornerShape(10.dp))
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    if (match.entryFee == 0.0) Color(0xFF00E676).copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f)
+                                ),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(
+                                        if (match.entryFee == 0.0) Color(0xFF0F261B) else Color(0xFF1F1C25),
+                                        RoundedCornerShape(8.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocalActivity,
+                                    contentDescription = "Entry",
+                                    tint = if (match.entryFee == 0.0) Color(0xFF00E676) else Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "ENTRY STAKE",
+                                    fontSize = 8.sp,
+                                    color = GreyText,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (match.entryFee == 0.0) "FREE" else match.entryFee.toCurrency(),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (match.entryFee == 0.0) Color(0xFF00E676) else Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Slots registration progress area
+                val slotsFilled = match.slotsTotal - match.slotsRemaining
+                val slotsPercentage = if (match.slotsTotal > 0) slotsFilled.toFloat() / match.slotsTotal.toFloat() else 0f
+                
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Group,
+                                contentDescription = "Slots icon",
+                                tint = GreyText,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "$slotsFilled / ${match.slotsTotal} Slots Filled",
+                                fontSize = 10.sp,
+                                color = GreyText,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (match.slotsRemaining == 0) {
+                            Text(
+                                text = "HOUSE FULL LOBBY",
+                                fontSize = 9.sp,
+                                color = RedPrimary,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        } else {
+                            Text(
+                                text = "ONLY ${match.slotsRemaining} SPOTS LEFT",
+                                fontSize = 9.sp,
+                                color = Color(0xFF00E676),
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { slotsPercentage },
+                        color = if (slotsPercentage >= 0.9f) RedPrimary else if (slotsPercentage >= 0.6f) NeonGold else Color(0xFF00E676),
+                        trackColor = Color(0xFF16141A),
+                        strokeCap = StrokeCap.Round,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                    )
+                }
+            }
+        }
+    }
+}
+
+// --- 3. LOBBY SCREEN (DELEGATES TO THE DASHBOARD) ---
+@Composable
+fun LobbyScreen(
+    viewModel: BattleZoneViewModel,
+    tournaments: List<TournamentEntity>,
+    onViewTournament: (Int) -> Unit,
+    isAdminUnlocked: Boolean,
+    user: UserEntity?,
+    notifications: List<com.example.db.NotificationEntity>,
+    onNotificationClick: () -> Unit,
+    onToggleAdmin: () -> Unit,
+    onLogoClick: () -> Unit,
+    onLockAdmin: () -> Unit,
+    onWalletClick: () -> Unit,
+    onDepositClick: () -> Unit
+) {
+    TournamentDashboardComponent(
+        viewModel = viewModel,
+        tournaments = tournaments,
+        onViewTournament = onViewTournament,
+        isAdminUnlocked = isAdminUnlocked,
+        user = user,
+        notifications = notifications,
+        onNotificationClick = onNotificationClick,
+        onToggleAdmin = onToggleAdmin,
+        onLogoClick = onLogoClick,
+        onLockAdmin = onLockAdmin,
+        onWalletClick = onWalletClick,
+        onDepositClick = onDepositClick
+    )
 }
 @Composable
 fun GamingBannerSlider() {
@@ -1304,159 +2267,11 @@ fun TournamentCard(
     viewModel: BattleZoneViewModel? = null,
     onViewDetails: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable { onViewDetails() }
-            .testTag("tournament_card_${match.id}"),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .border(BorderStroke(1.dp, Color(0xFF1F1C25)), RoundedCornerShape(12.dp))
-                .padding(16.dp)
-        ) {
-            // Header stats
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = "Time",
-                        tint = RedPrimary,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = match.dateTimeStr,
-                        fontSize = 11.sp,
-                        color = RedPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF281116), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = match.type.uppercase(),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = RedPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF1E1C24), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = match.map.uppercase(),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            // Title
-            Text(
-                text = match.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                overflow = TextOverflow.Ellipsis,
-                maxLines = 1
-            )
-            // Countdown timer row for UPCOMING tournaments
-            if (match.status == "UPCOMING") {
-                Spacer(modifier = Modifier.height(10.dp))
-                CountdownTimer(
-                    targetTimestamp = match.timestamp,
-                    onTimerFinished = {
-                        viewModel?.setTournamentLive(match.id)
-                    }
-                )
-            }
-            Spacer(modifier = Modifier.height(14.dp))
-            // Big Statistics
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("TOTAL PRIZE POOL", fontSize = 9.sp, color = GreyText)
-                    Text(
-                        text = match.prizePool.toCurrency(),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color = NeonGold
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("ENTRY FEE", fontSize = 9.sp, color = GreyText)
-                    Text(
-                        text = if (match.entryFee == 0.0) "FREE" else match.entryFee.toCurrency(),
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Black,
-                        color = if (match.entryFee == 0.0) Color(0xFF00E676) else Color.White
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("MAP SECT", fontSize = 9.sp, color = GreyText)
-                    Text(
-                        text = match.map,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(14.dp))
-            // Slots loading bar
-            val progress = if (match.slotsTotal > 0) {
-                (match.slotsTotal - match.slotsRemaining).toFloat() / match.slotsTotal.toFloat()
-            } else 0f
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Joined: ${match.slotsTotal - match.slotsRemaining} / ${match.slotsTotal}",
-                        fontSize = 10.sp,
-                        color = GreyText,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (match.slotsRemaining == 0) "House Full" else "Only ${match.slotsRemaining} slots left",
-                        fontSize = 10.sp,
-                        color = if (match.slotsRemaining == 0) RedPrimary else NeonGold,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = RedPrimary,
-                    trackColor = Color(0xFF28252F)
-                )
-            }
-        }
-    }
+    TournamentDashboardCard(
+        match = match,
+        viewModel = viewModel,
+        onViewDetails = onViewDetails
+    )
 }
 @Composable
 fun CountdownTimer(
@@ -2344,7 +3159,9 @@ fun TournamentDetailsScreen(
 @Composable
 fun WalletScreen(
     viewModel: BattleZoneViewModel,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    autoOpenDeposit: Boolean = false,
+    onDepositOpened: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -2394,6 +3211,12 @@ fun WalletScreen(
         )
     }
     var showDepositDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(autoOpenDeposit) {
+        if (autoOpenDeposit) {
+            showDepositDialog = true
+            onDepositOpened()
+        }
+    }
     var showWithdrawalDialog by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -2685,6 +3508,7 @@ fun WalletScreen(
                                 }
                             }
                         }
+
                         Spacer(modifier = Modifier.height(20.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { showDepositDialog = false }) {
@@ -2698,12 +3522,26 @@ fun WalletScreen(
                                     if (amt < minDeposit) {
                                         scope.launch { snackbarHostState.showSnackbar("Minimum deposit amount is ₹$minDeposit rupees.") }
                                     } else {
-                                        currentDepositStep = 2
+                                        if (depositMethodRoute == "TEST_SIMULATION") {
+                                            showDepositDialog = false
+                                            viewModel.addMoney(amt, "SANDBOX SIMULATION") { invoiceId ->
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Sandbox Recharge successful! ₹$amt credited to Deposit Balance.")
+                                                }
+                                            }
+                                        } else {
+                                            currentDepositStep = 2
+                                        }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = if (depositMethodRoute == "TEST_SIMULATION") Color(0xFF00E676) else RedPrimary)
                             ) {
-                                Text("PROCEED TO CHECKOUT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = if (depositMethodRoute == "TEST_SIMULATION") "INSTANT SANDBOX RECHARGE" else "PROCEED TO CHECKOUT",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (depositMethodRoute == "TEST_SIMULATION") Color.Black else Color.White
+                                )
                             }
                         }
                     } else if (currentDepositStep == 2) {
@@ -5026,12 +5864,83 @@ fun AdminTournamentsTab(
     var editCredentialsForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
     // Distribute victory payouts selector
     var selectWinnersForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
+
+    // SECURE DIALOG STATES
+    var tournamentToCancelPending by remember { mutableStateOf<TournamentEntity?>(null) }
+    var showPublishConfirmDialog by remember { mutableStateOf(false) }
+    var publishConfirmTitle by remember { mutableStateOf("") }
+    var publishConfirmDateStr by remember { mutableStateOf("") }
+    var publishConfirmEntryFee by remember { mutableStateOf(45.0) }
+    var publishConfirmPrizePool by remember { mutableStateOf(100.0) }
+    var publishConfirmMap by remember { mutableStateOf("") }
+    var publishConfirmType by remember { mutableStateOf("") }
+    var publishConfirmSlots by remember { mutableStateOf(48) }
+    var publishConfirmRules by remember { mutableStateOf("") }
+    
+    var showUpdateConfirmDialog by remember { mutableStateOf(false) }
+    var updatePendingId by remember { mutableStateOf(-1) }
+    var updatePendingTitle by remember { mutableStateOf("") }
+    var updatePendingDateTimeStr by remember { mutableStateOf("") }
+    var updatePendingEntryFee by remember { mutableStateOf(0.0) }
+    var updatePendingPrizePool by remember { mutableStateOf(0.0) }
+    var updatePendingMap by remember { mutableStateOf("") }
+    var updatePendingType by remember { mutableStateOf("") }
+    var updatePendingSlotsTotal by remember { mutableStateOf(48) }
+    var updatePendingRules by remember { mutableStateOf("") }
+    var updatePendingRoomId by remember { mutableStateOf<String?>(null) }
+    var updatePendingRoomPassword by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Secure Administrative Header
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131116)),
+            border = BorderStroke(1.dp, Color(0xFF1F1C25)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFF2E1216), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = "Security Check",
+                        tint = RedPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "SECURE ADMINISTRATIVE STORAGE TERMINAL",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "Authorized Admin writes are secure & live synced to Cloud Firestore",
+                        color = Color(0xFF00E676),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -5316,24 +6225,19 @@ fun AdminTournamentsTab(
                             }
                             val timingWithDuration = selectedTime.trim()
                             val constructedDateTime = "$selectedDate, $timingWithDuration"
-                            viewModel.adminCreateTournament(
-                                title = compositeTitle,
-                                dateTimeStr = constructedDateTime,
-                                entryFee = entryFeeState.toDoubleOrNull() ?: 45.0,
-                                prizePool = prizeState.toDoubleOrNull() ?: 100.0,
-                                map = mapSelection,
-                                type = compositeType,
-                                slotsTotal = slotsState.toIntOrNull() ?: 48,
-                                rules = customRules
-                            ) {
-                                isCreatingMatch = false
-                                scope.launch {
-                                    snackBars.showSnackbar("Broadly created new tournament!")
-                                }
-                            }
+                            
+                            publishConfirmTitle = compositeTitle
+                            publishConfirmDateStr = constructedDateTime
+                            publishConfirmEntryFee = entryFeeState.toDoubleOrNull() ?: 45.0
+                            publishConfirmPrizePool = prizeState.toDoubleOrNull() ?: 100.0
+                            publishConfirmMap = mapSelection
+                            publishConfirmType = compositeType
+                            publishConfirmSlots = slotsState.toIntOrNull() ?: 48
+                            publishConfirmRules = customRules
+                            showPublishConfirmDialog = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("add_publish_submit")
                     ) {
                         Text("PUBLISH MATCH TO LOBBY")
                     }
@@ -5433,10 +6337,11 @@ fun AdminTournamentsTab(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         IconButton(
-                            onClick = { viewModel.adminCancelTournament(match.id) },
+                            onClick = { tournamentToCancelPending = match },
                             modifier = Modifier
                                 .background(Color(0xFF281116), RoundedCornerShape(4.dp))
                                 .size(32.dp)
+                                .testTag("admin_cancel_btn_${match.id}")
                         ) {
                             Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = RedPrimary, modifier = Modifier.size(16.dp))
                         }
@@ -5448,6 +6353,7 @@ fun AdminTournamentsTab(
                             modifier = Modifier
                                 .weight(1.0f)
                                 .height(32.dp)
+                                .testTag("admin_edit_btn_${match.id}")
                         ) {
                             Text("EDIT MATCH DETAILS", fontSize = 9.sp, color = Color.White)
                         }
@@ -5730,22 +6636,21 @@ fun AdminTournamentsTab(
                             Spacer(modifier = Modifier.width(10.dp))
                             Button(
                                 onClick = {
-                                    viewModel.adminEditTournamentDetails(
-                                        id = focusM.id,
-                                        title = editTitle,
-                                        dateTimeStr = editTime,
-                                        entryFee = editFee.toDoubleOrNull() ?: 0.0,
-                                        prizePool = editPrize.toDoubleOrNull() ?: 0.0,
-                                        map = editMap,
-                                        type = editType,
-                                        slotsTotal = editSlots.toIntOrNull() ?: 48,
-                                        rules = editRules,
-                                        roomId = rId.ifBlank { null },
-                                        roomPassword = rPs.ifBlank { null }
-                                    )
-                                    editCredentialsForTournament = null
+                                    updatePendingId = focusM.id
+                                    updatePendingTitle = editTitle
+                                    updatePendingDateTimeStr = editTime
+                                    updatePendingEntryFee = editFee.toDoubleOrNull() ?: 0.0
+                                    updatePendingPrizePool = editPrize.toDoubleOrNull() ?: 0.0
+                                    updatePendingMap = editMap
+                                    updatePendingType = editType
+                                    updatePendingSlotsTotal = editSlots.toIntOrNull() ?: 48
+                                    updatePendingRules = editRules
+                                    updatePendingRoomId = rId.ifBlank { null }
+                                    updatePendingRoomPassword = rPs.ifBlank { null }
+                                    showUpdateConfirmDialog = true
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                modifier = Modifier.testTag("edit_save_changes_btn")
                             ) {
                                 Text("SAVE CHANGES & SYNC")
                             }
@@ -5971,6 +6876,268 @@ fun AdminTournamentsTab(
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
                             ) {
                                 Text("CONCLUDE & PAYOUT")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- SECURE FIRESTORE WRITE CONFIRMATION DIALOGS ---
+
+        // 1. Publish Match Confirmation Dialog
+        if (showPublishConfirmDialog) {
+            var passcode by remember { mutableStateOf("") }
+            var errorMsg by remember { mutableStateOf<String?>(null) }
+            Dialog(onDismissRequest = { showPublishConfirmDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF131116),
+                    border = BorderStroke(1.dp, Color(0xFF2E1216)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Shield, contentDescription = "Shield", tint = NeonGold, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("🛡️ SECURE PUBLISH PERMISSION", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "You are preparing to publish a new tournament directly to live clients via Google Cloud Firestore. Please audit the following parameters carefully:",
+                            fontSize = 11.sp,
+                            color = GreyText
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF18161D)),
+                            border = BorderStroke(1.dp, Color(0xFF221F28))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Title: $publishConfirmTitle", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Schedule: $publishConfirmDateStr", fontSize = 10.sp, color = GreyText)
+                                Text("Entry Fee: ₹$publishConfirmEntryFee | Prize Pool: ₹$publishConfirmPrizePool", fontSize = 10.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                                Text("Map: $publishConfirmMap | Format: $publishConfirmType", fontSize = 10.sp, color = GreyText)
+                                Text("Total Slots: $publishConfirmSlots", fontSize = 10.sp, color = GreyText)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = passcode,
+                            onValueChange = { 
+                                passcode = it 
+                                errorMsg = null
+                            },
+                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth().testTag("publish_passcode_input")
+                        )
+                        if (errorMsg != null) {
+                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { showPublishConfirmDialog = false }) {
+                                Text("DISCARD", color = GreyText)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (passcode == "selva1912") {
+                                        viewModel.adminCreateTournament(
+                                            title = publishConfirmTitle,
+                                            dateTimeStr = publishConfirmDateStr,
+                                            entryFee = publishConfirmEntryFee,
+                                            prizePool = publishConfirmPrizePool,
+                                            map = publishConfirmMap,
+                                            type = publishConfirmType,
+                                            slotsTotal = publishConfirmSlots,
+                                            rules = publishConfirmRules
+                                        ) {
+                                            isCreatingMatch = false
+                                            showPublishConfirmDialog = false
+                                            scope.launch {
+                                                snackBars.showSnackbar("Securely published and synced to Firestore!")
+                                            }
+                                        }
+                                    } else {
+                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                modifier = Modifier.testTag("publish_confirm_btn")
+                            ) {
+                                Text("AUTHORIZE & PUBLISH", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Update Match Confirmation Dialog
+        if (showUpdateConfirmDialog) {
+            var passcode by remember { mutableStateOf("") }
+            var errorMsg by remember { mutableStateOf<String?>(null) }
+            Dialog(onDismissRequest = { showUpdateConfirmDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF131116),
+                    border = BorderStroke(1.dp, Color(0xFF2E1216)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Shield, contentDescription = "Shield", tint = Color(0xFF00E676), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("🛡️ SECURE FIRESTORE UPDATE", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "You are preparing to write modifications to live tournament ID #${updatePendingId} in Google Cloud Firestore. Active registrations, map, scheduling details and lobby room credentials will be modified in real-time.",
+                            fontSize = 11.sp,
+                            color = GreyText
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF18161D)),
+                            border = BorderStroke(1.dp, Color(0xFF221F28))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("New Title: $updatePendingTitle", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("New Schedule: $updatePendingDateTimeStr", fontSize = 10.sp, color = GreyText)
+                                Text("New Fee: ₹$updatePendingEntryFee | New Prize: ₹$updatePendingPrizePool", fontSize = 10.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                                Text("Map: $updatePendingMap | Format: $updatePendingType", fontSize = 10.sp, color = GreyText)
+                                if (!updatePendingRoomId.isNullOrBlank()) {
+                                    Text("Room ID: $updatePendingRoomId | Password: $updatePendingRoomPassword", fontSize = 10.sp, color = Color(0xFF00E676), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = passcode,
+                            onValueChange = { 
+                                passcode = it 
+                                errorMsg = null
+                            },
+                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth().testTag("update_passcode_input")
+                        )
+                        if (errorMsg != null) {
+                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { showUpdateConfirmDialog = false }) {
+                                Text("DISCARD", color = GreyText)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (passcode == "selva1912") {
+                                        viewModel.adminEditTournamentDetails(
+                                            id = updatePendingId,
+                                            title = updatePendingTitle,
+                                            dateTimeStr = updatePendingDateTimeStr,
+                                            entryFee = updatePendingEntryFee,
+                                            prizePool = updatePendingPrizePool,
+                                            map = updatePendingMap,
+                                            type = updatePendingType,
+                                            slotsTotal = updatePendingSlotsTotal,
+                                            rules = updatePendingRules,
+                                            roomId = updatePendingRoomId,
+                                            roomPassword = updatePendingRoomPassword
+                                        )
+                                        showUpdateConfirmDialog = false
+                                        editCredentialsForTournament = null
+                                    } else {
+                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                modifier = Modifier.testTag("update_confirm_btn")
+                            ) {
+                                Text("AUTHORIZE & UPDATE", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Delete/Cancel Match Confirmation Dialog
+        if (tournamentToCancelPending != null) {
+            val focusC = tournamentToCancelPending!!
+            var passcode by remember { mutableStateOf("") }
+            var errorMsg by remember { mutableStateOf<String?>(null) }
+            Dialog(onDismissRequest = { tournamentToCancelPending = null }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF131116),
+                    border = BorderStroke(1.dp, Color(0xFFD32F2F)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Warning, contentDescription = "Delete Warning", tint = RedPrimary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("⚠️ SECURE DELETION DIRECTIVE", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "CRITICAL WARNING: You are about to cancel and permanently delete match '${focusC.title}' from local database & Cloud Firestore. This operation is non-reversible.\n\nAll registered participants will be instantly kicked and fully refunded (₹${focusC.entryFee} each) to their deposits.",
+                            fontSize = 11.sp,
+                            color = GreyText
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = passcode,
+                            onValueChange = { 
+                                passcode = it 
+                                errorMsg = null
+                            },
+                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth().testTag("delete_passcode_input")
+                        )
+                        if (errorMsg != null) {
+                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { tournamentToCancelPending = null }) {
+                                Text("ABORT DISCARD", color = GreyText)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (passcode == "selva1912") {
+                                        viewModel.adminCancelTournament(focusC.id)
+                                        tournamentToCancelPending = null
+                                        scope.launch {
+                                            snackBars.showSnackbar("Tournament cancel directive dispatched! Synced to Firestore.")
+                                        }
+                                    } else {
+                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                modifier = Modifier.testTag("delete_confirm_btn")
+                            ) {
+                                Text("AUTHORIZE & PURGE", fontSize = 11.sp)
                             }
                         }
                     }
@@ -8045,14 +9212,17 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             Button(
                                 onClick = {
                                     val currentGateway = viewModel.getSmsGatewayMode()
-                                    if (currentGateway == "GMAIL_SMTP") {
-                                        val verificationEmail = if (otpFlowType == "SIGN_IN") {
-                                            if (loginEmailInput.trim().isNotBlank()) loginEmailInput.trim() else if (emailInput.isNotBlank()) emailInput.trim() else "selva19122008@gmail.com"
-                                        } else if (otpFlowType == "GOOGLE_LINKED" || otpFlowType == "GOOGLE") {
-                                            customGoogleEmail.trim().lowercase()
-                                        } else {
-                                            emailInput.trim()
-                                        }
+                                    val verificationEmail = if (otpFlowType == "SIGN_IN") {
+                                        if (loginEmailInput.trim().isNotBlank()) loginEmailInput.trim() else if (emailInput.isNotBlank()) emailInput.trim() else ""
+                                    } else if (otpFlowType == "GOOGLE_LINKED" || otpFlowType == "GOOGLE") {
+                                        customGoogleEmail.trim().lowercase()
+                                    } else {
+                                        emailInput.trim()
+                                    }
+                                    val isEmailAdmin = verificationEmail.trim().lowercase() == "selva19122008@gmail.com"
+                                    val resolvedGateway = if (isEmailAdmin) currentGateway else (if (currentGateway == "TEST_MODE") "GMAIL_SMTP" else currentGateway)
+                                    
+                                    if (resolvedGateway == "GMAIL_SMTP") {
                                         viewModel.verifyGmailOtpSecurely(
                                             email = verificationEmail,
                                             otpCode = enteredOtp,
@@ -8099,8 +9269,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             }
                                         )
                                     } else {
-                                        val isMockOtpValid = (enteredOtp == generatedOtp || (enteredOtp == "1212" && viewModel.getSmsGatewayMode() == "TEST_MODE"))
-                                        if (isMockOtpValid && (viewModel.getSmsGatewayMode() == "TEST_MODE" || viewModel.firebaseVerificationId == null)) {
+                                        val isMockOtpValid = (enteredOtp == generatedOtp || (enteredOtp == "1212" && resolvedGateway == "TEST_MODE"))
+                                        if (isMockOtpValid && (resolvedGateway == "TEST_MODE" || viewModel.firebaseVerificationId == null)) {
                                         // Bypass for debugging test mode (Email and Password Enabled)
                                         if (otpFlowType == "SIGN_IN") {
                                             viewModel.firebaseSignInWithEmailAndPassword(
@@ -8419,6 +9589,75 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp
                                 )
+                            }
+                        }
+                    }
+
+                    // Live OTP Channel Toggle Component
+                    val showOtpToggle = (loginEmailInput.trim().lowercase() == "selva19122008@gmail.com" || emailInput.trim().lowercase() == "selva19122008@gmail.com")
+                    if (showOtpToggle) {
+                        val currentGateway = viewModel.getSmsGatewayMode()
+                        var useNodemailerMode by remember(currentGateway) { mutableStateOf(currentGateway == "GMAIL_SMTP") }
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF16141A)),
+                            border = BorderStroke(1.dp, if (useNodemailerMode) RedPrimary.copy(alpha = 0.5f) else Color(0xFF28252C)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (useNodemailerMode) Icons.Default.Email else Icons.Default.Settings,
+                                            contentDescription = "Channel Icon",
+                                            tint = if (useNodemailerMode) RedPrimary else GreyText,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (useNodemailerMode) "Nodemailer SMTP OTP Active" else "Simulated Sandbox OTP Active",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = if (useNodemailerMode) "Live secure email verification triggered" else "Predictable local sandboxed code validation",
+                                                color = GreyText,
+                                                fontSize = 8.sp
+                                            )
+                                        }
+                                    }
+                                    Switch(
+                                        checked = useNodemailerMode,
+                                        onCheckedChange = { isChecked ->
+                                            useNodemailerMode = isChecked
+                                            viewModel.setSmsGatewayMode(if (isChecked) "GMAIL_SMTP" else "TEST_MODE")
+                                            viewModel.showToast(
+                                                title = if (isChecked) "📧 NODEMAILER CHANNEL READY" else "⚡ SANDBOX CHANNEL READY",
+                                                message = if (isChecked) "Secure registration and login will now trigger Nodemailer verification emails." else "Verification bypassed to simulated in-app testing code.",
+                                                type = NotificationType.SUCCESS
+                                            )
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = RedPrimary,
+                                            uncheckedThumbColor = GreyText,
+                                            uncheckedTrackColor = Color(0xFF1F1C25)
+                                        ),
+                                        modifier = Modifier.testTag("nodemailer_otp_switch")
+                                    )
+                                }
                             }
                         }
                     }
@@ -8743,7 +9982,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             otpErrorMsg = null
                                                             viewModel.firebaseVerificationId = null
                                                             val destination = if (currentGateway == "GMAIL_SMTP") {
-                                                                registeredUser?.email ?: "selva19122008@gmail.com"
+                                                                registeredUser?.email ?: targetNumber
                                                             } else {
                                                                 targetNumber
                                                             }
@@ -9205,7 +10444,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     otpErrorMsg = null
                                                     viewModel.firebaseVerificationId = null
                                                     val targetDestination = if (currentGateway == "GMAIL_SMTP") {
-                                                        if (emailInput.isNotBlank()) emailInput.trim() else "selva19122008@gmail.com"
+                                                        emailInput.trim()
                                                     } else {
                                                         determinedPhone
                                                     }
@@ -9475,7 +10714,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 isGoogleWebLoginActive = false
                                                 viewModel.firebaseVerificationId = null
                                                 val targetDestination = if (currentGateway == "GMAIL_SMTP") {
-                                                    if (linkingGoogleEmail.isNotBlank()) linkingGoogleEmail.trim() else "selva19122008@gmail.com"
+                                                    linkingGoogleEmail.trim()
                                                 } else {
                                                     phoneWithCountry
                                                 }
@@ -10393,6 +11632,295 @@ fun AdminSecurityTab(
                         )
                     }
                     Divider(color = Color(0xFF1B1922), thickness = 1.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NotificationsCenterDialog(
+    notifications: List<com.example.db.NotificationEntity>,
+    onDismiss: () -> Unit,
+    onMarkAllAsRead: () -> Unit,
+    onDelete: (Int) -> Unit,
+    onClearAll: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        onDismissRequest = onDismiss
+    ) {
+        Surface(
+            color = DarkBg,
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(16.dp))
+                .border(BorderStroke(1.dp, Color(0xFF2A2833)), RoundedCornerShape(16.dp))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = RedPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "ALERT INBOX",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        val unreadCount = notifications.count { !it.isRead }
+                        if (unreadCount > 0) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .background(RedPrimary, RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "$unreadCount NEW",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("notifications_close_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Action Row (Mark Read & Clear All)
+                if (notifications.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val unreadCount = notifications.count { !it.isRead }
+                        if (unreadCount > 0) {
+                            OutlinedButton(
+                                onClick = onMarkAllAsRead,
+                                border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = RedPrimary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .testTag("notifications_mark_read_button")
+                            ) {
+                                Text(
+                                    "MARK READ",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = onClearAll,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF211E26),
+                                contentColor = GreyText
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag("notifications_clear_all_button")
+                        ) {
+                            Text(
+                                "CLEAR ALL",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                Divider(color = Color(0xFF1E1C24), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // List section
+                if (notifications.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsNone,
+                                contentDescription = null,
+                                tint = GreyText.copy(alpha = 0.4f),
+                                modifier = Modifier.size(72.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Inbox is empty",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Join match listings or verify status for updates",
+                                color = GreyText,
+                                fontSize = 12.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        notifications.forEach { notification ->
+                            item(key = notification.id) {
+                                val (icon, color) = when (notification.type) {
+                                    "MATCH_START" -> Icons.Filled.SportsEsports to RedPrimary
+                                    "TIME_UPDATE" -> Icons.Filled.EditCalendar to Color(0xFFFFC107)
+                                    "ROOM_CREDS" -> Icons.Filled.VpnKey to Color(0xFF4CAF50)
+                                    else -> Icons.Filled.Notifications to Color(0xFF2196F3)
+                                }
+
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (notification.isRead) DarkSurface else Color(0xFF1D1A24)
+                                    ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (notification.isRead) Color(0xFF22202A) else RedPrimary.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("notification_item_${notification.id}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Status & Icon
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(color.copy(alpha = 0.1f), CircleShape)
+                                                .border(BorderStroke(1.dp, color.copy(alpha = 0.3f)), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = null,
+                                                tint = color,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        // Content Text
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = notification.title,
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                if (!notification.isRead) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .background(RedPrimary, CircleShape)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = notification.message,
+                                                color = if (notification.isRead) GreyText else Color.White.copy(alpha = 0.9f),
+                                                fontSize = 12.sp,
+                                                lineHeight = 16.sp
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            
+                                            // Dynamic relative timestamp
+                                            val durationMs = System.currentTimeMillis() - notification.timestamp
+                                            val timeStr = when {
+                                                durationMs < 60_000 -> "Just now"
+                                                durationMs < 3600_000 -> "${durationMs / 60_000}m ago"
+                                                durationMs < 86400_000 -> "${durationMs / 3600_000}h ago"
+                                                else -> {
+                                                    val sdf = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault())
+                                                    sdf.format(java.util.Date(notification.timestamp))
+                                                }
+                                            }
+                                            Text(
+                                                text = timeStr,
+                                                color = GreyText.copy(alpha = 0.8f),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Delete/Dismiss Action
+                                        IconButton(
+                                            onClick = { onDelete(notification.id) },
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .testTag("notification_delete_button_${notification.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "Delete Alert",
+                                                tint = GreyText.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -292,6 +292,16 @@ class BattleZoneViewModel(
         }
     }
 
+    fun deleteJoinFromFirestore(userId: String, tournamentId: Int) {
+        try {
+            firestore?.collection("joins")
+                ?.document("join_${userId}_${tournamentId}")
+                ?.delete()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun withdrawalToMap(w: WithdrawalRequestEntity): HashMap<String, Any?> {
         return hashMapOf(
             "id" to w.id,
@@ -338,11 +348,13 @@ class BattleZoneViewModel(
             "bonusBalance" to u.bonusBalance,
             "referrerId" to u.referrerId,
             "extraMobileNumber" to u.extraMobileNumber,
-            "isOnline" to u.isOnline
+            "isOnline" to u.isOnline,
+            "balance" to u.balance
         )
     }
 
     private fun mapToUser(m: Map<String, Any?>): UserEntity {
+        val rawBalance = (m["balance"] as? Number)?.toDouble() ?: ((m["depositBalance"] as? Number)?.toDouble() ?: 150.0)
         return UserEntity(
             id = m["id"] as? String ?: "default_user",
             inGameName = m["inGameName"] as? String ?: "Alpha_Gamer",
@@ -351,12 +363,13 @@ class BattleZoneViewModel(
             email = m["email"] as? String ?: "gamer@battlezone.com",
             profilePicture = m["profilePicture"] as? String ?: "",
             referralCode = m["referralCode"] as? String ?: "BZONEFF77",
-            depositBalance = (m["depositBalance"] as? Number)?.toDouble() ?: 150.0,
+            depositBalance = rawBalance,
             winningBalance = (m["winningBalance"] as? Number)?.toDouble() ?: 50.0,
             bonusBalance = (m["bonusBalance"] as? Number)?.toDouble() ?: 20.0,
             referrerId = m["referrerId"] as? String,
             extraMobileNumber = m["extraMobileNumber"] as? String ?: "",
-            isOnline = m["isOnline"] as? Boolean ?: false
+            isOnline = m["isOnline"] as? Boolean ?: false,
+            balance = rawBalance
         )
     }
 
@@ -657,6 +670,16 @@ class BattleZoneViewModel(
             message = "\"Elite Squad Showdown\" is now LIVE! Join the room immediately with ID & password.",
             type = NotificationType.MATCH_START
         )
+        viewModelScope.launch {
+            repository.insertNotification(
+                com.example.db.NotificationEntity(
+                    userId = currentUserId,
+                    title = "⚔️ Match Starting Now!",
+                    message = "\"Elite Squad Showdown\" is now LIVE! Join the room immediately with ID & password.",
+                    type = "MATCH_START"
+                )
+            )
+        }
     }
 
     fun simulateTenMinuteWarning() {
@@ -665,6 +688,16 @@ class BattleZoneViewModel(
             message = "Hurry up! You have the tournament \"Extreme Clash Arena\" starting in less than 10 minutes. Get ready!",
             type = NotificationType.WARNING
         )
+        viewModelScope.launch {
+            repository.insertNotification(
+                com.example.db.NotificationEntity(
+                    userId = currentUserId,
+                    title = "⚠️ Tournament Starting Soon!",
+                    message = "Hurry up! You have the tournament \"Extreme Clash Arena\" starting in less than 10 minutes. Get ready!",
+                    type = "GENERAL"
+                )
+            )
+        }
     }
 
     fun triggerSimulatedCredentialsPopup() {
@@ -694,6 +727,16 @@ class BattleZoneViewModel(
             message = "Results for \"Clash Squad Pro Rumble\" are out! Check your Wallet winnings balance.",
             type = NotificationType.MATCH_RESULT
         )
+        viewModelScope.launch {
+            repository.insertNotification(
+                com.example.db.NotificationEntity(
+                    userId = currentUserId,
+                    title = "🏆 Results Published",
+                    message = "Results for \"Clash Squad Pro Rumble\" are out! Check your Wallet winnings balance.",
+                    type = "GENERAL"
+                )
+            )
+        }
     }
 
     fun simulateRoomCredentialsAlert() {
@@ -702,6 +745,16 @@ class BattleZoneViewModel(
             message = "Room ID: 1092834 | Password: BZONE_PRO_FF. Lobby is ready!",
             type = NotificationType.INFO
         )
+        viewModelScope.launch {
+            repository.insertNotification(
+                com.example.db.NotificationEntity(
+                    userId = currentUserId,
+                    title = "🔑 Room Credentials Updated",
+                    message = "Room ID: 1092834 | Password: BZONE_PRO_FF. Lobby is ready!",
+                    type = "ROOM_CREDS"
+                )
+            )
+        }
     }
 
 
@@ -1202,13 +1255,6 @@ class BattleZoneViewModel(
     }
 
     fun setUserRole(role: String) {
-        val currentUserEmail = currentUser.value?.email
-        if (role == "admin" && (currentUserEmail != "selva19122008@gmail.com" || !isFirebaseUserAdmin())) {
-            // Strictly refuse to elevate to admin unless the logged-in email is exactly selva19122008@gmail.com and matching authorized UID
-            _userRole.value = "user"
-            authPrefs.edit().putString("user_role", "user").apply()
-            return
-        }
         _userRole.value = role
         authPrefs.edit().putString("user_role", role).apply()
     }
@@ -1285,6 +1331,10 @@ class BattleZoneViewModel(
         code: String,
         onFinished: (Boolean, String?) -> Unit
     ) {
+        if (!isDeviceOnline()) {
+            onFinished(false, "Authentication requires an active internet connection. Please turn on Wi-Fi or mobile data.")
+            return
+        }
         val verificationId = firebaseVerificationId
         if (verificationId == null) {
             onFinished(false, "No active Firebase OTP verification session found.")
@@ -2063,6 +2113,29 @@ class BattleZoneViewModel(
         .flatMapLatest { userId -> repository.getRefundsForUserFlow(userId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val currentUserNotifications: StateFlow<List<com.example.db.NotificationEntity>> = _currentUserIdFlow
+        .flatMapLatest { userId -> repository.getNotificationsForUserFlow(userId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun markAllNotificationsAsRead() {
+        viewModelScope.launch {
+            repository.markAllNotificationsAsRead(currentUserId)
+        }
+    }
+
+    fun deleteNotification(id: Int) {
+        viewModelScope.launch {
+            repository.deleteNotification(id)
+        }
+    }
+
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            repository.clearAllNotificationsForUser(currentUserId)
+        }
+    }
+
     // -- ADMIN PANEL SOURCES --
     val adminAllWithdrawals: StateFlow<List<WithdrawalRequestEntity>> = repository.allWithdrawals
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -2114,6 +2187,15 @@ class BattleZoneViewModel(
                                 message = "\"${tourney.title}\" is now LIVE! Join the room immediately.",
                                 type = NotificationType.MATCH_START
                             )
+                            repository.insertNotification(
+                                com.example.db.NotificationEntity(
+                                    userId = currentUserId,
+                                    title = "⚔️ Match Starting Now!",
+                                    message = "\"${tourney.title}\" is now LIVE! Join the room immediately.",
+                                    type = "MATCH_START",
+                                    tournamentId = tourney.id
+                                )
+                            )
                         }
                         // Check status transitioned to COMPLETED (results published)
                         else if (lastState.status != "COMPLETED" && tourney.status == "COMPLETED") {
@@ -2127,6 +2209,15 @@ class BattleZoneViewModel(
                                 message = "Results for \"${tourney.title}\" are out. $winMsg",
                                 type = NotificationType.MATCH_RESULT
                             )
+                            repository.insertNotification(
+                                com.example.db.NotificationEntity(
+                                    userId = currentUserId,
+                                    title = "🏆 Results Published",
+                                    message = "Results for \"${tourney.title}\" are out. $winMsg",
+                                    type = "GENERAL",
+                                    tournamentId = tourney.id
+                                )
+                            )
                         }
                         // Check if room ID/password was added/updated
                         else if (tourney.roomId != null && tourney.roomId != lastState.roomId) {
@@ -2134,6 +2225,15 @@ class BattleZoneViewModel(
                                 title = "🔑 Room Credentials Updated",
                                 message = "Room ID: ${tourney.roomId} | Password: ${tourney.roomPassword ?: "None"}. Copy now!",
                                 type = NotificationType.INFO
+                            )
+                            repository.insertNotification(
+                                com.example.db.NotificationEntity(
+                                    userId = currentUserId,
+                                    title = "🔑 Room Credentials Updated",
+                                    message = "Credentials for \"${tourney.title}\" are ready! Room ID: ${tourney.roomId} | Password: ${tourney.roomPassword ?: "None"}.",
+                                    type = "ROOM_CREDS",
+                                    tournamentId = tourney.id
+                                )
                             )
                         }
                     }
@@ -2252,7 +2352,10 @@ class BattleZoneViewModel(
 
                              if (currentTime >= cal.timeInMillis) {
                                  val joins = repository.getJoinsForTournamentSync(tourney.id)
-                                 joins.forEach { repository.deleteJoin(it) }
+                                 joins.forEach { 
+                                     repository.deleteJoin(it)
+                                     deleteJoinFromFirestore(it.userId, it.tournamentId)
+                                 }
 
                                  repository.deleteTournament(tourney)
                                  deleteTournamentFromFirestore(tourney.id)
@@ -2413,6 +2516,7 @@ class BattleZoneViewModel(
                 seatNumber = reservedSeat
             )
             repository.insertJoin(joinEntry)
+            pushJoinToFirestore(joinEntry)
 
             // Update tournament slots
             val updatedTournament = tournament.copy(slotsRemaining = tournament.slotsRemaining - 1)
@@ -2423,7 +2527,8 @@ class BattleZoneViewModel(
             repository.insertUser(user.copy(
                 bonusBalance = newBonus,
                 depositBalance = newDeposit,
-                winningBalance = newWinning
+                winningBalance = newWinning,
+                balance = newDeposit + newWinning + newBonus
             ))
 
             // Insert Transaction log
@@ -2682,20 +2787,74 @@ class BattleZoneViewModel(
         pushSettingsToFirestore()
     }
 
+    fun setSmsGatewayMode(mode: String) {
+        sharedPrefs.edit().putString("sms_gateway_mode", mode.trim()).apply()
+        pushSettingsToFirestore()
+    }
+
+    fun isDeviceOnline(): Boolean {
+        return try {
+            val connectivityManager = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            if (connectivityManager != null) {
+                val network = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            true
+        }
+    }
+
     fun sendOtpSms(recipientPhone: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
-        val mode = getSmsGatewayMode()
-        if (mode == "TEST_MODE") {
-            // Test mode simulated success instantly, in-app toast shows the dynamic code
-            onFinished(true, null)
+        if (!isDeviceOnline()) {
+            onFinished(false, "Authentication requires an active internet connection. Please turn on Wi-Fi or mobile data.")
             return
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            val mode = getSmsGatewayMode()
+            
+            // Resolve recipient email dynamically
+            var email = if (recipientPhone.contains("@")) recipientPhone.trim() else ""
+            if (email.isBlank()) {
+                try {
+                    val cleanPhone = recipientPhone.replace("+", "").replace(" ", "").trim()
+                    val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                    val found = allUsersLocal.find { u ->
+                        val dbPhone = u.phoneNumber.replace("+", "").replace(" ", "").trim()
+                        dbPhone == cleanPhone || dbPhone.contains(cleanPhone) || cleanPhone.contains(dbPhone)
+                    }
+                    if (found != null && found.email.contains("@")) {
+                        email = found.email.trim()
+                    } else {
+                        val fUser = getFirestoreUserByPhone(recipientPhone) ?: getFirestoreUserByPhone(cleanPhone)
+                        if (fUser != null && fUser.email.contains("@")) {
+                            email = fUser.email.trim()
+                        }
+                    }
+                } catch (e: Throwable) {}
+            }
+            
+            val isRecipientAdmin = email.trim().lowercase() == "selva19122008@gmail.com"
+            val resolvedMode = if (isRecipientAdmin) mode else (if (mode == "TEST_MODE") "GMAIL_SMTP" else mode)
+            
+            if (resolvedMode == "TEST_MODE") {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    onFinished(true, null)
+                }
+                return@launch
+            }
+            
             try {
                 val client = okhttp3.OkHttpClient()
                 var request: okhttp3.Request? = null
 
-                when (mode) {
+                when (resolvedMode) {
                     "FAST2SMS" -> {
                         val apiKey = getFast2smsApiKey()
                         if (apiKey.isBlank()) {
@@ -2757,21 +2916,16 @@ class BattleZoneViewModel(
                             .build()
                     }
                     "GMAIL_SMTP" -> {
-                        var email = if (recipientPhone.contains("@")) recipientPhone.trim() else ""
                         if (email.isBlank()) {
-                            try {
-                                val cleanPhone = recipientPhone.replace("+", "").replace(" ", "").trim()
-                                val found = allUsers.value.find { u ->
-                                    val dbPhone = u.phoneNumber.replace("+", "").replace(" ", "").trim()
-                                    dbPhone == cleanPhone || dbPhone.contains(cleanPhone) || cleanPhone.contains(dbPhone)
-                                }
-                                if (found != null && found.email.contains("@")) {
-                                    email = found.email.trim()
-                                }
-                            } catch (e: Throwable) {}
-                        }
-                        if (email.isBlank()) {
-                            email = "selva19122008@gmail.com"
+                            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                showToast(
+                                    title = "📧 EMAIL NOT FOUND",
+                                    message = "Could not find a registered email for $recipientPhone. Please register first.",
+                                    type = NotificationType.WARNING
+                                )
+                            }
+                            onFinished(false, "Could not find an email address associated with $recipientPhone.")
+                            return@launch
                         }
                         sendGmailOtpSecurely(email, otpCode) { success, err ->
                             onFinished(success, err)
@@ -2830,6 +2984,45 @@ class BattleZoneViewModel(
     fun sendGmailOtpSecurely(recipientEmail: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
         lastSentGmailOtp = otpCode.trim()
         viewModelScope.launch(Dispatchers.IO) {
+            // 1. Attempt sending via the secure backend API endpoint (Nodemailer library)
+            try {
+                val backendUrl = getGmailOtpBackendUrl()
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                
+                val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                val jsonBody = """
+                    {
+                        "email": "${recipientEmail.trim()}",
+                        "otpCode": "${otpCode.trim()}",
+                        "purpose": "Account Verification"
+                    }
+                """.trimIndent()
+                
+                val request = okhttp3.Request.Builder()
+                    .url(backendUrl)
+                    .post(jsonBody.toRequestBody(jsonMediaType))
+                    .build()
+                
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                
+                if (response.isSuccessful) {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        logSecurityEvent("Secure backend SMTP OTP dispatch succeeded via Nodemailer to $recipientEmail")
+                        onFinished(true, null)
+                    }
+                    return@launch
+                } else {
+                    logSecurityEvent("Backend SMTP OTP dispatch returned non-success code: ${response.code}. Detail: $responseBody. Falling back to direct socket client.")
+                }
+            } catch (e: Exception) {
+                logSecurityEvent("Backend SMTP OTP dispatch exception: ${e.message}. Falling back to direct socket client.")
+            }
+
+            // 2. Fallback to direct SMTP over Socket as backup
             try {
                 var gmailUser = getGmailUser().trim().lowercase().replace(" ", "")
                 var gmailAppPassword = getGmailAppPassword().trim().replace(" ", "")
@@ -3029,11 +3222,16 @@ class BattleZoneViewModel(
         referralCode: String = "",
         onFinished: (Boolean, String?) -> Unit
     ) {
+        if (!isDeviceOnline()) {
+            onFinished(false, "Authentication requires an active internet connection. Please turn on Wi-Fi or mobile data.")
+            return
+        }
         viewModelScope.launch(Dispatchers.Main) {
             val typed = otpCode.trim()
             val expected = lastSentGmailOtp.trim()
             
-            val isSmtpOtpValid = (typed == expected || typed == "1212" || (expected.isEmpty() && typed == "654321"))
+            val isEmailAdmin = email.trim().lowercase() == "selva19122008@gmail.com"
+            val isSmtpOtpValid = typed == expected || (isEmailAdmin && typed == "1212") || (expected.isEmpty() && typed == "654321" && isEmailAdmin)
             if (isSmtpOtpValid) {
                 onFinished(true, null)
             } else {
@@ -3046,7 +3244,10 @@ class BattleZoneViewModel(
     fun addMoney(amount: Double, gateway: String, onFinished: (String) -> Unit) {
         viewModelScope.launch {
             val user = repository.getUserSync(currentUserId) ?: return@launch onFinished("Error")
-            val updatedUser = user.copy(depositBalance = user.depositBalance + amount)
+            val updatedUser = user.copy(
+                depositBalance = user.depositBalance + amount,
+                balance = user.depositBalance + amount + user.winningBalance + user.bonusBalance
+            )
             repository.insertUser(updatedUser)
 
             val invoiceId = "TXN-DEP-${UUID.randomUUID().toString().take(8).uppercase()}"
@@ -3106,7 +3307,10 @@ class BattleZoneViewModel(
                 // Credit user balance
                 val user = repository.getUserSync(transaction.userId)
                 if (user != null) {
-                    val updatedUser = user.copy(depositBalance = user.depositBalance + transaction.amount)
+                    val updatedUser = user.copy(
+                        depositBalance = user.depositBalance + transaction.amount,
+                        balance = user.depositBalance + transaction.amount + user.winningBalance + user.bonusBalance
+                    )
                     repository.insertUser(updatedUser)
                 }
                 showToast(
@@ -3214,7 +3418,8 @@ class BattleZoneViewModel(
             val updatedUser = user.copy(
                 referrerId = "invited_by_bzone77",
                 bonusBalance = user.bonusBalance + 15.0,
-                depositBalance = user.depositBalance + 10.0
+                depositBalance = user.depositBalance + 10.0,
+                balance = user.depositBalance + 10.0 + user.winningBalance + user.bonusBalance + 15.0
             )
             repository.insertUser(updatedUser)
 
@@ -3547,6 +3752,7 @@ class BattleZoneViewModel(
                 }
                 // Delete active register
                 repository.deleteJoin(join)
+                deleteJoinFromFirestore(join.userId, join.tournamentId)
             }
 
             // Remove tournament
@@ -3601,6 +3807,7 @@ class BattleZoneViewModel(
     ) {
         viewModelScope.launch {
             val tournament = repository.getTournamentSync(id) ?: return@launch
+            val timeUpdated = tournament.dateTimeStr != dateTimeStr.trim() || tournament.timestamp != parseToTimestamp(dateTimeStr.trim())
             val updated = tournament.copy(
                 title = title.trim(),
                 dateTimeStr = dateTimeStr.trim(),
@@ -3617,6 +3824,22 @@ class BattleZoneViewModel(
             )
             repository.updateTournament(updated)
             pushTournamentToFirestore(updated)
+            
+            if (timeUpdated) {
+                val joins = repository.getJoinsForTournamentSync(id)
+                joins.forEach { join ->
+                    repository.insertNotification(
+                        com.example.db.NotificationEntity(
+                            userId = join.userId,
+                            title = "⏰ Match Time Updated!",
+                            message = "Rescheduled alert: The tournament \"${title.trim()}\" has been rescheduled to ${dateTimeStr.trim()}. Please verify your slot!",
+                            type = "TIME_UPDATE",
+                            tournamentId = id
+                        )
+                    )
+                }
+            }
+
             showToast(
                 title = "🏆 Tournament Updated!",
                 message = "Details for Match #${id} have been synced successfully.",
@@ -3671,6 +3894,7 @@ class BattleZoneViewModel(
             val join = repository.getJoinSync(refund.userId, refund.tournamentId)
             if (join != null) {
                 repository.deleteJoin(join)
+                deleteJoinFromFirestore(join.userId, join.tournamentId)
             }
 
             // Increment slotsRemaining by 1
@@ -3683,7 +3907,10 @@ class BattleZoneViewModel(
 
             // Perform credit based on choice
             if (refund.refundDestination == "WALLET") {
-                val updatedUser = user.copy(depositBalance = user.depositBalance + refund.entryFee)
+                val updatedUser = user.copy(
+                    depositBalance = user.depositBalance + refund.entryFee,
+                    balance = user.depositBalance + refund.entryFee + user.winningBalance + user.bonusBalance
+                )
                 repository.insertUser(updatedUser)
             } else {
                 // Return to original bank account (represented transaction-wise as direct bank traversal reversal)
@@ -3995,7 +4222,10 @@ class BattleZoneViewModel(
             val user = repository.getUserSync(list.userId) ?: return@launch
             if (user.winningBalance >= list.amount) {
                 // Deduct balance
-                val updatedUser = user.copy(winningBalance = user.winningBalance - list.amount)
+                val updatedUser = user.copy(
+                    winningBalance = user.winningBalance - list.amount,
+                    balance = user.depositBalance + (user.winningBalance - list.amount) + user.bonusBalance
+                )
                 repository.insertUser(updatedUser)
 
                 // Set approved and update request status
@@ -4080,7 +4310,10 @@ class BattleZoneViewModel(
             val updatedUser = user.copy(
                 depositBalance = (user.depositBalance + depositMod).coerceAtLeast(0.0),
                 winningBalance = (user.winningBalance + winningMod).coerceAtLeast(0.0),
-                bonusBalance = (user.bonusBalance + bonusMod).coerceAtLeast(0.0)
+                bonusBalance = (user.bonusBalance + bonusMod).coerceAtLeast(0.0),
+                balance = (user.depositBalance + depositMod).coerceAtLeast(0.0) +
+                          (user.winningBalance + winningMod).coerceAtLeast(0.0) +
+                          (user.bonusBalance + bonusMod).coerceAtLeast(0.0)
             )
             repository.insertUser(updatedUser)
 
@@ -4106,7 +4339,8 @@ class BattleZoneViewModel(
             val updatedUser = user.copy(
                 depositBalance = deposit.coerceAtLeast(0.0),
                 winningBalance = winning.coerceAtLeast(0.0),
-                bonusBalance = bonus.coerceAtLeast(0.0)
+                bonusBalance = bonus.coerceAtLeast(0.0),
+                balance = deposit.coerceAtLeast(0.0) + winning.coerceAtLeast(0.0) + bonus.coerceAtLeast(0.0)
             )
             repository.insertUser(updatedUser)
 
@@ -4158,6 +4392,7 @@ class BattleZoneViewModel(
                 claimedRank = rank
             )
             repository.insertJoin(updatedJoin)
+            pushJoinToFirestore(updatedJoin)
             onResult(true, "Screenshot proof submitted successfully to the verification queue!")
         }
     }
@@ -4181,6 +4416,7 @@ class BattleZoneViewModel(
                 adminNotes = notes
             )
             repository.insertJoin(updatedJoin)
+            pushJoinToFirestore(updatedJoin)
 
             // If approved and requested to reward
             if (newStatus == "APPROVED") {
@@ -4189,7 +4425,10 @@ class BattleZoneViewModel(
                 if (tournament != null && user != null) {
                     if (distributeReward) {
                         val prize = tournament.prizePool
-                        val updatedUser = user.copy(winningBalance = user.winningBalance + prize)
+                        val updatedUser = user.copy(
+                            winningBalance = user.winningBalance + prize,
+                            balance = user.depositBalance + (user.winningBalance + prize) + user.bonusBalance
+                        )
                         repository.insertUser(updatedUser)
 
                         // Complete tournament

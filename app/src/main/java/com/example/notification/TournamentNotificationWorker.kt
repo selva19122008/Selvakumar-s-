@@ -62,6 +62,21 @@ class TournamentNotificationWorker(
         val client = OkHttpClient()
 
         joins.forEach { join ->
+            // Insert in-app database notification alert
+            try {
+                db.notificationDao().insertNotification(
+                    com.example.db.NotificationEntity(
+                        userId = join.userId,
+                        title = "⏰ Tournament Starting Soon!",
+                        message = "Your registered tournament \"${tournament.title}\" is starting in 10 minutes! Custom room credentials (Room ID: ${tournament.roomId ?: "RELEASING_SOON"}, Password: ${tournament.roomPassword ?: "RELEASING_SOON"}) are ready.",
+                        type = "MATCH_START",
+                        tournamentId = tournament.id
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("NotificationWorker", "Failed to save start-alert notification to database for user ${join.userId}", e)
+            }
+
             val participant = db.userDao().getUserSync(join.userId)
             val phone = participant?.phoneNumber ?: participant?.extraMobileNumber
             if (participant != null && !phone.isNullOrBlank()) {

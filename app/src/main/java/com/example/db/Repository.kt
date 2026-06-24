@@ -69,6 +69,14 @@ class BattleZoneRepository(private val db: AppDatabase) {
     suspend fun getRefundByIdSync(id: Int): RefundRequestEntity? = refundDao.getRefundByIdSync(id)
     suspend fun getRefundByUserAndTournamentSync(userId: String, tournamentId: Int): RefundRequestEntity? = refundDao.getRefundByUserAndTournamentSync(userId, tournamentId)
 
+    // Notifications
+    val notificationDao = db.notificationDao()
+    fun getNotificationsForUserFlow(userId: String): Flow<List<NotificationEntity>> = notificationDao.getNotificationsForUserFlow(userId)
+    suspend fun insertNotification(notification: NotificationEntity) = notificationDao.insertNotification(notification)
+    suspend fun markAllNotificationsAsRead(userId: String) = notificationDao.markAllAsRead(userId)
+    suspend fun deleteNotification(id: Int) = notificationDao.deleteNotification(id)
+    suspend fun clearAllNotificationsForUser(userId: String) = notificationDao.clearAllForUser(userId)
+
     // Prefill Database if empty
     suspend fun prefillIfEmpty() {
         // Disabled automatically generated dummy/fake users and tournaments as requested by the admin.

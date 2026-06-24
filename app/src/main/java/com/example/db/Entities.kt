@@ -17,7 +17,8 @@ data class UserEntity(
     val bonusBalance: Double = 5.0,
     val referrerId: String? = null,
     val extraMobileNumber: String = "",
-    val isOnline: Boolean = false
+    val isOnline: Boolean = false,
+    val balance: Double = depositBalance
 )
 
 @Entity(tableName = "tournaments")
@@ -138,5 +139,17 @@ data class RefundRequestEntity(
     val status: String = "PENDING", // "PENDING", "APPROVED", "REJECTED"
     val refundDestination: String = "WALLET", // "WALLET" or "BANK" (reversals)
     val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "notifications")
+data class NotificationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: String,
+    val title: String,
+    val message: String,
+    val type: String, // "MATCH_START", "TIME_UPDATE", "ROOM_CREDS", "GENERAL"
+    val timestamp: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false,
+    val tournamentId: Int? = null
 )
 
