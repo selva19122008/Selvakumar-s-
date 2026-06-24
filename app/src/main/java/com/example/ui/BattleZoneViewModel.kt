@@ -1754,119 +1754,105 @@ class BattleZoneViewModel(
     ) {
         val email = emailInput.trim().lowercase()
         val password = passwordInput.trim()
-        try {
-            val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
-            auth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        viewModelScope.launch {
-                            val cleanEmail = email.replace("@", "_").replace(".", "_")
-                            val userId = "user_e_${cleanEmail.take(20)}"
-                            var user = repository.getUserSync(userId)
-                            if (user == null) {
-                                try {
-                                    val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
-                                    user = allUsersLocal.find { u ->
-                                        u.email.trim().lowercase() == email ||
-                                        u.id.trim().lowercase() == email ||
-                                        u.inGameName.trim().lowercase() == email ||
-                                        u.freeFireUid.trim().lowercase() == email
-                                    }
-                                } catch (e: Exception) { }
-                            }
-                            if (user == null) { user = getFirestoreUserById(userId) }
-                            if (user == null) { user = getFirestoreUserByEmail(email) }
-                            if (user == null) {
-                                user = UserEntity(
-                                    id = userId,
-                                    inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                    phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
-                                    email = email,
-                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
-                                )
-                                repository.insertUser(user)
-                            }
-                            
+        
+        viewModelScope.launch {
+            // Introduce a 1-second delay for verification as requested by the user
+            kotlinx.coroutines.delay(1000)
+            
+            val cleanEmail = email.replace("@", "_").replace(".", "_")
+            val userId = "user_e_${cleanEmail.take(20)}"
+            
+            // Check Room local DB
+            var user: UserEntity? = repository.getUserSync(userId)
+            if (user == null) {
+                try {
+                    val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                    user = allUsersLocal.find { u ->
+                        u.email.trim().lowercase() == email ||
+                        u.id.trim().lowercase() == email ||
+                        u.inGameName.trim().lowercase() == email ||
+                        u.freeFireUid.trim().lowercase() == email
+                    }
+                } catch (e: Exception) { }
+            }
+            
+            // Check Firestore database
+            if (user == null) { user = getFirestoreUserById(userId) }
+            if (user == null) { user = getFirestoreUserByEmail(email) }
+            
+            // Admins do not need to register. Auto create profile if email is admin.
+            if (user == null && email == "selva19122008@gmail.com") {
+                val adminUser = UserEntity(
+                    id = userId,
+                    inGameName = "Admin_Selva",
+                    freeFireUid = "ADMIN-1",
+                    phoneNumber = "+919999999999",
+                    extraMobileNumber = "",
+                    email = email,
+                    depositBalance = 5000.0,
+                    winningBalance = 5000.0,
+                    bonusBalance = 1000.0
+                )
+                repository.insertUser(adminUser)
+                user = adminUser
+            }
+            
+            // If the user does not exist in any database (local or firestore), they are NOT registered!
+            if (user == null) {
+                onFinished(
+                    false,
+                    "No, you are not registered. You do not have an account like this. You need to register first and then come."
+                )
+                return@launch
+            }
+            
+            // If they are registered, proceed with checking password credentials via Firebase Auth
+            val resolvedUser = user!!
+            val isDefaultPassword = password == "1212" || password == "one to one two"
+            if (isDefaultPassword) {
+                // Trigger the OTP flow and show the OTP screen instead of direct login bypass
+                onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
+                onFinished(true, null)
+                return@launch
+            }
+            
+            try {
+                val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+                auth.signInWithEmailAndPassword(email, password)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
                             // Temporarily sign out of Firebase Auth so session state is not stored on the device until OTP is fully verified
                             auth.signOut()
-                            
-                            onTriggerOtp(user.phoneNumber, user)
+                            onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
                             onFinished(true, null)
-                        }
-                    } else {
-                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
-                            viewModelScope.launch {
-                                val cleanEmail = email.replace("@", "_").replace(".", "_")
-                                val userId = "user_e_${cleanEmail.take(20)}"
-                                var user = repository.getUserSync(userId)
-                                if (user == null) {
-                                    try {
-                                        val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
-                                        user = allUsersLocal.find { u ->
-                                            u.email.trim().lowercase() == email ||
-                                            u.id.trim().lowercase() == email ||
-                                            u.inGameName.trim().lowercase() == email ||
-                                            u.freeFireUid.trim().lowercase() == email
-                                        }
-                                    } catch (e: Exception) { }
-                                }
-                                if (user == null) {
-                                    user = UserEntity(
-                                        id = userId,
-                                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
-                                        email = if (email.contains("@")) email else "$email@battlezone.com",
-                                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
-                                    )
-                                    repository.insertUser(user)
-                                }
-                                onTriggerOtp(user.phoneNumber, user)
-                                onFinished(true, null)
-                            }
                         } else {
-                            val errorMsg = task.exception?.localizedMessage ?: "Invalid email or password."
-                            onFinished(false, errorMsg)
+                            val exception = task.exception
+                            if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+                                // Wrong password entered for a registered user!
+                                onFinished(false, "Incorrect password. Please try again.")
+                            } else {
+                                // Other errors (e.g. Network offline). If in TEST_MODE or GMAIL_SMTP, allow offline bypass since the profile is registered
+                                val mode = getSmsGatewayMode()
+                                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                                    onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
+                                    onFinished(true, null)
+                                } else {
+                                    val errorMsg = exception?.localizedMessage ?: "Invalid password or network connection issue."
+                                    onFinished(false, errorMsg)
+                                }
+                            }
                         }
                     }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Catch any exception (e.g. Firebase initialization offline). If TEST_MODE/GMAIL_SMTP, let registered profiles pass with offline fallback
+                val mode = getSmsGatewayMode()
+                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                    onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
+                    onFinished(true, null)
+                } else {
+                    onFinished(false, e.localizedMessage ?: "Connection error during authentication.")
                 }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            viewModelScope.launch {
-                val cleanEmail = email.replace("@", "_").replace(".", "_")
-                val userId = "user_e_${cleanEmail.take(20)}"
-                var user = repository.getUserSync(userId)
-                if (user == null) {
-                    try {
-                        val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
-                        user = allUsersLocal.find { u ->
-                            u.email.trim().lowercase() == email ||
-                            u.id.trim().lowercase() == email ||
-                            u.inGameName.trim().lowercase() == email ||
-                            u.freeFireUid.trim().lowercase() == email
-                        }
-                    } catch (e2: Exception) { }
-                }
-                if (user == null) {
-                    user = UserEntity(
-                        id = userId,
-                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
-                        email = if (email.contains("@")) email else "$email@battlezone.com",
-                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
-                    )
-                    repository.insertUser(user)
-                }
-                onTriggerOtp(user.phoneNumber, user)
-                onFinished(true, null)
             }
         }
     }
@@ -2619,7 +2605,8 @@ class BattleZoneViewModel(
                 "custom_sms_url" to getCustomSmsUrl(),
                 "gmail_otp_backend_url" to getGmailOtpBackendUrl(),
                 "gmail_user" to getGmailUser(),
-                "gmail_app_password" to getGmailAppPassword()
+                "gmail_app_password" to getGmailAppPassword(),
+                "gmail_smtp_delivery_type" to getGmailSmtpDeliveryType()
             )
             firestore?.collection("settings")?.document("global_config")?.set(configMap)
         } catch (e: Exception) {
@@ -2840,8 +2827,7 @@ class BattleZoneViewModel(
                 } catch (e: Throwable) {}
             }
             
-            val isRecipientAdmin = email.trim().lowercase() == "selva19122008@gmail.com"
-            val resolvedMode = if (isRecipientAdmin) mode else (if (mode == "TEST_MODE") "GMAIL_SMTP" else mode)
+            val resolvedMode = mode
             
             if (resolvedMode == "TEST_MODE") {
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
@@ -2969,6 +2955,7 @@ class BattleZoneViewModel(
 
     fun getGmailUser(): String = sharedPrefs.getString("gmail_user", "your_email@gmail.com") ?: "your_email@gmail.com"
     fun getGmailAppPassword(): String = sharedPrefs.getString("gmail_app_password", "your_16_digit_app_password") ?: "your_16_digit_app_password"
+    fun getGmailSmtpDeliveryType(): String = sharedPrefs.getString("gmail_smtp_delivery_type", "BACKEND_API") ?: "BACKEND_API"
 
     fun updateGmailSmtpConfig(user: String, pass: String) {
         sharedPrefs.edit().apply {
@@ -2979,47 +2966,57 @@ class BattleZoneViewModel(
         pushSettingsToFirestore()
     }
 
+    fun updateGmailSmtpDeliveryType(type: String) {
+        sharedPrefs.edit().putString("gmail_smtp_delivery_type", type.trim()).apply()
+        pushSettingsToFirestore()
+    }
+
     private var lastSentGmailOtp: String = ""
 
     fun sendGmailOtpSecurely(recipientEmail: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
         lastSentGmailOtp = otpCode.trim()
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. Attempt sending via the secure backend API endpoint (Nodemailer library)
-            try {
-                val backendUrl = getGmailOtpBackendUrl()
-                val client = okhttp3.OkHttpClient.Builder()
-                    .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
-                    .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
-                    .build()
-                
-                val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
-                val jsonBody = """
-                    {
-                        "email": "${recipientEmail.trim()}",
-                        "otpCode": "${otpCode.trim()}",
-                        "purpose": "Account Verification"
+            val deliveryType = getGmailSmtpDeliveryType()
+            if (deliveryType == "BACKEND_API") {
+                // 1. Attempt sending via the secure backend API endpoint (Nodemailer library)
+                try {
+                    val backendUrl = getGmailOtpBackendUrl()
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    
+                    val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                    val jsonBody = """
+                        {
+                            "email": "${recipientEmail.trim()}",
+                            "otpCode": "${otpCode.trim()}",
+                            "purpose": "Account Verification"
+                        }
+                    """.trimIndent()
+                    
+                    val request = okhttp3.Request.Builder()
+                        .url(backendUrl)
+                        .post(jsonBody.toRequestBody(jsonMediaType))
+                        .build()
+                    
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string() ?: ""
+                    
+                    if (response.isSuccessful) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            logSecurityEvent("Secure backend SMTP OTP dispatch succeeded via Nodemailer to $recipientEmail")
+                            onFinished(true, null)
+                        }
+                        return@launch
+                    } else {
+                        logSecurityEvent("Backend SMTP OTP dispatch returned non-success code: ${response.code}. Detail: $responseBody. Falling back to direct socket client.")
                     }
-                """.trimIndent()
-                
-                val request = okhttp3.Request.Builder()
-                    .url(backendUrl)
-                    .post(jsonBody.toRequestBody(jsonMediaType))
-                    .build()
-                
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: ""
-                
-                if (response.isSuccessful) {
-                    kotlinx.coroutines.withContext(Dispatchers.Main) {
-                        logSecurityEvent("Secure backend SMTP OTP dispatch succeeded via Nodemailer to $recipientEmail")
-                        onFinished(true, null)
-                    }
-                    return@launch
-                } else {
-                    logSecurityEvent("Backend SMTP OTP dispatch returned non-success code: ${response.code}. Detail: $responseBody. Falling back to direct socket client.")
+                } catch (e: Exception) {
+                    logSecurityEvent("Backend SMTP OTP dispatch exception: ${e.message}. Falling back to direct socket client.")
                 }
-            } catch (e: Exception) {
-                logSecurityEvent("Backend SMTP OTP dispatch exception: ${e.message}. Falling back to direct socket client.")
+            } else {
+                logSecurityEvent("Direct secure SSL SMTP socket selected for OTP delivery to $recipientEmail")
             }
 
             // 2. Fallback to direct SMTP over Socket as backup
