@@ -14,20 +14,37 @@ const GMAIL_USER = process.env.GMAIL_USER || '';
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || ''; // 16-character Google App Password
 
 /**
- * Creates and configures Nodemailer SMTP Transporter
+ * Creates and configures Nodemailer SMTP Transporter with optional DKIM signing
  */
 const createTransporter = () => {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
     console.warn('[Email Service] Gmail credentials are not configured in your environment variables.');
   }
 
-  return nodemailer.createTransport({
+  const transportOpts = {
     service: 'gmail',
     auth: {
       user: GMAIL_USER,
       pass: GMAIL_APP_PASSWORD
     }
-  });
+  };
+
+  // Add DKIM options if provided to prevent spam categorization
+  const DKIM_DOMAIN_NAME = process.env.DKIM_DOMAIN_NAME || '';
+  const DKIM_KEY_SELECTOR = process.env.DKIM_KEY_SELECTOR || 'default';
+  const DKIM_PRIVATE_KEY = process.env.DKIM_PRIVATE_KEY || '';
+
+  if (DKIM_DOMAIN_NAME && DKIM_PRIVATE_KEY) {
+    const formattedKey = DKIM_PRIVATE_KEY.replace(/\\n/g, '\n');
+    transportOpts.dkim = {
+      domainName: DKIM_DOMAIN_NAME,
+      keySelector: DKIM_KEY_SELECTOR,
+      privateKey: formattedKey
+    };
+    console.log(`[Email Service] DKIM configuration active for domain: ${DKIM_DOMAIN_NAME}`);
+  }
+
+  return nodemailer.createTransport(transportOpts);
 };
 
 /**
@@ -172,12 +189,27 @@ exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification')
       </html>
     `;
 
+    // Generate a unique, compliant Message-ID to improve inbox delivery rate
+    const crypto = require('crypto');
+    const domainPart = GMAIL_USER.includes('@') ? GMAIL_USER.split('@')[1] : 'battlezone.com';
+    const uniqueId = crypto.randomBytes(16).toString('hex');
+    const customMessageId = `<${uniqueId}@${domainPart}>`;
+
     const mailOptions = {
-      from: `"BattleZone Admin" <${GMAIL_USER}>`,
+      from: `"BattleZone Esports" <${GMAIL_USER}>`,
       to: recipientEmail.trim().toLowerCase(),
-      subject: `[BattleZone] Secure Verification Code Key: ${otpCode}`,
+      replyTo: `"BattleZone Esports Support" <${GMAIL_USER}>`,
+      subject: `BattleZone Verification Code: ${otpCode}`,
       html: htmlBody,
-      text: `BattleZone Esports Team verification credentials code: ${otpCode}. Valid for 10 minutes.`
+      text: `Your BattleZone verification code is: ${otpCode}. It is valid for 10 minutes. Please enter it in the application to complete verification.`,
+      messageId: customMessageId,
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
+        'Precedence': 'bulk'
+      }
     };
 
     const info = await transporter.sendMail(mailOptions);

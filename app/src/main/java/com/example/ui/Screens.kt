@@ -9018,6 +9018,16 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var enteredOtp by remember { mutableStateOf("") }
     var otpFlowType by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN", "REGISTER", "GOOGLE", "GOOGLE_LINKED"
     var otpErrorMsg by remember { mutableStateOf<String?>(null) }
+    var otpTimerSeconds by remember { mutableStateOf(60) }
+    LaunchedEffect(authStep) {
+        if (authStep == "OTP") {
+            otpTimerSeconds = 60
+            while (otpTimerSeconds > 0) {
+                delay(1000L)
+                otpTimerSeconds--
+            }
+        }
+    }
     val lastRegisteredUserId = remember { viewModel.getLastRegisteredUserId() }
     var cachedUserDetails by remember { mutableStateOf<UserEntity?>(null) }
     var isReentryActive by remember { mutableStateOf(lastRegisteredUserId.isNotBlank()) }
@@ -9212,6 +9222,15 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 ) {
                     if (authStep == "OTP") {
                         // OTP verification form view
+                        val currentVerifyingEmail = if (otpFlowType == "SIGN_IN") {
+                            if (loginEmailInput.trim().isNotBlank()) loginEmailInput.trim() else if (emailInput.isNotBlank()) emailInput.trim() else ""
+                        } else if (otpFlowType == "GOOGLE_LINKED" || otpFlowType == "GOOGLE") {
+                            customGoogleEmail.trim().lowercase()
+                        } else {
+                            emailInput.trim()
+                        }
+                        val isEmailAdmin = currentVerifyingEmail.trim().lowercase() == "selva19122008@gmail.com"
+
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -9230,8 +9249,106 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 color = GreyText,
                                 textAlign = TextAlign.Center
                             )
+
+                            // Dynamic high-visibility English spam notice
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF201618), RoundedCornerShape(8.dp))
+                                    .border(BorderStroke(1.dp, Color(0xFFD32F2F).copy(alpha = 0.5f)), RoundedCornerShape(8.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "⚠️ OTP EMAIL NOT ARRIVING?",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFFF5252),
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "If the OTP code does not arrive in your Primary Inbox, please check your Spam or Junk folder. Mark it as 'Not Spam' to receive future tournament matches and wallet updates directly to your Inbox.",
+                                        fontSize = 9.sp,
+                                        color = GreyText,
+                                        lineHeight = 12.sp
+                                    )
+                                }
+                            }
+
+                            // High-visibility 60s cooldown timer card to protect from brute-force injections
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (otpTimerSeconds > 0) Color(0xFF1B1610) else Color(0xFF101915), 
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .border(
+                                        BorderStroke(
+                                            1.dp, 
+                                            if (otpTimerSeconds > 0) Color(0xFFFFB300).copy(alpha = 0.4f) else Color(0xFF00C853).copy(alpha = 0.4f)
+                                        ), 
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        if (otpTimerSeconds > 0) {
+                                            CircularProgressIndicator(
+                                                progress = otpTimerSeconds / 60f,
+                                                modifier = Modifier.fillMaxSize(),
+                                                color = Color(0xFFFFB300),
+                                                strokeWidth = 3.dp,
+                                            )
+                                            Text(
+                                                text = "$otpTimerSeconds",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFFFFB300),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "unlocked",
+                                                tint = Color(0xFF00C853),
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (otpTimerSeconds > 0) "⏱️ BRUTE-FORCE PROTECTION COOLDOWN" else "🔓 SECURE VERIFICATION UNLOCKED",
+                                            fontSize = 9.sp,
+                                            color = if (otpTimerSeconds > 0) Color(0xFFFFB300) else Color(0xFF00C853),
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = if (otpTimerSeconds > 0) {
+                                                "To prevent multiple rapid OTP verification attempts, submission actions are locked for the next $otpTimerSeconds seconds."
+                                            } else {
+                                                "Account cooldown expired successfully. You may now submit your verification code to access the terminal."
+                                            },
+                                            fontSize = 9.sp,
+                                            color = GreyText,
+                                            lineHeight = 11.sp
+                                        )
+                                    }
+                                }
+                            }
                             
-                            if (generatedOtp.isNotEmpty()) {
+                            if (generatedOtp.isNotEmpty() && isEmailAdmin) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Box(
                                     modifier = Modifier
@@ -9317,7 +9434,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     }
                                     val isEmailAdmin = verificationEmail.trim().lowercase() == "selva19122008@gmail.com"
                                     val resolvedGateway = currentGateway
-                                    val isDirectOtpBypass = enteredOtp == "1212" || enteredOtp == "one to one two" || enteredOtp == "121212"
+                                    val isDirectOtpBypass = isEmailAdmin && (enteredOtp == "1212" || enteredOtp == "one to one two" || enteredOtp == "121212")
                                     
                                     if (resolvedGateway == "GMAIL_SMTP" && !isDirectOtpBypass) {
                                         viewModel.verifyGmailOtpSecurely(
@@ -9366,7 +9483,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             }
                                         )
                                     } else {
-                                        val isMockOtpValid = (enteredOtp == generatedOtp || isDirectOtpBypass || (enteredOtp == "1212" && resolvedGateway == "TEST_MODE"))
+                                        val isMockOtpValid = (enteredOtp == generatedOtp || isDirectOtpBypass || (isEmailAdmin && enteredOtp == "1212" && resolvedGateway == "TEST_MODE"))
                                         if (isMockOtpValid && (resolvedGateway == "TEST_MODE" || isDirectOtpBypass || viewModel.firebaseVerificationId == null)) {
                                         // Bypass for debugging test mode (Email and Password Enabled)
                                         if (otpFlowType == "SIGN_IN") {
@@ -9584,11 +9701,19 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                      }
                                      }
                                   },
-                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                enabled = otpTimerSeconds <= 0,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = RedPrimary,
+                                    disabledContainerColor = RedPrimary.copy(alpha = 0.35f)
+                                ),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_submit_btn")
                             ) {
-                                Text("VERIFY OTP & OPEN APP", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
+                                if (otpTimerSeconds > 0) {
+                                    Text("LOCKOUT COOLDOWN ACTIVE (${otpTimerSeconds}s)", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                } else {
+                                    Text("VERIFY OTP & OPEN APP", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
+                                }
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             TextButton(

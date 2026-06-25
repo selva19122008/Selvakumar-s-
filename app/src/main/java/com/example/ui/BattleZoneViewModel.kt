@@ -3169,9 +3169,12 @@ class BattleZoneViewModel(
                 }
 
                 // Send complete email body content
-                writer.print("From: BattleZone Support <$gmailUser>\r\n")
+                writer.print("From: BattleZone Esports <$gmailUser>\r\n")
                 writer.print("To: $recipientEmail\r\n")
-                writer.print("Subject: [BattleZone] Secure Verification Code Key: $otpCode\r\n")
+                writer.print("Subject: BattleZone Verification Code: $otpCode\r\n")
+                writer.print("X-Priority: 1\r\n")
+                writer.print("X-MSMail-Priority: High\r\n")
+                writer.print("Importance: high\r\n")
                 writer.print("MIME-Version: 1.0\r\n")
                 writer.print("Content-Type: text/html; charset=UTF-8\r\n")
                 writer.print("\r\n")

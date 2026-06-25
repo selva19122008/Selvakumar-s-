@@ -64,6 +64,10 @@ android {
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
+  // Exclude server-only keys from Android build configuration
+  ignoreList.add("DKIM_PRIVATE_KEY")
+  ignoreList.add("DKIM_DOMAIN_NAME")
+  ignoreList.add("DKIM_KEY_SELECTOR")
 }
 
 // Some unused dependencies are commented out below instead of being removed.
