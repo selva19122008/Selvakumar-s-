@@ -415,11 +415,13 @@ class BattleZoneViewModel(
     }
 
     fun startUserFirestoreSync(userId: String) {
+        if (!isRealtimeSyncEnabled.value) return
         currentUserSnapshotListener?.remove()
         try {
             currentUserSnapshotListener = firestore?.collection("users")
                 ?.document(userId)
                 ?.addSnapshotListener { snapshot, error ->
+                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                     if (error != null) {
                         error.printStackTrace()
                         return@addSnapshotListener
@@ -488,9 +490,11 @@ class BattleZoneViewModel(
     }
 
     fun startFirestoreSync() {
+        if (!isRealtimeSyncEnabled.value) return
         try {
             firestore?.collection("tournaments")
                ?.addSnapshotListener { snapshot, error ->
+                   if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                    if (error != null) {
                        error.printStackTrace()
                        return@addSnapshotListener
@@ -540,6 +544,7 @@ class BattleZoneViewModel(
 
             firestore?.collection("withdrawals")
                ?.addSnapshotListener { snapshot, error ->
+                   if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                    if (error != null) {
                        error.printStackTrace()
                        return@addSnapshotListener
@@ -564,6 +569,7 @@ class BattleZoneViewModel(
 
              firestore?.collection("joins")
                 ?.addSnapshotListener { snapshot, error ->
+                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                     if (error != null) {
                         error.printStackTrace()
                         return@addSnapshotListener
@@ -612,6 +618,7 @@ class BattleZoneViewModel(
 
              firestore?.collection("users")
                 ?.addSnapshotListener { snapshot, error ->
+                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                     if (error != null) {
                         error.printStackTrace()
                         return@addSnapshotListener
@@ -2290,7 +2297,17 @@ class BattleZoneViewModel(
     val adminAllSubmittedProofs: StateFlow<List<TournamentJoinEntity>> = repository.getAllSubmittedProofsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Real Admin Config with SharedPreferences
+    private val sharedPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("payment_prefs", android.content.Context.MODE_PRIVATE)
+    }
+
+    val isRealtimeSyncEnabled = MutableStateFlow(true)
+    val isAutoTournamentPromotionEnabled = MutableStateFlow(true)
+
     init {
+        isRealtimeSyncEnabled.value = sharedPrefs.getBoolean("realtime_sync_enabled", true)
+        isAutoTournamentPromotionEnabled.value = sharedPrefs.getBoolean("auto_tournament_promotion_enabled", true)
         viewModelScope.launch {
             repository.prefillIfEmpty()
             startFirestoreSync()
@@ -2437,6 +2454,9 @@ class BattleZoneViewModel(
              kotlinx.coroutines.delay(3000) // initial loading settle grace period
              while (true) {
                  kotlinx.coroutines.delay(5000)
+                 if (!isAutoTournamentPromotionEnabled.value) {
+                     continue
+                 }
                  if (_userRole.value != "admin" && firestore != null) {
                      continue
                  }
@@ -2547,8 +2567,13 @@ class BattleZoneViewModel(
         // Real-time observer of local users table updates to continuously push balance upgrades to Firebase Firestore
         viewModelScope.launch {
             repository.allUsers.collect { users ->
-                users.forEach { u ->
-                    pushUserToFirestore(u)
+                if (isRealtimeSyncEnabled.value) {
+                    users.forEach { u ->
+                        // Only push to Firestore if it's the current user, or if we are admin making administrative balance modifications
+                        if (u.id == currentUserId || _userRole.value == "admin") {
+                            pushUserToFirestore(u)
+                        }
+                    }
                 }
             }
         }
@@ -2710,11 +2735,6 @@ class BattleZoneViewModel(
 
             onResult("SUCCESS")
         }
-    }
-
-    // Real Admin Config with SharedPreferences
-    private val sharedPrefs by lazy {
-        getApplication<Application>().getSharedPreferences("payment_prefs", android.content.Context.MODE_PRIVATE)
     }
 
     fun hasNotifiedApproval(withdrawalId: Int): Boolean {
@@ -3213,6 +3233,25 @@ class BattleZoneViewModel(
 
     fun isAppModified(): Boolean = _isAppModifiedFlow.value
     fun isAppUpdateAvailable(): Boolean = _appUpdateAvailableFlow.value
+
+    fun setRealtimeSyncEnabled(enabled: Boolean) {
+        sharedPrefs.edit().putBoolean("realtime_sync_enabled", enabled).apply()
+        isRealtimeSyncEnabled.value = enabled
+        if (!enabled) {
+            currentUserSnapshotListener?.remove()
+            currentUserSnapshotListener = null
+        } else {
+            startFirestoreSync()
+            if (currentUserId != "default_user") {
+                startUserFirestoreSync(currentUserId)
+            }
+        }
+    }
+
+    fun setAutoTournamentPromotionEnabled(enabled: Boolean) {
+        sharedPrefs.edit().putBoolean("auto_tournament_promotion_enabled", enabled).apply()
+        isAutoTournamentPromotionEnabled.value = enabled
+    }
 
     fun applyAppUpdate(onFinished: () -> Unit) {
         viewModelScope.launch {

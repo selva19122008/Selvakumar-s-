@@ -12620,6 +12620,121 @@ fun AdminSecurityTab(
                 }
             }
         }
+        
+        // 2.5 System Synchronization & Stability Controls
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF24222B)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(NeonGold.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                            .padding(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Stability Settings Icon",
+                            tint = NeonGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        "🔧 SYSTEM SYNCHRONIZATION & STABILITY CONTROLS",
+                        fontSize = 11.sp,
+                        color = NeonGold,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Manage core sync engines and background automatic operations to stabilize layouts or prevent flickering states.",
+                    fontSize = 9.sp,
+                    color = GreyText
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Real-time Firestore Sync Switch Row
+                val isSyncEnabled by viewModel.isRealtimeSyncEnabled.collectAsStateWithLifecycle()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            "Real-time Cloud Firestore Sync",
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "Continuously pushes local database changes and listens for cloud updates. Disable if experiencing network flickering or state instability.",
+                            fontSize = 9.sp,
+                            color = GreyText
+                        )
+                    }
+                    Switch(
+                        checked = isSyncEnabled,
+                        onCheckedChange = { viewModel.setRealtimeSyncEnabled(it) },
+                        modifier = Modifier.testTag("toggle_realtime_sync_switch"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = RedPrimary,
+                            uncheckedThumbColor = GreyText,
+                            uncheckedTrackColor = Color(0xFF1F1B24)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFF24222B), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Automatic Tournament State Transitions Switch Row
+                val isPromotionEnabled by viewModel.isAutoTournamentPromotionEnabled.collectAsStateWithLifecycle()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            "Auto Tournament State Transitions",
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "Enables background timer engine to automatically promote match statuses (UPCOMING -> LIVE -> COMPLETED). Disable to freeze match state changes.",
+                            fontSize = 9.sp,
+                            color = GreyText
+                        )
+                    }
+                    Switch(
+                        checked = isPromotionEnabled,
+                        onCheckedChange = { viewModel.setAutoTournamentPromotionEnabled(it) },
+                        modifier = Modifier.testTag("toggle_auto_transitions_switch"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = RedPrimary,
+                            uncheckedThumbColor = GreyText,
+                            uncheckedTrackColor = Color(0xFF1F1B24)
+                        )
+                    )
+                }
+            }
+        }
+        
         Spacer(modifier = Modifier.height(16.dp))
         // 3. Scanner Controls Cards
         Card(
