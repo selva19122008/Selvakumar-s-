@@ -12732,6 +12732,90 @@ fun AdminSecurityTab(
                         )
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFF24222B), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Recalibrate & Realignment Section
+                var alignmentResultMsg by remember { mutableStateOf("") }
+                var isAligning by remember { mutableStateOf(false) }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "⚡ Database Auto-Healing & ID Recalibration",
+                        fontSize = 11.sp,
+                        color = NeonGold,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Scans all local and cloud collections, aligns out-of-sync tournament IDs, purges duplicates, resolves key collisions, and heals flickering UI/shaking states automatically.",
+                        fontSize = 9.sp,
+                        color = GreyText
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (alignmentResultMsg.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E1A16), RoundedCornerShape(8.dp))
+                                .border(BorderStroke(1.dp, NeonGold.copy(alpha = 0.2f)), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = alignmentResultMsg,
+                                fontSize = 10.sp,
+                                color = NeonGold,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    Button(
+                        onClick = {
+                            isAligning = true
+                            alignmentResultMsg = "Scanning collections and resolving overlaps..."
+                            viewModel.adminRecalibrateAndRepairDatabase { msg ->
+                                isAligning = false
+                                alignmentResultMsg = msg
+                            }
+                        },
+                        enabled = !isAligning,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1A3322),
+                            disabledContainerColor = Color(0xFF161E18)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .testTag("admin_recalibrate_repair_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isAligning) Icons.Default.Sync else Icons.Default.Healing,
+                                contentDescription = "Repair Icon",
+                                tint = Color(0xFF00E676),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isAligning) "ALIGNING SYSTEMS..." else "HEAL & RECALIBRATE SYSTEM DATABASE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF00E676),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
             }
         }
         

@@ -18,7 +18,7 @@ data class UserEntity(
     val referrerId: String? = null,
     val extraMobileNumber: String = "",
     val isOnline: Boolean = false,
-    val balance: Double = depositBalance
+    val balance: Double = depositBalance + winningBalance + bonusBalance
 )
 
 @Entity(tableName = "tournaments")

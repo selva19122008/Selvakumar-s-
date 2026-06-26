@@ -28,6 +28,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     suspend fun updateTournament(tournament: TournamentEntity) = tournamentDao.updateTournament(tournament)
     suspend fun deleteTournament(tournament: TournamentEntity) = tournamentDao.deleteTournament(tournament)
     suspend fun insertTournaments(tournaments: List<TournamentEntity>) = tournamentDao.insertTournaments(tournaments)
+    suspend fun clearTournaments() = tournamentDao.clearTournaments()
 
     // Joins
     fun getJoinsForTournamentFlow(tournamentId: Int): Flow<List<TournamentJoinEntity>> = joinDao.getJoinsForTournamentFlow(tournamentId)
@@ -39,6 +40,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     fun getAllJoinsFlow(): Flow<List<TournamentJoinEntity>> = joinDao.getAllJoinsFlow()
     suspend fun insertJoin(join: TournamentJoinEntity) = joinDao.insertJoin(join)
     suspend fun deleteJoin(join: TournamentJoinEntity) = joinDao.deleteJoin(join)
+    suspend fun clearJoins() = joinDao.clearJoins()
 
     // Transactions
     fun getTransactionsForUserFlow(userId: String): Flow<List<TransactionEntity>> = transactionDao.getTransactionsForUserFlow(userId)
@@ -53,6 +55,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     val allWithdrawals: Flow<List<WithdrawalRequestEntity>> = withdrawalDao.getAllWithdrawalsFlow()
     suspend fun insertWithdrawal(withdrawal: WithdrawalRequestEntity): Long = withdrawalDao.insertWithdrawal(withdrawal)
     suspend fun updateWithdrawal(withdrawal: WithdrawalRequestEntity) = withdrawalDao.updateWithdrawal(withdrawal)
+    suspend fun clearWithdrawals() = withdrawalDao.clearWithdrawals()
 
     // Support Tickets
     fun getTicketsForUserFlow(userId: String): Flow<List<SupportTicketEntity>> = supportDao.getTicketsForUserFlow(userId)

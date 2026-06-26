@@ -52,6 +52,9 @@ interface TournamentDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTournaments(tournaments: List<TournamentEntity>)
+
+    @Query("DELETE FROM tournaments")
+    suspend fun clearTournaments()
 }
 
 @Dao
@@ -82,6 +85,9 @@ interface JoinDao {
 
     @Delete
     suspend fun deleteJoin(join: TournamentJoinEntity)
+
+    @Query("DELETE FROM user_tournament_joins")
+    suspend fun clearJoins()
 }
 
 @Dao
@@ -118,6 +124,9 @@ interface WithdrawalDao {
 
     @Update
     suspend fun updateWithdrawal(withdrawal: WithdrawalRequestEntity)
+
+    @Query("DELETE FROM withdrawal_requests")
+    suspend fun clearWithdrawals()
 }
 
 @Dao

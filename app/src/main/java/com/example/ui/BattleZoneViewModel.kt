@@ -386,6 +386,13 @@ class BattleZoneViewModel(
         }
     }
 
+    suspend fun saveAndSyncUser(user: UserEntity) {
+        repository.insertUser(user)
+        if (isRealtimeSyncEnabled.value) {
+            pushUserToFirestore(user)
+        }
+    }
+
     fun deleteUser(userId: String) {
         viewModelScope.launch {
             try {
@@ -2563,20 +2570,6 @@ class BattleZoneViewModel(
                 }
             }
         }
-
-        // Real-time observer of local users table updates to continuously push balance upgrades to Firebase Firestore
-        viewModelScope.launch {
-            repository.allUsers.collect { users ->
-                if (isRealtimeSyncEnabled.value) {
-                    users.forEach { u ->
-                        // Only push to Firestore if it's the current user, or if we are admin making administrative balance modifications
-                        if (u.id == currentUserId || _userRole.value == "admin") {
-                            pushUserToFirestore(u)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private val pendingLivePromotions = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
@@ -2670,8 +2663,10 @@ class BattleZoneViewModel(
             }
 
             // Save player join & update remaining slots
+            val deterministicJoinId = (currentUserId + "_" + tournamentId).hashCode() and 0x7FFFFFFF
             val reservedSeat = tournament.slotsTotal - tournament.slotsRemaining + 1
             val joinEntry = TournamentJoinEntity(
+                id = deterministicJoinId,
                 userId = currentUserId,
                 tournamentId = tournamentId,
                 freeFireUid = user.freeFireUid,
@@ -2687,7 +2682,7 @@ class BattleZoneViewModel(
             pushTournamentToFirestore(updatedTournament)
 
             // Update user balance
-            repository.insertUser(user.copy(
+            saveAndSyncUser(user.copy(
                 bonusBalance = newBonus,
                 depositBalance = newDeposit,
                 winningBalance = newWinning,
@@ -3253,6 +3248,120 @@ class BattleZoneViewModel(
         isAutoTournamentPromotionEnabled.value = enabled
     }
 
+    private suspend fun fetchFirestoreCollection(collectionName: String): List<Map<String, Any?>> = kotlin.coroutines.suspendCoroutine { cont ->
+        firestore?.collection(collectionName)?.get()
+            ?.addOnSuccessListener { snapshot ->
+                if (snapshot != null) {
+                    val list = snapshot.documents.mapNotNull { it.data }
+                    cont.resumeWith(Result.success(list))
+                } else {
+                    cont.resumeWith(Result.success(emptyList()))
+                }
+            }
+            ?.addOnFailureListener {
+                it.printStackTrace()
+                cont.resumeWith(Result.success(emptyList()))
+            } ?: cont.resumeWith(Result.success(emptyList()))
+    }
+
+    fun adminRecalibrateAndRepairDatabase(onFinished: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val fs = firestore
+                if (fs == null) {
+                    onFinished("Cloud Firestore is not initialized.")
+                    return@launch
+                }
+
+                // 1. Pause active syncs to avoid feedback loops
+                val wasSyncEnabled = isRealtimeSyncEnabled.value
+                isRealtimeSyncEnabled.value = false
+
+                // 2. Fetch remote collections asynchronously
+                val remoteTourneyMaps = fetchFirestoreCollection("tournaments")
+                val remoteJoinMaps = fetchFirestoreCollection("joins")
+                val remoteWdMaps = fetchFirestoreCollection("withdrawals")
+
+                val remoteTourneys = remoteTourneyMaps.map { mapToTournament(it) }
+                val remoteJoins = remoteJoinMaps.map { mapToJoin(it) }
+                val remoteWithdrawals = remoteWdMaps.map { mapToWithdrawal(it) }
+
+                // 3. Clear local Room database tables to wipe any corruption/out-of-sync IDs
+                repository.clearTournaments()
+                repository.clearJoins()
+                repository.clearWithdrawals()
+
+                // 4. Resolve conflicts & duplicates deterministically
+                val resolvedTourneys = mutableMapOf<Int, TournamentEntity>()
+                for (t in remoteTourneys) {
+                    var finalId = t.id
+                    if (finalId == 0) {
+                        finalId = (t.title + "_" + t.dateTimeStr + "_" + (1000..9999).random()).hashCode() and 0x7FFFFFFF
+                    }
+                    val updatedT = t.copy(id = finalId)
+                    resolvedTourneys[finalId] = updatedT
+                }
+
+                val resolvedJoins = mutableMapOf<Int, com.example.db.TournamentJoinEntity>()
+                for (j in remoteJoins) {
+                    // Force a deterministic non-conflicting ID for all joins
+                    val deterministicId = (j.userId + "_" + j.tournamentId).hashCode() and 0x7FFFFFFF
+                    val updatedJ = j.copy(id = deterministicId)
+                    resolvedJoins[deterministicId] = updatedJ
+                }
+
+                val resolvedWds = mutableMapOf<Int, WithdrawalRequestEntity>()
+                for (w in remoteWithdrawals) {
+                    var finalId = w.id
+                    if (finalId == 0) {
+                        finalId = (w.userId + "_" + w.amount + "_" + System.currentTimeMillis() + "_" + (1000..9999).random()).hashCode() and 0x7FFFFFFF
+                    }
+                    val updatedW = w.copy(id = finalId)
+                    resolvedWds[finalId] = updatedW
+                }
+
+                // 5. Delete corrupted/duplicate nodes from Cloud Firestore first
+                for (t in remoteTourneys) {
+                    deleteTournamentFromFirestore(t.id)
+                }
+                for (j in remoteJoins) {
+                    deleteJoinFromFirestore(j.userId, j.tournamentId)
+                }
+                for (w in remoteWithdrawals) {
+                    try {
+                        fs.collection("withdrawals").document("withdraw_${w.id}").delete()
+                    } catch (e: Exception) { e.printStackTrace() }
+                }
+
+                // 6. Bulk re-insert resolved and clean records into local database AND Cloud Firestore
+                for ((_, t) in resolvedTourneys) {
+                    repository.insertTournament(t)
+                    pushTournamentToFirestore(t)
+                }
+                for ((_, j) in resolvedJoins) {
+                    repository.insertJoin(j)
+                    pushJoinToFirestore(j)
+                }
+                for ((_, w) in resolvedWds) {
+                    repository.insertWithdrawal(w)
+                    pushWithdrawalToFirestore(w)
+                }
+
+                // 7. Restore synchronization state and force refresh
+                isRealtimeSyncEnabled.value = wasSyncEnabled
+                if (wasSyncEnabled) {
+                    startFirestoreSync()
+                }
+
+                onFinished("Success! Aligned ${resolvedTourneys.size} Tournaments, ${resolvedJoins.size} Joins, and ${resolvedWds.size} Withdrawals cleanly across systems.")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isRealtimeSyncEnabled.value = true
+                onFinished("Failure occurred during alignment: ${e.localizedMessage}")
+            }
+        }
+    }
+
     fun applyAppUpdate(onFinished: () -> Unit) {
         viewModelScope.launch {
             kotlinx.coroutines.delay(1200)
@@ -3266,14 +3375,50 @@ class BattleZoneViewModel(
     fun sendGmailOtpSecurely(recipientEmail: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
         lastSentGmailOtp = otpCode.trim()
         viewModelScope.launch(Dispatchers.IO) {
+            var gmailUser = getGmailUser().trim().lowercase().replace(" ", "")
+            var gmailAppPassword = getGmailAppPassword().trim().replace(" ", "")
+
+            // Fallback attempt to BuildConfig keys if local values are placeholder defaults
+            if (gmailUser == "your_email@gmail.com" || gmailUser.isBlank()) {
+                try {
+                    val refUser = com.example.BuildConfig.GMAIL_USER
+                    if (!refUser.isNullOrBlank() && refUser != "your_email@gmail.com") {
+                        gmailUser = refUser.trim().lowercase().replace(" ", "")
+                    }
+                } catch (e: Throwable) {}
+            }
+            if (gmailAppPassword == "your_16_digit_app_password" || gmailAppPassword.isBlank()) {
+                try {
+                    val refPass = com.example.BuildConfig.GMAIL_APP_PASSWORD
+                    if (!refPass.isNullOrBlank() && refPass != "your_16_digit_app_password") {
+                        gmailAppPassword = refPass.trim().replace(" ", "")
+                    }
+                } catch (e: Throwable) {}
+            }
+
+            // If credentials are empty or still equal placeholder, raise setup instructions IMMEDIATELY
+            if (gmailUser.isBlank() || gmailUser == "your_email@gmail.com" ||
+                gmailAppPassword.isBlank() || gmailAppPassword == "your_16_digit_app_password") {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    logSecurityEvent("SMTP credentials missing/placeholder. Activating developer fallback dispatch for OTP: $otpCode")
+                    showToast(
+                        title = "📧 SMTP SETUP REQUIRED",
+                        message = "Gmail SMTP is not configured. Set up in Admin Panel -> SMS Gateway. [DEV FALLBACK OTP]: $otpCode",
+                        type = NotificationType.WARNING
+                    )
+                    onFinished(true, null)
+                }
+                return@launch
+            }
+
             val deliveryType = getGmailSmtpDeliveryType()
             if (deliveryType == "BACKEND_API") {
                 // 1. Attempt sending via the secure backend API endpoint (Nodemailer library)
                 try {
                     val backendUrl = getGmailOtpBackendUrl()
                     val client = okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                        .connectTimeout(2, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(2, java.util.concurrent.TimeUnit.SECONDS)
                         .build()
                     
                     val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
@@ -3311,41 +3456,6 @@ class BattleZoneViewModel(
 
             // 2. Fallback to direct SMTP over Socket as backup
             try {
-                var gmailUser = getGmailUser().trim().lowercase().replace(" ", "")
-                var gmailAppPassword = getGmailAppPassword().trim().replace(" ", "")
-
-                // Fallback attempt to BuildConfig keys if local values are placeholder defaults
-                if (gmailUser == "your_email@gmail.com" || gmailUser.isBlank()) {
-                    try {
-                        val refUser = com.example.BuildConfig.GMAIL_USER
-                        if (!refUser.isNullOrBlank() && refUser != "your_email@gmail.com") {
-                            gmailUser = refUser.trim().lowercase().replace(" ", "")
-                        }
-                    } catch (e: Throwable) {}
-                }
-                if (gmailAppPassword == "your_16_digit_app_password" || gmailAppPassword.isBlank()) {
-                    try {
-                        val refPass = com.example.BuildConfig.GMAIL_APP_PASSWORD
-                        if (!refPass.isNullOrBlank() && refPass != "your_16_digit_app_password") {
-                            gmailAppPassword = refPass.trim().replace(" ", "")
-                        }
-                    } catch (e: Throwable) {}
-                }
-
-                // If credentials are empty or still equal placeholder, raise setup instructions
-                if (gmailUser.isBlank() || gmailUser == "your_email@gmail.com" ||
-                    gmailAppPassword.isBlank() || gmailAppPassword == "your_16_digit_app_password") {
-                    kotlinx.coroutines.withContext(Dispatchers.Main) {
-                        logSecurityEvent("SMTP credentials missing/placeholder. Activating developer fallback dispatch for OTP: $otpCode")
-                        showToast(
-                            title = "📧 SMTP SETUP REQUIRED",
-                            message = "Gmail SMTP is not configured. Set up in Admin Panel -> SMS Gateway. [DEV FALLBACK OTP]: $otpCode",
-                            type = NotificationType.WARNING
-                        )
-                        onFinished(true, null)
-                    }
-                    return@launch
-                }
 
                 val htmlBody = """
                     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 550px; margin: 0 auto; padding: 25px; border-radius: 12px; background-color: #0f0a14; border: 1px solid #28252c; color: #eceff1;">
@@ -3538,7 +3648,7 @@ class BattleZoneViewModel(
                 depositBalance = user.depositBalance + amount,
                 balance = user.depositBalance + amount + user.winningBalance + user.bonusBalance
             )
-            repository.insertUser(updatedUser)
+            saveAndSyncUser(updatedUser)
 
             val invoiceId = "TXN-DEP-${UUID.randomUUID().toString().take(8).uppercase()}"
             repository.insertTransaction(
@@ -3601,7 +3711,7 @@ class BattleZoneViewModel(
                         depositBalance = user.depositBalance + transaction.amount,
                         balance = user.depositBalance + transaction.amount + user.winningBalance + user.bonusBalance
                     )
-                    repository.insertUser(updatedUser)
+                    saveAndSyncUser(updatedUser)
                 }
                 showToast(
                     title = "✅ Deposit Approved!",
@@ -3649,15 +3759,16 @@ class BattleZoneViewModel(
             }
 
             // Place withdrawal on a processing state in the database
+            val deterministicWdId = (currentUserId + "_" + amount + "_" + System.currentTimeMillis() + "_" + upiId).hashCode() and 0x7FFFFFFF
             val request = WithdrawalRequestEntity(
+                id = deterministicWdId,
                 userId = currentUserId,
                 amount = amount,
                 upiId = upiId,
                 status = "PENDING"
             )
-            val insertedRowId = repository.insertWithdrawal(request)
-            val finalRequest = request.copy(id = insertedRowId.toInt())
-            pushWithdrawalToFirestore(finalRequest)
+            repository.insertWithdrawal(request)
+            pushWithdrawalToFirestore(request)
             logSecurityEvent("Financial ledger debit request submitted: User=$currentUserId, Amt=$amount, UPI=$upiId")
 
             // Insert matching pending transaction log
@@ -3711,7 +3822,7 @@ class BattleZoneViewModel(
                 depositBalance = user.depositBalance + 10.0,
                 balance = user.depositBalance + 10.0 + user.winningBalance + user.bonusBalance + 15.0
             )
-            repository.insertUser(updatedUser)
+            saveAndSyncUser(updatedUser)
 
             // Create transactions
             val txId = "TXN-REF-${UUID.randomUUID().toString().take(6).uppercase()}"
@@ -3859,7 +3970,9 @@ class BattleZoneViewModel(
         onFinished: () -> Unit
     ) {
         viewModelScope.launch {
+            val deterministicId = (title + "_" + dateTimeStr + "_" + System.currentTimeMillis()).hashCode() and 0x7FFFFFFF
             val newTournament = TournamentEntity(
+                id = deterministicId,
                 title = title,
                 dateTimeStr = dateTimeStr,
                 timestamp = parseToTimestamp(dateTimeStr),
@@ -3872,8 +3985,8 @@ class BattleZoneViewModel(
                 status = "UPCOMING",
                 rules = rules
             )
-            val insertedId = repository.insertTournament(newTournament)
-            val insertedTournament = repository.getTournamentSync(insertedId.toInt())
+            repository.insertTournament(newTournament)
+            val insertedTournament = repository.getTournamentSync(deterministicId)
             if (insertedTournament != null) {
                 pushTournamentToFirestore(insertedTournament)
                 com.example.notification.TournamentNotificationScheduler.scheduleTournamentAlert(getApplication(), insertedTournament)
@@ -3938,7 +4051,9 @@ class BattleZoneViewModel(
                 val timeRangeStr = "Today, $formatStart"
                 val title = "Free Fire Weekly Showdown"
 
+                val deterministicId = (title + "_" + timeRangeStr + "_" + idx + "_" + System.currentTimeMillis()).hashCode() and 0x7FFFFFFF
                 val newTournament = TournamentEntity(
+                    id = deterministicId,
                     title = title,
                     dateTimeStr = timeRangeStr,
                     timestamp = parseToTimestamp(timeRangeStr),
@@ -3999,8 +4114,8 @@ class BattleZoneViewModel(
             for (session in sessionsCreated) {
                 val alreadyExists = allExisting.any { it.title == session.title && it.dateTimeStr == session.dateTimeStr }
                 if (!alreadyExists) {
-                    val insertedId = repository.insertTournament(session)
-                    val insertedTournament = repository.getTournamentSync(insertedId.toInt())
+                    repository.insertTournament(session)
+                    val insertedTournament = repository.getTournamentSync(session.id)
                     if (insertedTournament != null) {
                         pushTournamentToFirestore(insertedTournament)
                     }
@@ -4027,7 +4142,7 @@ class BattleZoneViewModel(
                         depositBalance = player.depositBalance + tournament.entryFee,
                         balance = player.depositBalance + tournament.entryFee + player.winningBalance + player.bonusBalance
                     )
-                    repository.insertUser(updatedPlayer)
+                    saveAndSyncUser(updatedPlayer)
 
                     // Insert refund receipt
                     repository.insertTransaction(
@@ -4203,7 +4318,7 @@ class BattleZoneViewModel(
                     depositBalance = user.depositBalance + refund.entryFee,
                     balance = user.depositBalance + refund.entryFee + user.winningBalance + user.bonusBalance
                 )
-                repository.insertUser(updatedUser)
+                saveAndSyncUser(updatedUser)
             } else {
                 // Return to original bank account (represented transaction-wise as direct bank traversal reversal)
                 // We keep wallet balance unchanged, but issue a successful direct reversal transaction
@@ -4487,7 +4602,7 @@ class BattleZoneViewModel(
                     winningBalance = winnerUser.winningBalance + prize,
                     balance = winnerUser.depositBalance + winnerUser.winningBalance + prize + winnerUser.bonusBalance
                 )
-                repository.insertUser(updatedWinner)
+                saveAndSyncUser(updatedWinner)
 
                 // Add victory transaction log
                 repository.insertTransaction(
@@ -4519,7 +4634,7 @@ class BattleZoneViewModel(
                     winningBalance = user.winningBalance - list.amount,
                     balance = user.depositBalance + (user.winningBalance - list.amount) + user.bonusBalance
                 )
-                repository.insertUser(updatedUser)
+                saveAndSyncUser(updatedUser)
 
                 // Set approved and update request status
                 val approvedWithdrawal = list.copy(status = "APPROVED")
@@ -4608,7 +4723,7 @@ class BattleZoneViewModel(
                           (user.winningBalance + winningMod).coerceAtLeast(0.0) +
                           (user.bonusBalance + bonusMod).coerceAtLeast(0.0)
             )
-            repository.insertUser(updatedUser)
+            saveAndSyncUser(updatedUser)
 
             // Log the modification transaction
             repository.insertTransaction(
@@ -4635,7 +4750,7 @@ class BattleZoneViewModel(
                 bonusBalance = bonus.coerceAtLeast(0.0),
                 balance = deposit.coerceAtLeast(0.0) + winning.coerceAtLeast(0.0) + bonus.coerceAtLeast(0.0)
             )
-            repository.insertUser(updatedUser)
+            saveAndSyncUser(updatedUser)
 
             // Log the absolute change transaction
             repository.insertTransaction(
@@ -4722,7 +4837,7 @@ class BattleZoneViewModel(
                             winningBalance = user.winningBalance + prize,
                             balance = user.depositBalance + (user.winningBalance + prize) + user.bonusBalance
                         )
-                        repository.insertUser(updatedUser)
+                        saveAndSyncUser(updatedUser)
 
                         // Complete tournament
                         val completedTournament = tournament.copy(
@@ -4789,7 +4904,7 @@ class BattleZoneViewModel(
                         depositBalance = user.depositBalance + fee,
                         balance = (user.depositBalance + fee) + user.winningBalance + user.bonusBalance
                     )
-                    repository.insertUser(updatedUser)
+                    saveAndSyncUser(updatedUser)
                     
                     // Add refund log
                     repository.insertTransaction(
