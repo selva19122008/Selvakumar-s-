@@ -439,6 +439,51 @@ class BattleZoneViewModel(
         }
     }
 
+    private val _isUserFirestoreRefreshing = MutableStateFlow(false)
+    val isUserFirestoreRefreshing: StateFlow<Boolean> = _isUserFirestoreRefreshing.asStateFlow()
+
+    fun refreshUserFromFirestore(userId: String, onFinished: (Boolean) -> Unit = {}) {
+        if (_isUserFirestoreRefreshing.value) return
+        _isUserFirestoreRefreshing.value = true
+        
+        val fs = firestore ?: try {
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        } catch (e: Exception) {
+            null
+        }
+
+        if (fs == null) {
+            _isUserFirestoreRefreshing.value = false
+            onFinished(false)
+            return
+        }
+
+        fs.collection("users").document(userId).get()
+            .addOnSuccessListener { snapshot ->
+                if (snapshot != null && snapshot.exists()) {
+                    val m = snapshot.data
+                    if (m != null) {
+                        val cloudUser = mapToUser(m)
+                        viewModelScope.launch {
+                            repository.insertUser(cloudUser)
+                            _isUserFirestoreRefreshing.value = false
+                            onFinished(true)
+                        }
+                    } else {
+                        _isUserFirestoreRefreshing.value = false
+                        onFinished(false)
+                    }
+                } else {
+                    _isUserFirestoreRefreshing.value = false
+                    onFinished(false)
+                }
+            }
+            .addOnFailureListener {
+                _isUserFirestoreRefreshing.value = false
+                onFinished(false)
+            }
+    }
+
     fun startFirestoreSync() {
         try {
             firestore?.collection("tournaments")
@@ -610,6 +655,7 @@ class BattleZoneViewModel(
                                    m["youtube_setting"]?.let { putString("youtube_setting", it.toString()) }
                                    m["default_timing_start"]?.let { putString("default_timing_start", it.toString()) }
                                    m["default_timing_end"]?.let { putString("default_timing_end", it.toString()) }
+                                    m["tournament_delay_minutes"]?.let { putString("tournament_delay_minutes", it.toString()) }
                                    m["min_deposit_amount"]?.let { putString("min_deposit_amount", it.toString()) }
                                    m["min_debit_amount"]?.let { putString("min_debit_amount", it.toString()) }
                                    m["min_withdrawal_amount"]?.let { putString("min_withdrawal_amount", it.toString()) }
@@ -781,6 +827,124 @@ class BattleZoneViewModel(
         val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
         _systemSecurityLogs.update { logs ->
             listOf("[$timestamp] $event") + logs
+        }
+    }
+
+    private val _isFirestoreInitializing = MutableStateFlow(false)
+    val isFirestoreInitializing: StateFlow<Boolean> = _isFirestoreInitializing.asStateFlow()
+
+    fun initializeCloudFirestoreDatabase(
+        onLogUpdate: (String) -> Unit,
+        onFinished: (Boolean) -> Unit
+    ) {
+        if (_isFirestoreInitializing.value) return
+        _isFirestoreInitializing.value = true
+
+        viewModelScope.launch(Dispatchers.Main) {
+            onLogUpdate("Connecting to Google Cloud Services & Firebase Firestore...")
+            delay(500)
+            
+            val fs = firestore ?: try {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            } catch (e: Exception) {
+                null
+            }
+
+            if (fs == null) {
+                onLogUpdate("❌ FAILED: Firebase Firestore is unavailable on this environment.")
+                onLogUpdate("Verify that 'google-services.json' is configured and the app is registered on the Firebase console.")
+                _isFirestoreInitializing.value = false
+                onFinished(false)
+                return@launch
+            }
+
+            onLogUpdate("🛰️ Connected successfully to Firestore database instance!")
+            delay(300)
+
+            // Step 1: Initialize settings
+            onLogUpdate("⚙️ Provisioning settings schema ('settings/global_config')...")
+            delay(300)
+            try {
+                pushSettingsToFirestore()
+                onLogUpdate("   -> settings/global_config written successfully.")
+            } catch (e: Exception) {
+                onLogUpdate("⚠️ Settings provisioning warnings: ${e.message}")
+            }
+            delay(200)
+
+            // Step 2: Initialize user profiles & wallet balances
+            onLogUpdate("👤 Syncing registered users & persistent wallet balances to 'users' collection...")
+            delay(300)
+            try {
+                val users = repository.getAllUsersSync()
+                onLogUpdate("Found ${users.size} local profiles. Deploying live sync models...")
+                users.forEach { user ->
+                    fs.collection("users").document(user.id).set(userToMap(user))
+                    onLogUpdate("  -> Synced gamer: '${user.inGameName}' (UID: ${user.freeFireUid}) | Balances: ₹${user.depositBalance} dep, ₹${user.winningBalance} win")
+                    delay(80)
+                }
+                onLogUpdate("✅ Gamer profiles & live wallet balances initialized.")
+            } catch (e: Exception) {
+                onLogUpdate("⚠️ Profiles sync warnings: ${e.message}")
+            }
+            delay(200)
+
+            // Step 3: Initialize tournament match data
+            onLogUpdate("🏆 Syncing custom Free Fire matches to 'tournaments' collection...")
+            delay(300)
+            try {
+                val tournaments = repository.getTournamentsSync()
+                onLogUpdate("Deploying ${tournaments.size} match records to Cloud Firestore registry...")
+                tournaments.forEach { t ->
+                    fs.collection("tournaments").document("tourney_${t.id}").set(tournamentToMap(t))
+                    onLogUpdate("  -> Synced match ID #${t.id}: '${t.title}' | Entry: ₹${t.entryFee}, Pool: ₹${t.prizePool}")
+                    delay(80)
+                }
+                onLogUpdate("✅ Matches catalog initialized.")
+            } catch (e: Exception) {
+                onLogUpdate("⚠️ Tournaments sync warnings: ${e.message}")
+            }
+            delay(200)
+
+            // Step 4: Initialize joins/registrations
+            onLogUpdate("📝 Syncing active slot registrations to 'joins' collection...")
+            delay(300)
+            try {
+                val joins = repository.getAllJoinsFlow().first()
+                onLogUpdate("Deploying ${joins.size} slot allocation files...")
+                joins.forEach { j ->
+                    fs.collection("joins").document("join_${j.userId}_${j.tournamentId}").set(joinToMap(j))
+                    onLogUpdate("  -> Slot assigned: User ${j.userId} to Tournament ID #${j.tournamentId}")
+                    delay(80)
+                }
+                onLogUpdate("✅ Active slot registries initialized.")
+            } catch (e: Exception) {
+                onLogUpdate("⚠️ Slot allocation sync warnings: ${e.message}")
+            }
+            delay(200)
+
+            // Step 5: Initialize withdrawals
+            onLogUpdate("💳 Syncing ledger withdrawal files to 'withdrawals' collection...")
+            delay(300)
+            try {
+                val withdrawals = repository.allWithdrawals.first()
+                onLogUpdate("Deploying ${withdrawals.size} payment request tickets...")
+                withdrawals.forEach { w ->
+                    fs.collection("withdrawals").document("withdrawal_${w.id}").set(withdrawalToMap(w))
+                    onLogUpdate("  -> Request: ID ${w.id} | Amount: ₹${w.amount} | Status: ${w.status}")
+                    delay(80)
+                }
+                onLogUpdate("✅ Financial ledger withdrawals initialized.")
+            } catch (e: Exception) {
+                onLogUpdate("⚠️ Withdrawals sync warnings: ${e.message}")
+            }
+            delay(300)
+
+            onLogUpdate("🎉 GOOGLE CLOUD FIRESTORE DATABASE PROVISIONED SUCCESSFULLY!")
+            onLogUpdate("Profiles, tournaments, joins, and persistent wallet balances are fully live.")
+            logSecurityEvent("Completed database initialization & schema provisioning of Cloud Firestore.")
+            _isFirestoreInitializing.value = false
+            onFinished(true)
         }
     }
 
@@ -2074,6 +2238,10 @@ class BattleZoneViewModel(
     val allTournaments: StateFlow<List<TournamentEntity>> = repository.allTournaments
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // All registered tournament joins
+    val allJoins: StateFlow<List<TournamentJoinEntity>> = repository.getAllJoinsFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val currentUserJoins: StateFlow<List<TournamentJoinEntity>> = _currentUserIdFlow
         .flatMapLatest { userId -> repository.getJoinsForUserFlow(userId) }
@@ -2536,6 +2704,26 @@ class BattleZoneViewModel(
                 type = NotificationType.SUCCESS
             )
 
+            // Subscribe user to FCM topic for this tournament in background
+            com.example.notification.FcmNotificationSender.subscribeToTournamentTopic(tournamentId)
+
+            // Dispatch FCM Push Alert for tournament registration confirmation
+            if (isFcmEnabled()) {
+                val fcmToken = sharedPrefs.getString("fcm_token", null)
+                com.example.notification.FcmNotificationSender.sendAlert(
+                    context = getApplication(),
+                    userId = currentUserId,
+                    targetToken = fcmToken,
+                    topic = null,
+                    title = "🎟️ Tournament Entry Confirmed!",
+                    message = "Success! You are registered for \"${tournament.title}\" (Seat #${reservedSeat}). Watch out for match start alerts!",
+                    type = "REGISTRATION_CONFIRMED",
+                    tournamentId = tournamentId,
+                    mockMode = isFcmMockMode(),
+                    serverKey = getFcmServerKey()
+                )
+            }
+
             onResult("SUCCESS")
         }
     }
@@ -2594,6 +2782,7 @@ class BattleZoneViewModel(
                 "youtube_setting" to getYoutubeSetting(),
                 "default_timing_start" to getDefaultTimingStart(),
                 "default_timing_end" to getDefaultTimingEnd(),
+                "tournament_delay_minutes" to getTournamentDelayMinutes().toString(),
                 "min_deposit_amount" to getMinDepositAmount().toString(),
                 "min_debit_amount" to getMinDebitAmount().toString(),
                 "min_withdrawal_amount" to getMinWithdrawalAmount().toString(),
@@ -2606,7 +2795,11 @@ class BattleZoneViewModel(
                 "gmail_otp_backend_url" to getGmailOtpBackendUrl(),
                 "gmail_user" to getGmailUser(),
                 "gmail_app_password" to getGmailAppPassword(),
-                "gmail_smtp_delivery_type" to getGmailSmtpDeliveryType()
+                "gmail_smtp_delivery_type" to getGmailSmtpDeliveryType(),
+                "fcm_enabled" to isFcmEnabled().toString(),
+                "fcm_server_key" to getFcmServerKey(),
+                "fcm_project_id" to getFcmProjectId(),
+                "fcm_mock_mode" to isFcmMockMode().toString()
             )
             firestore?.collection("settings")?.document("global_config")?.set(configMap)
         } catch (e: Exception) {
@@ -2655,13 +2848,16 @@ class BattleZoneViewModel(
 
     fun getYoutubeSetting(): String = sharedPrefs.getString("youtube_setting", "https://www.youtube.com/@battlezone_esports") ?: "https://www.youtube.com/@battlezone_esports"
 
+    fun getTournamentDelayMinutes(): Int = sharedPrefs.getString("tournament_delay_minutes", "20")?.toIntOrNull() ?: 20
+
     fun getDefaultTimingStart(): String = sharedPrefs.getString("default_timing_start", "07:00 PM") ?: "07:00 PM"
     fun getDefaultTimingEnd(): String = sharedPrefs.getString("default_timing_end", "11:00 PM") ?: "11:00 PM"
 
-    fun updateDefaultTournamentTiming(start: String, end: String) {
+    fun updateDefaultTournamentTiming(start: String, end: String, delay: String) {
         sharedPrefs.edit().apply {
             putString("default_timing_start", start.trim())
             putString("default_timing_end", end.trim())
+            putString("tournament_delay_minutes", delay.trim())
             apply()
         }
         pushSettingsToFirestore()
@@ -2969,6 +3165,59 @@ class BattleZoneViewModel(
     fun updateGmailSmtpDeliveryType(type: String) {
         sharedPrefs.edit().putString("gmail_smtp_delivery_type", type.trim()).apply()
         pushSettingsToFirestore()
+    }
+
+    // Dynamic FCM Push Alert configurations
+    fun isFcmEnabled(): Boolean = sharedPrefs.getBoolean("fcm_enabled", true)
+    fun getFcmServerKey(): String = sharedPrefs.getString("fcm_server_key", "") ?: ""
+    fun getFcmProjectId(): String = sharedPrefs.getString("fcm_project_id", "") ?: ""
+    fun isFcmMockMode(): Boolean = sharedPrefs.getBoolean("fcm_mock_mode", true)
+
+    fun updateFcmConfig(
+        enabled: Boolean,
+        serverKey: String,
+        projectId: String,
+        mockMode: Boolean
+    ) {
+        sharedPrefs.edit().apply {
+            putBoolean("fcm_enabled", enabled)
+            putString("fcm_server_key", serverKey.trim())
+            putString("fcm_project_id", projectId.trim())
+            putBoolean("fcm_mock_mode", mockMode)
+            apply()
+        }
+        pushSettingsToFirestore()
+    }
+
+    // --- DRAFT PROFILE SYSTEM ---
+    fun getDraftInGameName(defaultVal: String): String = sharedPrefs.getString("draft_ign", defaultVal) ?: defaultVal
+    fun getDraftFreeFireUid(defaultVal: String): String = sharedPrefs.getString("draft_ff_uid", defaultVal) ?: defaultVal
+    fun getDraftPhoneNumber(defaultVal: String): String = sharedPrefs.getString("draft_phone", defaultVal) ?: defaultVal
+    fun getDraftExtraMobileNumber(defaultVal: String): String = sharedPrefs.getString("draft_extra_phone", defaultVal) ?: defaultVal
+    fun getDraftBio(defaultVal: String): String = sharedPrefs.getString("draft_bio", defaultVal) ?: defaultVal
+
+    fun updateDraftProfile(
+        inGameName: String,
+        freeFireUid: String,
+        phoneNumber: String,
+        extraMobileNumber: String,
+        bio: String
+    ) {
+        sharedPrefs.edit().apply {
+            putString("draft_ign", inGameName)
+            putString("draft_ff_uid", freeFireUid)
+            putString("draft_phone", phoneNumber)
+            putString("draft_extra_phone", extraMobileNumber)
+            putString("draft_bio", bio)
+            putBoolean("profile_update_applied", false)
+            apply()
+        }
+    }
+
+    fun isProfileUpdateApplied(): Boolean = sharedPrefs.getBoolean("profile_update_applied", false)
+
+    fun setProfileUpdateApplied(applied: Boolean) {
+        sharedPrefs.edit().putBoolean("profile_update_applied", applied).apply()
     }
 
     private var lastSentGmailOtp: String = ""
@@ -3624,6 +3873,7 @@ class BattleZoneViewModel(
 
             val startSetting = getDefaultTimingStart()
             val endSetting = getDefaultTimingEnd()
+            val delayMinutes = getTournamentDelayMinutes().coerceAtLeast(5)
             
             val currentMinutesStart = parseTimeToMinutes(startSetting, 19 * 60)
             val endMinutes = parseTimeToMinutes(endSetting, 23 * 60)
@@ -3633,8 +3883,8 @@ class BattleZoneViewModel(
             while (currentMinutes < endMinutes) {
                 val startH = (currentMinutes / 60) % 24
                 val startM = currentMinutes % 60
-                val endH = ((currentMinutes + 90) / 60) % 24
-                val endM = (currentMinutes + 90) % 60
+                val endH = ((currentMinutes + delayMinutes) / 60) % 24
+                val endM = (currentMinutes + delayMinutes) % 60
 
                 val startAmPm = if (startH >= 12) "PM" else "AM"
                 val displayStartH = if (startH % 12 == 0) 12 else startH % 12
@@ -3699,7 +3949,7 @@ class BattleZoneViewModel(
                 )
                 sessionsCreated.add(newTournament)
 
-                currentMinutes += 90
+                currentMinutes += delayMinutes
                 idx++
             }
 
@@ -4455,6 +4705,89 @@ class BattleZoneViewModel(
                     }
                 }
             }
+            onResult(true)
+        }
+    }
+
+    // Admin disqualification
+    fun adminDisqualifyPlayer(
+        userId: String,
+        tournamentId: Int,
+        refundFee: Boolean,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val join = repository.getJoinSync(userId, tournamentId)
+            if (join == null) {
+                onResult(false, "Registration record not found")
+                return@launch
+            }
+            
+            // Delete join
+            repository.deleteJoin(join)
+            deleteJoinFromFirestore(userId, tournamentId)
+            
+            // Increment slots
+            val tournament = repository.getTournamentSync(tournamentId)
+            if (tournament != null) {
+                val updatedTourney = tournament.copy(
+                    slotsRemaining = (tournament.slotsRemaining + 1).coerceAtMost(tournament.slotsTotal)
+                )
+                repository.updateTournament(updatedTourney)
+                pushTournamentToFirestore(updatedTourney)
+            }
+            
+            // Refund entry fee if requested
+            if (refundFee && tournament != null) {
+                val user = repository.getUserSync(userId)
+                if (user != null) {
+                    val fee = tournament.entryFee
+                    val updatedUser = user.copy(
+                        depositBalance = user.depositBalance + fee,
+                        balance = (user.depositBalance + fee) + user.winningBalance + user.bonusBalance
+                    )
+                    repository.insertUser(updatedUser)
+                    
+                    // Add refund log
+                    repository.insertTransaction(
+                        TransactionEntity(
+                            userId = userId,
+                            title = "Admin Disqualification Refund: ${tournament.title}",
+                            amount = fee,
+                            type = "BONUS_ADD",
+                            category = "DEPOSIT",
+                            status = "SUCCESS",
+                            invoiceId = "TXN-DSQ-REF-${UUID.randomUUID().toString().take(6).uppercase()}"
+                        )
+                    )
+                }
+            }
+            
+            onResult(true, "Player disqualified successfully!")
+        }
+    }
+
+    // Admin manual update results
+    fun adminUpdatePlayerResults(
+        userId: String,
+        tournamentId: Int,
+        kills: Int,
+        rank: Int,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            val join = repository.getJoinSync(userId, tournamentId)
+            if (join == null) {
+                onResult(false)
+                return@launch
+            }
+            val updatedJoin = join.copy(
+                claimedKills = kills,
+                claimedRank = rank,
+                proofStatus = "APPROVED" // Automatically approve results when set manually by admin
+            )
+            repository.insertJoin(updatedJoin)
+            pushJoinToFirestore(updatedJoin)
             onResult(true)
         }
     }

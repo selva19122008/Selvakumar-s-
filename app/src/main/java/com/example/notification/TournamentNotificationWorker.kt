@@ -53,9 +53,28 @@ class TournamentNotificationWorker(
             "Sent match notification alert and credentials to ${joins.size} registerees for match #${tournament.id} (${tournament.title})."
         )
 
-        // 2. Fetch SMS integrations preferences
+        // 2. Fetch SMS and FCM integrations preferences
         val sharedPrefs = appContext.getSharedPreferences("payment_prefs", Context.MODE_PRIVATE)
         val mode = sharedPrefs.getString("sms_gateway_mode", "TEST_MODE") ?: "TEST_MODE"
+
+        // Dispatch FCM Push Alert (Topic Broadcast) to notify all registered participants
+        val fcmEnabled = sharedPrefs.getBoolean("fcm_enabled", true)
+        if (fcmEnabled) {
+            val fcmServerKey = sharedPrefs.getString("fcm_server_key", "")
+            val fcmMockMode = sharedPrefs.getBoolean("fcm_mock_mode", true)
+            FcmNotificationSender.sendAlert(
+                context = appContext,
+                userId = "GLOBAL_BROADCAST",
+                targetToken = null,
+                topic = "tournament_${tournament.id}",
+                title = "⏰ Tournament Match Starting Soon!",
+                message = "Match \"${tournament.title}\" is starting in 10 minutes! Custom room credentials (Room ID: ${tournament.roomId ?: "RELEASING_SOON"}, Password: ${tournament.roomPassword ?: "RELEASING_SOON"}) are ready.",
+                type = "MATCH_START",
+                tournamentId = tournament.id,
+                mockMode = fcmMockMode,
+                serverKey = fcmServerKey
+            )
+        }
 
         Log.d("NotificationWorker", "Processing background logic SMS alerts via $mode for Match #${tournament.id}")
 

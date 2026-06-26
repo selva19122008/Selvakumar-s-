@@ -67,7 +67,7 @@ import java.text.NumberFormat
 import java.util.Locale
 // Simple format helper
 fun Double.toCurrency(): String {
-    val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+    val format = NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build())
     return format.format(this).replace("INR", "₹").replace("Rs.", "₹")
 }
 @Composable
@@ -2164,6 +2164,320 @@ fun TournamentDashboardCard(
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
                     )
+                    
+                    // Direct Register Button on the card
+                    if (viewModel != null) {
+                        val userState = viewModel.currentUser.collectAsStateWithLifecycle()
+                        val user = userState.value
+                        
+                        val joinsState = viewModel.currentUserJoins.collectAsStateWithLifecycle()
+                        val joinedList = joinsState.value
+                        val isRegistered = joinedList.any { it.tournamentId == match.id }
+                        
+                        var showDirectRegisterPrompt by remember { mutableStateOf(false) }
+                        val scope = rememberCoroutineScope()
+                        
+                        Spacer(modifier = Modifier.height(14.dp))
+                        
+                        Button(
+                            onClick = {
+                                if (!isRegistered) {
+                                    showDirectRegisterPrompt = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isRegistered) Color(0xFF0F261B) else RedPrimary,
+                                disabledContainerColor = Color(0xFF1F1C25)
+                            ),
+                            border = if (isRegistered) BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.3f)) else null,
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = isRegistered || (match.slotsRemaining > 0 && match.status == "UPCOMING"),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                                .testTag("card_register_btn_${match.id}")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isRegistered) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Registered Icon",
+                                        tint = Color(0xFF00E676),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "REGISTERED",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF00E676),
+                                        letterSpacing = 0.5.sp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.HowToReg,
+                                        contentDescription = "Register Icon",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (match.slotsRemaining == 0) "HOUSE FULL LOBBY"
+                                               else if (match.status != "UPCOMING") "REGISTRATION CLOSED"
+                                               else if (match.entryFee == 0.0) "QUICK REGISTER (FREE)"
+                                               else "REGISTER NOW (₹${match.entryFee})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+                        }
+                        
+                        if (showDirectRegisterPrompt) {
+                            var inGameNameInput by remember { mutableStateOf(user?.inGameName ?: "Alpha_Gamer") }
+                            var uidInput by remember { mutableStateOf(user?.freeFireUid ?: "FF-837492047") }
+                            var registrationStep by remember { mutableStateOf(1) }
+                            
+                            Dialog(onDismissRequest = { showDirectRegisterPrompt = false }) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF131116),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(BorderStroke(1.dp, Color(0xFF1F1C25)), RoundedCornerShape(16.dp))
+                                ) {
+                                    if (registrationStep == 1) {
+                                        Column(modifier = Modifier.padding(20.dp)) {
+                                            Text(
+                                                text = "QUICK REGISTRATION",
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 13.sp,
+                                                color = RedPrimary,
+                                                letterSpacing = 1.sp
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = match.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp,
+                                                color = Color.White
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "Please verify your Free Fire in-game details to proceed.",
+                                                fontSize = 10.sp,
+                                                color = GreyText
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            
+                                            OutlinedTextField(
+                                                value = inGameNameInput,
+                                                onValueChange = { inGameNameInput = it },
+                                                label = { Text("In-Game Name") },
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = RedPrimary,
+                                                    unfocusedBorderColor = Color(0xFF28252C)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth().testTag("direct_register_name_input")
+                                            )
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            OutlinedTextField(
+                                                value = uidInput,
+                                                onValueChange = { uidInput = it },
+                                                label = { Text("Character UID") },
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = RedPrimary,
+                                                    unfocusedBorderColor = Color(0xFF28252C)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth().testTag("direct_register_uid_input")
+                                            )
+                                            Spacer(modifier = Modifier.height(20.dp))
+                                            
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                TextButton(onClick = { showDirectRegisterPrompt = false }) {
+                                                    Text("CANCEL", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Button(
+                                                    onClick = {
+                                                        if (inGameNameInput.isNotBlank() && uidInput.isNotBlank()) {
+                                                            registrationStep = 2
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    enabled = inGameNameInput.isNotBlank() && uidInput.isNotBlank(),
+                                                    modifier = Modifier.testTag("direct_register_proceed_btn")
+                                                ) {
+                                                    Text("PROCEED", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Step 2: Pay & Confirm Balance Deduction
+                                        val requiredFee = match.entryFee
+                                        val depAva = user?.depositBalance ?: 0.0
+                                        val winAva = user?.winningBalance ?: 0.0
+                                        val totalRealCash = depAva + winAva
+                                        
+                                        val depositDeduct = minOf(requiredFee, depAva)
+                                        val remainingForWin = maxOf(0.0, requiredFee - depositDeduct)
+                                        val winningsDeduct = minOf(remainingForWin, winAva)
+                                        val isSufficient = (depositDeduct + winningsDeduct) >= requiredFee
+                                        
+                                        Column(modifier = Modifier.padding(20.dp)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Lock,
+                                                    contentDescription = "secure transaction",
+                                                    tint = RedPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Text(
+                                                    text = "PAYMENT VERIFICATION",
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 12.sp,
+                                                    color = Color.White,
+                                                    letterSpacing = 0.5.sp
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(14.dp))
+                                            
+                                            // Wallet status cards
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(Color(0xFF0D0B0F), RoundedCornerShape(10.dp))
+                                                    .padding(12.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("Total Fee:", fontSize = 11.sp, color = GreyText)
+                                                    Text(requiredFee.toCurrency(), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                                }
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                HorizontalDivider(color = Color(0xFF1F1C25), thickness = 1.dp)
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("Deduct from Deposit:", fontSize = 11.sp, color = GreyText)
+                                                    Text("-${depositDeduct.toCurrency()}", fontSize = 11.sp, color = Color.White)
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("Deduct from Winnings:", fontSize = 11.sp, color = GreyText)
+                                                    Text("-${winningsDeduct.toCurrency()}", fontSize = 11.sp, color = NeonGold)
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(14.dp))
+                                            
+                                            if (isSufficient) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.End,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    TextButton(onClick = { registrationStep = 1 }) {
+                                                        Text("BACK", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Button(
+                                                        onClick = {
+                                                            viewModel.updateProfile(
+                                                                inGameName = inGameNameInput,
+                                                                ffUid = uidInput,
+                                                                phone = user?.phoneNumber ?: "",
+                                                                email = user?.email ?: "",
+                                                                bio = user?.profilePicture ?: "Free Fire Pro Gamer"
+                                                            ) { _ ->
+                                                                viewModel.joinTournament(match.id) { response ->
+                                                                    scope.launch {
+                                                                        if (response == "SUCCESS") {
+                                                                            showDirectRegisterPrompt = false
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        modifier = Modifier.testTag("direct_register_confirm_btn")
+                                                    ) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Lock,
+                                                                contentDescription = "confirm",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(12.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text(
+                                                                text = if (requiredFee == 0.0) "JOIN FREE" else "PAY & CONFIRM",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                // Insufficient balance warnings
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(RedPrimary.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                                        .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.2f)), RoundedCornerShape(8.dp))
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Warning,
+                                                            contentDescription = "insufficient",
+                                                            tint = RedPrimary,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("Insufficient Balance", color = RedPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = "Your combined real funding balance is ${totalRealCash.toCurrency()}, which is insufficient for the ${requiredFee.toCurrency()} entry fee limit.",
+                                                        fontSize = 10.sp,
+                                                        color = GreyText,
+                                                        lineHeight = 14.sp
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                                    TextButton(onClick = { showDirectRegisterPrompt = false }) {
+                                                        Text("DISMISS", color = GreyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3224,14 +3538,140 @@ fun WalletScreen(
             .background(DarkBg)
             .padding(16.dp)
     ) {
-        Text(
-            text = "WALLET BALANCE CARD",
-            fontSize = 11.sp,
-            color = GreyText,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "WALLET BALANCE CARD",
+                fontSize = 11.sp,
+                color = GreyText,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            
+            // Live Firestore Status Badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .background(Color(0xFF0F1B15), RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.2f)), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(Color(0xFF00E676), CircleShape)
+                )
+                Text(
+                    text = "FIRESTORE SYNC ACTIVE",
+                    color = Color(0xFF00E676),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
+        
+        // Firestore Status and Dynamic Refresh Component
+        val isUserFirestoreRefreshing by viewModel.isUserFirestoreRefreshing.collectAsStateWithLifecycle()
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131116)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .border(BorderStroke(1.dp, Color(0xFF1E1C24)), RoundedCornerShape(10.dp))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFFE5A93B).copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Cloud Icon",
+                            tint = Color(0xFFE5A93B),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "CLOUD FIRESTORE DOCUMENT DIRECTIVE",
+                            fontSize = 8.sp,
+                            color = Color(0xFFE5A93B),
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Document: users/${user?.id ?: "loading..."}",
+                            fontSize = 9.sp,
+                            color = GreyText,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "Wallet synced in real-time with Google Cloud services.",
+                            fontSize = 8.sp,
+                            color = GreyText.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                // Manual Sync Button
+                IconButton(
+                    onClick = {
+                        val uid = user?.id
+                        if (uid != null) {
+                            viewModel.refreshUserFromFirestore(uid) { success ->
+                                scope.launch {
+                                    if (success) {
+                                        snackbarHostState.showSnackbar("🟢 Cloud balances updated from Firestore successfully!")
+                                    } else {
+                                        snackbarHostState.showSnackbar("❌ Firestore query failed. Check connectivity.")
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isUserFirestoreRefreshing,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color(0xFF1F1C25), CircleShape)
+                        .testTag("firestore_manual_sync_btn")
+                ) {
+                    if (isUserFirestoreRefreshing) {
+                        CircularProgressIndicator(
+                            color = Color(0xFFE5A93B),
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+        
         // Gamer credit visual panel
         Card(
             modifier = Modifier
@@ -4662,13 +5102,37 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val securityMetrics by viewModel.securityMetrics.collectAsStateWithLifecycle()
     var isEditing by remember { mutableStateOf(false) }
-    var ignState by remember(user) { mutableStateOf(user?.inGameName ?: "Alpha_Gamer") }
-    var ffUidState by remember(user) { mutableStateOf(user?.freeFireUid ?: "FF-837492047") }
-    var phoneState by remember(user) { mutableStateOf(user?.phoneNumber ?: "+91 91929 39495") }
-    var extraPhoneState by remember(user) { mutableStateOf(user?.extraMobileNumber ?: "") }
+
+    val initialIgn = remember(user) { viewModel.getDraftInGameName(user?.inGameName ?: "Alpha_Gamer") }
+    val initialFfUid = remember(user) { viewModel.getDraftFreeFireUid(user?.freeFireUid ?: "FF-837492047") }
+    val initialPhone = remember(user) { viewModel.getDraftPhoneNumber(user?.phoneNumber ?: "+91 91929 39495") }
+    val initialExtraPhone = remember(user) { viewModel.getDraftExtraMobileNumber(user?.extraMobileNumber ?: "") }
+    val initialBio = remember(user) { viewModel.getDraftBio(user?.profilePicture ?: "🎯 Free Fire Pro Challenger!") }
+
+    var ignState by remember(initialIgn) { mutableStateOf(initialIgn) }
+    var ffUidState by remember(initialFfUid) { mutableStateOf(initialFfUid) }
+    var phoneState by remember(initialPhone) { mutableStateOf(initialPhone) }
+    var extraPhoneState by remember(initialExtraPhone) { mutableStateOf(initialExtraPhone) }
     var emailState by remember(user) { mutableStateOf(user?.email ?: "gamer@battlezone.com") }
-    var bioState by remember(user) { mutableStateOf(user?.profilePicture ?: "🎯 Free Fire Pro Challenger!") }
+    var bioState by remember(initialBio) { mutableStateOf(initialBio) }
+
     var referralCodePrompt by remember { mutableStateOf("") }
+
+    // Auto-update SharedPreferences draft in real-time when any local fields change
+    LaunchedEffect(ignState, ffUidState, phoneState, extraPhoneState, bioState) {
+        viewModel.updateDraftProfile(ignState, ffUidState, phoneState, extraPhoneState, bioState)
+    }
+
+    // Determine pending changes compared to DB user
+    val hasPendingUpdates = user != null && (
+        ignState.trim() != (user.inGameName ?: "").trim() ||
+        ffUidState.trim() != (user.freeFireUid ?: "").trim() ||
+        phoneState.trim() != (user.phoneNumber ?: "").trim() ||
+        extraPhoneState.trim() != (user.extraMobileNumber ?: "").trim() ||
+        bioState.trim() != (user.profilePicture ?: "").trim()
+    )
+
+    val isVipApplied = viewModel.isProfileUpdateApplied() && !hasPendingUpdates
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -4708,7 +5172,7 @@ fun ProfileScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            border = BorderStroke(1.dp, Color(0xFF1F1C25))
+            border = BorderStroke(1.dp, if (isVipApplied) NeonGold else Color(0xFF1F1C25))
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -4728,7 +5192,7 @@ fun ProfileScreen(
                                 .clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
-                                        listOf(RedPrimary, RedDark)
+                                        if (isVipApplied) listOf(NeonGold, Color(0xFFB58926)) else listOf(RedPrimary, RedDark)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -4737,7 +5201,25 @@ fun ProfileScreen(
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            Text(user?.inGameName ?: "Alpha_Gamer", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(user?.inGameName ?: "Alpha_Gamer", fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (isVipApplied) NeonGold else Color.White)
+                                if (isVipApplied) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .background(Color(0xFF2E2613), RoundedCornerShape(4.dp))
+                                            .border(0.5.dp, NeonGold, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Star, contentDescription = "VIP", tint = NeonGold, modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text("VIP", color = NeonGold, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
                             Text("UID: ${user?.freeFireUid ?: "FF-837492047"}", fontSize = 11.sp, color = GreyText)
                             Text("Email: ${maskEmail(user?.email ?: "gamer@battlezone.com")}", fontSize = 11.sp, color = GreyText)
                         }
@@ -4767,6 +5249,144 @@ fun ProfileScreen(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- PROFILE & FEATURE UPDATES CARD ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    BorderStroke(
+                        1.dp,
+                        if (hasPendingUpdates) RedPrimary.copy(alpha = 0.6f) else if (isVipApplied) NeonGold.copy(alpha = 0.6f) else Color(0xFF28252C)
+                    ),
+                    RoundedCornerShape(12.dp)
+                )
+                .testTag("profile_update_gateway_card")
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "PROFILE & FEATURE UPDATE GATEWAY",
+                        fontSize = 11.sp,
+                        color = if (hasPendingUpdates) RedPrimary else if (isVipApplied) NeonGold else GreyText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (hasPendingUpdates) {
+                        Box(
+                            modifier = Modifier
+                                .background(RedPrimary.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                .border(0.5.dp, RedPrimary, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("⏳ PENDING UPDATE", color = RedPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (isVipApplied) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF1E3A20), RoundedCornerShape(4.dp))
+                                .border(0.5.dp, Color(0xFF81C784), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("✅ ALL UPDATES APPLIED", color = Color(0xFF81C784), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF28252C), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("STABLE VERSION", color = GreyText, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (hasPendingUpdates) {
+                    Text(
+                        "You have unapplied modifications to your gamer credentials. Automatically saved to drafts! Click the 'UPDATE' button below to apply them and reload your status.",
+                        fontSize = 9.sp,
+                        color = Color.White
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("DETECTED PROFILE CHANGES (AUTOSAVED):", fontSize = 8.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // List changed fields
+                    if (ignState.trim() != (user?.inGameName ?: "").trim()) {
+                        PendingUpdateItem(label = "In-Game Name", from = user?.inGameName ?: "Alpha_Gamer", to = ignState)
+                    }
+                    if (ffUidState.trim() != (user?.freeFireUid ?: "").trim()) {
+                        PendingUpdateItem(label = "Hero UID", from = user?.freeFireUid ?: "FF-837492047", to = ffUidState)
+                    }
+                    if (bioState.trim() != (user?.profilePicture ?: "").trim()) {
+                        PendingUpdateItem(label = "Gamer Bio", from = user?.profilePicture ?: "No status set", to = bioState)
+                    }
+                    if (phoneState.trim() != (user?.phoneNumber ?: "").trim()) {
+                        PendingUpdateItem(label = "Primary Phone", from = user?.phoneNumber ?: "Not provided", to = phoneState)
+                    }
+                    if (extraPhoneState.trim() != (user?.extraMobileNumber ?: "").trim()) {
+                        PendingUpdateItem(label = "Secondary Phone", from = if (user?.extraMobileNumber.isNullOrBlank()) "Not provided" else user?.extraMobileNumber!!, to = extraPhoneState)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("🎁 PREMIUM NEW FEATURES UNLOCKING FROM THIS UPDATE:", fontSize = 8.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FeatureUnlockItem(feature = "👑 Platinum Elite Badge Activation", applied = false)
+                    FeatureUnlockItem(feature = "🎨 Custom Gold Neon Accent Styling", applied = false)
+                    FeatureUnlockItem(feature = "🚀 High-Priority FCM Broadcast Delivery", applied = false)
+                    
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Button(
+                        onClick = {
+                            viewModel.updateProfile(ignState, ffUidState, phoneState, extraPhoneState, emailState, bioState) {
+                                viewModel.setProfileUpdateApplied(true)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("🚀 Profile updates applied & premium features activated!")
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("apply_profile_update_btn"),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Update", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("UPDATE", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                    }
+                } else {
+                    if (isVipApplied) {
+                        Text(
+                            "Success! All draft profile changes have been successfully committed to the database. The premium VIP features listed below are active on your account.",
+                            fontSize = 9.sp,
+                            color = Color(0xFF81C784)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("ACTIVE PREMIUM FEATURES STATUS:", fontSize = 8.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        FeatureUnlockItem(feature = "👑 Platinum Elite Badge Active", applied = true)
+                        FeatureUnlockItem(feature = "🎨 Custom Gold Neon Accent Active", applied = true)
+                        FeatureUnlockItem(feature = "🚀 High-Priority FCM Broadcast Active", applied = true)
+                    } else {
+                        Text(
+                            "No pending changes detected. Try clicking the EDIT icon under 'EDIT GAME ACCOUNT CREDENTIALS' below, type in new details, and they will be automatically updated as pending. You can then apply the update here!",
+                            fontSize = 9.sp,
+                            color = GreyText
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         // Profile Editing toggle card
         Card(
@@ -4845,16 +5465,17 @@ fun ProfileScreen(
                     Button(
                         onClick = {
                             viewModel.updateProfile(ignState, ffUidState, phoneState, extraPhoneState, emailState, bioState) {
+                                viewModel.setProfileUpdateApplied(true)
                                 isEditing = false
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Profile details updated.")
+                                    snackbarHostState.showSnackbar("Profile details updated & changes applied.")
                                 }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("SAVE PROFILE CONFIGURATIONS")
+                        Text("SAVE & APPLY PROFILE CONFIGURATIONS")
                     }
                 } else {
                     ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
@@ -5099,6 +5720,41 @@ fun ProfileScreen(
         }
     }
 }
+@Composable
+fun PendingUpdateItem(label: String, from: String, to: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("• ", color = GreyText, fontSize = 9.sp)
+        Text("$label: ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+        Text("'$from' ", color = GreyText, fontSize = 9.sp, style = androidx.compose.ui.text.TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough))
+        Text(" ➔ ", color = RedPrimary, fontSize = 9.sp)
+        Text("'$to'", color = Color(0xFF81C784), fontWeight = FontWeight.Bold, fontSize = 9.sp)
+    }
+}
+
+@Composable
+fun FeatureUnlockItem(feature: String, applied: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (applied) Icons.Default.CheckCircle else Icons.Default.Star,
+            contentDescription = null,
+            tint = if (applied) Color(0xFF81C784) else RedPrimary,
+            modifier = Modifier.size(10.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(feature, color = if (applied) Color.White else GreyText, fontSize = 9.sp)
+    }
+}
+
 @Composable
 fun ProfileFieldRow(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 6.dp)) {
@@ -5864,6 +6520,8 @@ fun AdminTournamentsTab(
     var editCredentialsForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
     // Distribute victory payouts selector
     var selectWinnersForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
+    // Manage players selector
+    var selectPlayersManagementForTournament by remember { mutableStateOf<TournamentEntity?>(null) }
 
     // SECURE DIALOG STATES
     var tournamentToCancelPending by remember { mutableStateOf<TournamentEntity?>(null) }
@@ -6386,6 +7044,26 @@ fun AdminTournamentsTab(
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { selectPlayersManagementForTournament = match },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF131D16)),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.3f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .testTag("admin_manage_players_btn_${match.id}")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                            Icon(imageVector = Icons.Default.People, contentDescription = "Manage Players", tint = Color(0xFF00E676), modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("MANAGE REGISTERED PLAYERS", fontSize = 9.sp, color = Color(0xFF00E676), fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     if (match.status != "COMPLETED") {
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider(color = Color(0xFF1F1C25))
@@ -6883,12 +7561,399 @@ fun AdminTournamentsTab(
             }
         }
 
+        // Players management & updates/disqualify Dialog
+        if (selectPlayersManagementForTournament != null) {
+            val focusMatch = selectPlayersManagementForTournament!!
+            val allJoinsState = viewModel.allJoins.collectAsStateWithLifecycle()
+            val registeredJoins = allJoinsState.value.filter { it.tournamentId == focusMatch.id }
+            
+            var editingJoinId by remember { mutableStateOf<Int?>(null) }
+            var editKillsInput by remember { mutableStateOf("0") }
+            var editRankInput by remember { mutableStateOf("1") }
+            
+            var showDisqualifyConfirmForJoin by remember { mutableStateOf<TournamentJoinEntity?>(null) }
+            var refundOnDisqualify by remember { mutableStateOf(true) }
+            
+            Dialog(onDismissRequest = { selectPlayersManagementForTournament = null }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF131116),
+                    border = BorderStroke(1.dp, Color(0xFF1F1C25)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(18.dp)
+                    ) {
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "MANAGE REGISTERED PLAYERS",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp,
+                                    color = RedPrimary,
+                                    letterSpacing = 1.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = focusMatch.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                            IconButton(
+                                onClick = { selectPlayersManagementForTournament = null },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = GreyText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Slots details
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF18161D), RoundedCornerShape(8.dp))
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Registered: ${registeredJoins.size} players",
+                                fontSize = 10.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Entry Fee: ₹${focusMatch.entryFee} | Prize: ₹${focusMatch.prizePool}",
+                                fontSize = 10.sp,
+                                color = NeonGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        if (registeredJoins.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.People,
+                                        contentDescription = "No players",
+                                        tint = Color.DarkGray,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "No players registered yet.",
+                                        color = GreyText,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(registeredJoins) { join ->
+                                    val isEditing = editingJoinId == join.id
+                                    
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF18161D)),
+                                        border = BorderStroke(1.dp, if (isEditing) RedPrimary.copy(alpha = 0.5f) else Color(0xFF221F28)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = join.inGameName,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = Color.White
+                                                    )
+                                                    Text(
+                                                        text = "UID: ${join.freeFireUid}",
+                                                        fontSize = 10.sp,
+                                                        color = GreyText
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = "Kills: ${join.claimedKills}",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = NeonGold
+                                                        )
+                                                        Text(
+                                                            text = "Rank: #${join.claimedRank}",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF00E676)
+                                                        )
+                                                    }
+                                                }
+                                                
+                                                // Action Buttons
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            if (isEditing) {
+                                                                editingJoinId = null
+                                                            } else {
+                                                                editingJoinId = join.id
+                                                                editKillsInput = join.claimedKills.toString()
+                                                                editRankInput = join.claimedRank.toString()
+                                                            }
+                                                        },
+                                                        modifier = Modifier
+                                                            .background(Color(0xFF222028), CircleShape)
+                                                            .size(28.dp)
+                                                            .testTag("edit_results_btn_${join.id}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isEditing) Icons.Default.Close else Icons.Default.Edit,
+                                                            contentDescription = "Edit Results",
+                                                            tint = if (isEditing) RedPrimary else Color.White,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                    
+                                                    IconButton(
+                                                        onClick = {
+                                                            showDisqualifyConfirmForJoin = join
+                                                        },
+                                                        modifier = Modifier
+                                                            .background(Color(0xFF281116), CircleShape)
+                                                            .size(28.dp)
+                                                            .testTag("disqualify_player_btn_${join.id}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Delete,
+                                                            contentDescription = "Disqualify",
+                                                            tint = RedPrimary,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // Expandable Results Editor
+                                            AnimatedVisibility(visible = isEditing) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 10.dp)
+                                                        .background(Color(0xFF131116), RoundedCornerShape(6.dp))
+                                                        .padding(8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "MANUALLY UPDATE MATCH RESULTS",
+                                                        fontSize = 8.sp,
+                                                        color = NeonGold,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        OutlinedTextField(
+                                                            value = editKillsInput,
+                                                            onValueChange = { editKillsInput = it },
+                                                            label = { Text("Kills") },
+                                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                            colors = OutlinedTextFieldDefaults.colors(
+                                                                focusedBorderColor = RedPrimary,
+                                                                unfocusedBorderColor = Color(0xFF28252C)
+                                                            ),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .testTag("edit_kills_input_${join.id}")
+                                                        )
+                                                        OutlinedTextField(
+                                                            value = editRankInput,
+                                                            onValueChange = { editRankInput = it },
+                                                            label = { Text("Rank") },
+                                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                            colors = OutlinedTextFieldDefaults.colors(
+                                                                focusedBorderColor = RedPrimary,
+                                                                unfocusedBorderColor = Color(0xFF28252C)
+                                                            ),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .testTag("edit_rank_input_${join.id}")
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(10.dp))
+                                                    Button(
+                                                        onClick = {
+                                                            val kills = editKillsInput.toIntOrNull() ?: 0
+                                                            val rank = editRankInput.toIntOrNull() ?: 1
+                                                            viewModel.adminUpdatePlayerResults(join.userId, join.tournamentId, kills, rank) { success ->
+                                                                if (success) {
+                                                                    editingJoinId = null
+                                                                    scope.launch {
+                                                                        snackBars.showSnackbar("Results updated for ${join.inGameName} successfully!")
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(32.dp)
+                                                            .testTag("save_results_btn_${join.id}")
+                                                    ) {
+                                                        Text("SAVE RESULTS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Button(
+                            onClick = { selectPlayersManagementForTournament = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222028)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("DONE", color = Color.White)
+                        }
+                    }
+                }
+            }
+            
+            // Nested Disqualify Confirmation Dialog
+            if (showDisqualifyConfirmForJoin != null) {
+                val dsqJoin = showDisqualifyConfirmForJoin!!
+                Dialog(onDismissRequest = { showDisqualifyConfirmForJoin = null }) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF131116),
+                        border = BorderStroke(1.dp, Color(0xFF2E1216)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Text(
+                                text = "⚠️ CONFIRM PLAYER DISQUALIFICATION",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = RedPrimary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Are you sure you want to disqualify ${dsqJoin.inGameName} (${dsqJoin.freeFireUid}) from this tournament? This action is irreversible.",
+                                fontSize = 11.sp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            
+                            // Refund checkbox
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { refundOnDisqualify = !refundOnDisqualify }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = refundOnDisqualify,
+                                    onCheckedChange = { refundOnDisqualify = it },
+                                    colors = CheckboxDefaults.colors(checkedColor = RedPrimary)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Refund entry fee (₹${focusMatch.entryFee}) to user's wallet",
+                                    fontSize = 11.sp,
+                                    color = Color.White
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = { showDisqualifyConfirmForJoin = null }) {
+                                    Text("CANCEL", color = GreyText)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        viewModel.adminDisqualifyPlayer(
+                                            dsqJoin.userId,
+                                            dsqJoin.tournamentId,
+                                            refundOnDisqualify
+                                        ) { success, msg ->
+                                            showDisqualifyConfirmForJoin = null
+                                            if (success) {
+                                                scope.launch {
+                                                    snackBars.showSnackbar("Successfully disqualified player: ${dsqJoin.inGameName}")
+                                                }
+                                            } else {
+                                                scope.launch {
+                                                    snackBars.showSnackbar("Disqualification failed: $msg")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.testTag("confirm_disqualify_btn")
+                                ) {
+                                    Text("CONFIRM & DISQUALIFY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // --- SECURE FIRESTORE WRITE CONFIRMATION DIALOGS ---
 
         // 1. Publish Match Confirmation Dialog
         if (showPublishConfirmDialog) {
-            var passcode by remember { mutableStateOf("") }
-            var errorMsg by remember { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { showPublishConfirmDialog = false }) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -6921,24 +7986,6 @@ fun AdminTournamentsTab(
                                 Text("Total Slots: $publishConfirmSlots", fontSize = 10.sp, color = GreyText)
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = passcode,
-                            onValueChange = { 
-                                passcode = it 
-                                errorMsg = null
-                            },
-                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth().testTag("publish_passcode_input")
-                        )
-                        if (errorMsg != null) {
-                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { showPublishConfirmDialog = false }) {
@@ -6947,31 +7994,27 @@ fun AdminTournamentsTab(
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    if (passcode == "selva1912") {
-                                        viewModel.adminCreateTournament(
-                                            title = publishConfirmTitle,
-                                            dateTimeStr = publishConfirmDateStr,
-                                            entryFee = publishConfirmEntryFee,
-                                            prizePool = publishConfirmPrizePool,
-                                            map = publishConfirmMap,
-                                            type = publishConfirmType,
-                                            slotsTotal = publishConfirmSlots,
-                                            rules = publishConfirmRules
-                                        ) {
-                                            isCreatingMatch = false
-                                            showPublishConfirmDialog = false
-                                            scope.launch {
-                                                snackBars.showSnackbar("Securely published and synced to Firestore!")
-                                            }
+                                    viewModel.adminCreateTournament(
+                                        title = publishConfirmTitle,
+                                        dateTimeStr = publishConfirmDateStr,
+                                        entryFee = publishConfirmEntryFee,
+                                        prizePool = publishConfirmPrizePool,
+                                        map = publishConfirmMap,
+                                        type = publishConfirmType,
+                                        slotsTotal = publishConfirmSlots,
+                                        rules = publishConfirmRules
+                                    ) {
+                                        isCreatingMatch = false
+                                        showPublishConfirmDialog = false
+                                        scope.launch {
+                                            snackBars.showSnackbar("Securely published and synced to Firestore!")
                                         }
-                                    } else {
-                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                                 modifier = Modifier.testTag("publish_confirm_btn")
                             ) {
-                                Text("AUTHORIZE & PUBLISH", fontSize = 11.sp)
+                                Text("PUBLISH LOBBY", fontSize = 11.sp)
                             }
                         }
                     }
@@ -6981,8 +8024,6 @@ fun AdminTournamentsTab(
 
         // 2. Update Match Confirmation Dialog
         if (showUpdateConfirmDialog) {
-            var passcode by remember { mutableStateOf("") }
-            var errorMsg by remember { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { showUpdateConfirmDialog = false }) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -7017,24 +8058,6 @@ fun AdminTournamentsTab(
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = passcode,
-                            onValueChange = { 
-                                passcode = it 
-                                errorMsg = null
-                            },
-                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth().testTag("update_passcode_input")
-                        )
-                        if (errorMsg != null) {
-                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { showUpdateConfirmDialog = false }) {
@@ -7043,30 +8066,26 @@ fun AdminTournamentsTab(
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    if (passcode == "selva1912") {
-                                        viewModel.adminEditTournamentDetails(
-                                            id = updatePendingId,
-                                            title = updatePendingTitle,
-                                            dateTimeStr = updatePendingDateTimeStr,
-                                            entryFee = updatePendingEntryFee,
-                                            prizePool = updatePendingPrizePool,
-                                            map = updatePendingMap,
-                                            type = updatePendingType,
-                                            slotsTotal = updatePendingSlotsTotal,
-                                            rules = updatePendingRules,
-                                            roomId = updatePendingRoomId,
-                                            roomPassword = updatePendingRoomPassword
-                                        )
-                                        showUpdateConfirmDialog = false
-                                        editCredentialsForTournament = null
-                                    } else {
-                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
-                                    }
+                                    viewModel.adminEditTournamentDetails(
+                                        id = updatePendingId,
+                                        title = updatePendingTitle,
+                                        dateTimeStr = updatePendingDateTimeStr,
+                                        entryFee = updatePendingEntryFee,
+                                        prizePool = updatePendingPrizePool,
+                                        map = updatePendingMap,
+                                        type = updatePendingType,
+                                        slotsTotal = updatePendingSlotsTotal,
+                                        rules = updatePendingRules,
+                                        roomId = updatePendingRoomId,
+                                        roomPassword = updatePendingRoomPassword
+                                    )
+                                    showUpdateConfirmDialog = false
+                                    editCredentialsForTournament = null
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                                 modifier = Modifier.testTag("update_confirm_btn")
                             ) {
-                                Text("AUTHORIZE & UPDATE", fontSize = 11.sp)
+                                Text("UPDATE LOBBY", fontSize = 11.sp)
                             }
                         }
                     }
@@ -7077,8 +8096,6 @@ fun AdminTournamentsTab(
         // 3. Delete/Cancel Match Confirmation Dialog
         if (tournamentToCancelPending != null) {
             val focusC = tournamentToCancelPending!!
-            var passcode by remember { mutableStateOf("") }
-            var errorMsg by remember { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { tournamentToCancelPending = null }) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -7098,24 +8115,6 @@ fun AdminTournamentsTab(
                             fontSize = 11.sp,
                             color = GreyText
                         )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text("Enter Admin Security Passcode (selva1912) to verify authorization:", fontSize = 10.sp, color = GreyText)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = passcode,
-                            onValueChange = { 
-                                passcode = it 
-                                errorMsg = null
-                            },
-                            placeholder = { Text("Admin Passcode", fontSize = 11.sp, color = Color.Gray) },
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth().testTag("delete_passcode_input")
-                        )
-                        if (errorMsg != null) {
-                            Text(text = errorMsg!!, color = RedPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { tournamentToCancelPending = null }) {
@@ -7124,20 +8123,16 @@ fun AdminTournamentsTab(
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    if (passcode == "selva1912") {
-                                        viewModel.adminCancelTournament(focusC.id)
-                                        tournamentToCancelPending = null
-                                        scope.launch {
-                                            snackBars.showSnackbar("Tournament cancel directive dispatched! Synced to Firestore.")
-                                        }
-                                    } else {
-                                        errorMsg = "❌ INVALID ADMIN SECURITY KEY"
+                                    viewModel.adminCancelTournament(focusC.id)
+                                    tournamentToCancelPending = null
+                                    scope.launch {
+                                        snackBars.showSnackbar("Tournament cancel directive dispatched! Synced to Firestore.")
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
                                 modifier = Modifier.testTag("delete_confirm_btn")
                             ) {
-                                Text("AUTHORIZE & PURGE", fontSize = 11.sp)
+                                Text("PURGE LOBBY", fontSize = 11.sp)
                             }
                         }
                     }
@@ -8141,12 +9136,17 @@ fun AdminDepositsTab(
     var youtubeSettingState by remember { mutableStateOf(viewModel.getYoutubeSetting()) }
     var defaultTimingStartState by remember { mutableStateOf(viewModel.getDefaultTimingStart()) }
     var defaultTimingEndState by remember { mutableStateOf(viewModel.getDefaultTimingEnd()) }
+    var tournamentDelayState by remember { mutableStateOf(viewModel.getTournamentDelayMinutes().toString()) }
     var razorpayKeyIdState by remember { mutableStateOf(viewModel.getRazorpayKeyId()) }
     var cashfreeClientIdState by remember { mutableStateOf(viewModel.getCashfreeClientId()) }
     var cashfreeSecretKeyState by remember { mutableStateOf(viewModel.getCashfreeSecretKey()) }
     var minDepositState by remember { mutableStateOf(viewModel.getMinDepositAmount().toString()) }
     var minDebitState by remember { mutableStateOf(viewModel.getMinDebitAmount().toString()) }
     var minWithdrawalState by remember { mutableStateOf(viewModel.getMinWithdrawalAmount().toString()) }
+    var fcmEnabledState by remember { mutableStateOf(viewModel.isFcmEnabled()) }
+    var fcmServerKeyState by remember { mutableStateOf(viewModel.getFcmServerKey()) }
+    var fcmProjectIdState by remember { mutableStateOf(viewModel.getFcmProjectId()) }
+    var fcmMockModeState by remember { mutableStateOf(viewModel.isFcmMockMode()) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -8254,7 +9254,7 @@ fun AdminDepositsTab(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("BATTLEZONE AUTOMATED LOBBY GENERATOR", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Instantly generate standard 1.5-hour tournaments from $defaultTimingStartState to $defaultTimingEndState with preset entry criteria (₹45 fee, ₹100 winning payouts).", fontSize = 9.sp, color = GreyText)
+                Text("Instantly generate standard $tournamentDelayState-minute tournaments from $defaultTimingStartState to $defaultTimingEndState with preset entry criteria (₹45 fee, ₹100 winning payouts).", fontSize = 9.sp, color = GreyText)
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -8276,11 +9276,19 @@ fun AdminDepositsTab(
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = tournamentDelayState,
+                    onValueChange = { tournamentDelayState = it },
+                    label = { Text("Inter-Tournament Delay / Gap (in minutes, e.g. 20)") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = {
-                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
+                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState, tournamentDelayState)
                         scope.launch {
-                            snackbarHost.showSnackbar("Daily automatic sessions timeframe changed successfully!")
+                            snackbarHost.showSnackbar("Daily automatic sessions timeframe and delay changed successfully!")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -8644,6 +9652,112 @@ fun AdminDepositsTab(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
+        // Part 1.6: Firebase Cloud Messaging Configuration Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
+                .testTag("fcm_config_card")
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("FCM PUSH NOTIFICATIONS GATEWAY", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Configure dynamic real-time Firebase Cloud Messaging alerts to notify players instantly when they register or when matches start.", fontSize = 9.sp, color = GreyText)
+                
+                Spacer(modifier = Modifier.height(14.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enable FCM Alerts", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Send push alerts for tournament registrations and match start events.", fontSize = 8.sp, color = GreyText)
+                    }
+                    Switch(
+                        checked = fcmEnabledState,
+                        onCheckedChange = { fcmEnabledState = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = RedPrimary,
+                            checkedTrackColor = RedPrimary.copy(alpha = 0.4f),
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.testTag("fcm_enabled_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Interactive Local Simulation", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Simulates instant visual status bar notifications. Recommended for developer sandbox testing.", fontSize = 8.sp, color = GreyText)
+                    }
+                    Switch(
+                        checked = fcmMockModeState,
+                        onCheckedChange = { fcmMockModeState = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = RedPrimary,
+                            checkedTrackColor = RedPrimary.copy(alpha = 0.4f),
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.testTag("fcm_mock_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (fcmEnabledState) {
+                    OutlinedTextField(
+                        value = fcmServerKeyState,
+                        onValueChange = { fcmServerKeyState = it },
+                        label = { Text("FCM Legacy Server Key") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        placeholder = { Text("e.g. AIzaSy...") },
+                        modifier = Modifier.fillMaxWidth().testTag("fcm_server_key_input")
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = fcmProjectIdState,
+                        onValueChange = { fcmProjectIdState = it },
+                        label = { Text("FCM Project ID") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                        placeholder = { Text("e.g. battlezone-app-123") },
+                        modifier = Modifier.fillMaxWidth().testTag("fcm_project_id_input")
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "✅ FCM Topic Broadcasting: Subscribed clients automatically receive live alerts on topic 'tournament_ID' without manual intervention.",
+                        color = Color(0xFF81C784),
+                        fontSize = 8.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = {
+                        viewModel.updateFcmConfig(fcmEnabledState, fcmServerKeyState, fcmProjectIdState, fcmMockModeState)
+                        scope.launch {
+                            snackbarHost.showSnackbar("FCM Push settings successfully updated in real-time!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                    modifier = Modifier.fillMaxWidth().testTag("save_fcm_configs_btn"),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("SAVE FCM PUSH SETTINGS", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         // Part 1.7: Default tournament timings configuration card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
@@ -8674,12 +9788,20 @@ fun AdminDepositsTab(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = tournamentDelayState,
+                    onValueChange = { tournamentDelayState = it },
+                    label = { Text("Inter-Tournament Delay (in minutes, e.g. 20)") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF1F1C25)),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(14.dp))
                 Button(
                     onClick = {
-                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState)
+                        viewModel.updateDefaultTournamentTiming(defaultTimingStartState, defaultTimingEndState, tournamentDelayState)
                         scope.launch {
-                            snackbarHost.showSnackbar("Default tournament timings updated successfully!")
+                            snackbarHost.showSnackbar("Default tournament timings and delay updated successfully!")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
@@ -9018,10 +10140,10 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var enteredOtp by remember { mutableStateOf("") }
     var otpFlowType by remember { mutableStateOf("SIGN_IN") } // "SIGN_IN", "REGISTER", "GOOGLE", "GOOGLE_LINKED"
     var otpErrorMsg by remember { mutableStateOf<String?>(null) }
-    var otpTimerSeconds by remember { mutableStateOf(60) }
+    var otpTimerSeconds by remember { mutableStateOf(120) }
     LaunchedEffect(authStep) {
         if (authStep == "OTP") {
-            otpTimerSeconds = 60
+            otpTimerSeconds = 120
             while (otpTimerSeconds > 0) {
                 delay(1000L)
                 otpTimerSeconds--
@@ -9277,19 +10399,19 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 }
                             }
 
-                            // High-visibility 60s cooldown timer card to protect from brute-force injections
+                            // High-visibility 120s validity countdown timer card
                             Spacer(modifier = Modifier.height(10.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        if (otpTimerSeconds > 0) Color(0xFF1B1610) else Color(0xFF101915), 
+                                        if (otpTimerSeconds > 0) Color(0xFF1B1610) else Color(0xFF281116), 
                                         RoundedCornerShape(8.dp)
                                     )
                                     .border(
                                         BorderStroke(
                                             1.dp, 
-                                            if (otpTimerSeconds > 0) Color(0xFFFFB300).copy(alpha = 0.4f) else Color(0xFF00C853).copy(alpha = 0.4f)
+                                            if (otpTimerSeconds > 0) Color(0xFFFFB300).copy(alpha = 0.4f) else RedPrimary.copy(alpha = 0.4f)
                                         ), 
                                         RoundedCornerShape(8.dp)
                                     )
@@ -9305,7 +10427,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     ) {
                                         if (otpTimerSeconds > 0) {
                                             CircularProgressIndicator(
-                                                progress = otpTimerSeconds / 60f,
+                                                progress = otpTimerSeconds / 120f,
                                                 modifier = Modifier.fillMaxSize(),
                                                 color = Color(0xFFFFB300),
                                                 strokeWidth = 3.dp,
@@ -9318,35 +10440,35 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             )
                                         } else {
                                             Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "unlocked",
-                                                tint = Color(0xFF00C853),
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "expired",
+                                                tint = RedPrimary,
                                                 modifier = Modifier.size(28.dp)
                                             )
                                         }
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = if (otpTimerSeconds > 0) "⏱️ BRUTE-FORCE PROTECTION COOLDOWN" else "🔓 SECURE VERIFICATION UNLOCKED",
+                                            text = if (otpTimerSeconds > 0) "⏱️ OTP VALIDITY COUNTDOWN" else "⚠️ OTP EXPIRED",
                                             fontSize = 9.sp,
-                                            color = if (otpTimerSeconds > 0) Color(0xFFFFB300) else Color(0xFF00C853),
+                                            color = if (otpTimerSeconds > 0) Color(0xFFFFB300) else RedPrimary,
                                             fontWeight = FontWeight.Bold,
                                             letterSpacing = 0.5.sp
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = if (otpTimerSeconds > 0) {
-                                                "To prevent multiple rapid OTP verification attempts, submission actions are locked for the next $otpTimerSeconds seconds."
-                                            } else {
-                                                "Account cooldown expired successfully. You may now submit your verification code to access the terminal."
-                                            },
-                                            fontSize = 9.sp,
-                                            color = GreyText,
-                                            lineHeight = 11.sp
-                                        )
-                                    }
-                                }
-                            }
+                                                "Please enter the verification OTP and submit within the next $otpTimerSeconds seconds. Otherwise, the OTP will become invalid."
+                                             } else {
+                                                 "The OTP validity period has expired. Please go back to the previous screen to request a new OTP code."
+                                             },
+                                             fontSize = 9.sp,
+                                             color = GreyText,
+                                             lineHeight = 11.sp
+                                         )
+                                     }
+                                 }
+                             }
                             
                             if (generatedOtp.isNotEmpty() && isEmailAdmin) {
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -9398,6 +10520,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                             Spacer(modifier = Modifier.height(16.dp))
                             OutlinedTextField(
                                 value = enteredOtp,
+                                enabled = otpTimerSeconds > 0,
                                 onValueChange = { 
                                     val cleaned = deduplicateInput(enteredOtp, it)
                                     enteredOtp = cleaned.filter { c -> c.isDigit() }.take(6) 
@@ -9701,7 +10824,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                      }
                                      }
                                   },
-                                enabled = otpTimerSeconds <= 0,
+                                enabled = otpTimerSeconds > 0 && enteredOtp.length == 6,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = RedPrimary,
                                     disabledContainerColor = RedPrimary.copy(alpha = 0.35f)
@@ -9710,9 +10833,9 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_submit_btn")
                             ) {
                                 if (otpTimerSeconds > 0) {
-                                    Text("LOCKOUT COOLDOWN ACTIVE (${otpTimerSeconds}s)", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                                    Text("VERIFY OTP & OPEN APP (${otpTimerSeconds}s)", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
                                 } else {
-                                    Text("VERIFY OTP & OPEN APP", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
+                                    Text("OTP EXPIRED (GO BACK)", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
                                 }
                             }
                             Spacer(modifier = Modifier.height(10.dp))
@@ -11520,6 +12643,90 @@ fun AdminSecurityTab(
                         text = if (securityMetrics.localDbEncryptedCheck) "PARAMETER SANITIZED" else "RAW INPUT ACCEPTED",
                         fontSize = 10.sp,
                         color = if (securityMetrics.localDbEncryptedCheck) Color.Green else RedPrimary,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Cloud Firestore Provisioning & Initialization Panel
+        val isFirestoreInitializing by viewModel.isFirestoreInitializing.collectAsStateWithLifecycle()
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF24222B)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFE5A93B).copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                            .padding(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Cloud Icon",
+                            tint = Color(0xFFE5A93B),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        "GOOGLE CLOUD FIRESTORE PROVISIONING",
+                        fontSize = 11.sp,
+                        color = Color(0xFFE5A93B),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Initialize and seed your Firebase Firestore database with all user profiles, active tournaments, custom lobby slots, settings config and persistent wallet balances. Ensures live-sync synchronization across all combatant devices.",
+                    fontSize = 9.sp,
+                    color = GreyText
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                
+                Button(
+                    onClick = {
+                        terminalLogs = listOf("Connecting to Firebase console project configuration...")
+                        viewModel.initializeCloudFirestoreDatabase(
+                            onLogUpdate = { nextLine ->
+                                val currentList = terminalLogs.toMutableList()
+                                currentList.add(nextLine)
+                                terminalLogs = currentList
+                            },
+                            onFinished = { success ->
+                                scope.launch {
+                                    if (success) {
+                                        snackbarHost.showSnackbar("🔥 Firestore provisioned & synced live!")
+                                    } else {
+                                        snackbarHost.showSnackbar("❌ Firestore provisioning failed.")
+                                    }
+                                }
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF131118)),
+                    border = BorderStroke(1.dp, if (isFirestoreInitializing) Color(0xFFE5A93B) else Color(0xFFE5A93B).copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(6.dp),
+                    enabled = !isFirestoreInitializing && !isAuditRunning,
+                    modifier = Modifier.fillMaxWidth().testTag("initialize_firestore_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "run initialization",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isFirestoreInitializing) "PROVISIONING CLOUD ARRAYS..." else "INITIALIZE & SYNC CLOUD FIRESTORE",
+                        fontSize = 10.sp,
+                        color = Color.White,
                         fontWeight = FontWeight.Black
                     )
                 }
