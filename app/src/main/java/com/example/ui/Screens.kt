@@ -5100,39 +5100,13 @@ fun ProfileScreen(
     onEnterAdmin: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val isAppModified by viewModel.isAppModifiedFlow.collectAsStateWithLifecycle()
+    val appUpdateAvailable by viewModel.appUpdateAvailableFlow.collectAsStateWithLifecycle()
     val securityMetrics by viewModel.securityMetrics.collectAsStateWithLifecycle()
-    var isEditing by remember { mutableStateOf(false) }
-
-    val initialIgn = remember(user) { viewModel.getDraftInGameName(user?.inGameName ?: "Alpha_Gamer") }
-    val initialFfUid = remember(user) { viewModel.getDraftFreeFireUid(user?.freeFireUid ?: "FF-837492047") }
-    val initialPhone = remember(user) { viewModel.getDraftPhoneNumber(user?.phoneNumber ?: "+91 91929 39495") }
-    val initialExtraPhone = remember(user) { viewModel.getDraftExtraMobileNumber(user?.extraMobileNumber ?: "") }
-    val initialBio = remember(user) { viewModel.getDraftBio(user?.profilePicture ?: "🎯 Free Fire Pro Challenger!") }
-
-    var ignState by remember(initialIgn) { mutableStateOf(initialIgn) }
-    var ffUidState by remember(initialFfUid) { mutableStateOf(initialFfUid) }
-    var phoneState by remember(initialPhone) { mutableStateOf(initialPhone) }
-    var extraPhoneState by remember(initialExtraPhone) { mutableStateOf(initialExtraPhone) }
-    var emailState by remember(user) { mutableStateOf(user?.email ?: "gamer@battlezone.com") }
-    var bioState by remember(initialBio) { mutableStateOf(initialBio) }
+    var isApplyingAppUpdate by remember { mutableStateOf(false) }
 
     var referralCodePrompt by remember { mutableStateOf("") }
 
-    // Auto-update SharedPreferences draft in real-time when any local fields change
-    LaunchedEffect(ignState, ffUidState, phoneState, extraPhoneState, bioState) {
-        viewModel.updateDraftProfile(ignState, ffUidState, phoneState, extraPhoneState, bioState)
-    }
-
-    // Determine pending changes compared to DB user
-    val hasPendingUpdates = user != null && (
-        ignState.trim() != (user.inGameName ?: "").trim() ||
-        ffUidState.trim() != (user.freeFireUid ?: "").trim() ||
-        phoneState.trim() != (user.phoneNumber ?: "").trim() ||
-        extraPhoneState.trim() != (user.extraMobileNumber ?: "").trim() ||
-        bioState.trim() != (user.profilePicture ?: "").trim()
-    )
-
-    val isVipApplied = viewModel.isProfileUpdateApplied() && !hasPendingUpdates
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -5172,7 +5146,7 @@ fun ProfileScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            border = BorderStroke(1.dp, if (isVipApplied) NeonGold else Color(0xFF1F1C25))
+            border = BorderStroke(1.dp, if (!appUpdateAvailable) NeonGold else Color(0xFF1F1C25))
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -5192,7 +5166,7 @@ fun ProfileScreen(
                                 .clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
-                                        if (isVipApplied) listOf(NeonGold, Color(0xFFB58926)) else listOf(RedPrimary, RedDark)
+                                        if (!appUpdateAvailable) listOf(NeonGold, Color(0xFFB58926)) else listOf(RedPrimary, RedDark)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -5204,8 +5178,8 @@ fun ProfileScreen(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(user?.inGameName ?: "Alpha_Gamer", fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (isVipApplied) NeonGold else Color.White)
-                                if (isVipApplied) {
+                                Text(user?.inGameName ?: "Alpha_Gamer", fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (!appUpdateAvailable) NeonGold else Color.White)
+                                if (!appUpdateAvailable) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -5251,7 +5225,7 @@ fun ProfileScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- PROFILE & FEATURE UPDATES CARD ---
+        // --- SYSTEM & APP UPDATES CARD ---
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier
@@ -5259,11 +5233,11 @@ fun ProfileScreen(
                 .border(
                     BorderStroke(
                         1.dp,
-                        if (hasPendingUpdates) RedPrimary.copy(alpha = 0.6f) else if (isVipApplied) NeonGold.copy(alpha = 0.6f) else Color(0xFF28252C)
+                        if (appUpdateAvailable) RedPrimary.copy(alpha = 0.6f) else Color(0xFF28252C)
                     ),
                     RoundedCornerShape(12.dp)
                 )
-                .testTag("profile_update_gateway_card")
+                .testTag("system_app_updates_card")
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Row(
@@ -5272,115 +5246,112 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "PROFILE & FEATURE UPDATE GATEWAY",
+                        "SYSTEM & APP UPDATES",
                         fontSize = 11.sp,
-                        color = if (hasPendingUpdates) RedPrimary else if (isVipApplied) NeonGold else GreyText,
+                        color = if (appUpdateAvailable) RedPrimary else GreyText,
                         fontWeight = FontWeight.Bold
                     )
-                    if (hasPendingUpdates) {
+                    if (appUpdateAvailable) {
                         Box(
                             modifier = Modifier
                                 .background(RedPrimary.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
                                 .border(0.5.dp, RedPrimary, RoundedCornerShape(4.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("⏳ PENDING UPDATE", color = RedPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("⏳ UPDATE PENDING", color = RedPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
-                    } else if (isVipApplied) {
+                    } else {
                         Box(
                             modifier = Modifier
                                 .background(Color(0xFF1E3A20), RoundedCornerShape(4.dp))
                                 .border(0.5.dp, Color(0xFF81C784), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("✅ ALL UPDATES APPLIED", color = Color(0xFF81C784), fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFF28252C), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("STABLE VERSION", color = GreyText, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text("✅ STABLE & LATEST", color = Color(0xFF81C784), fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                if (hasPendingUpdates) {
-                    Text(
-                        "You have unapplied modifications to your gamer credentials. Automatically saved to drafts! Click the 'UPDATE' button below to apply them and reload your status.",
-                        fontSize = 9.sp,
-                        color = Color.White
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("DETECTED PROFILE CHANGES (AUTOSAVED):", fontSize = 8.sp, color = NeonGold, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    // List changed fields
-                    if (ignState.trim() != (user?.inGameName ?: "").trim()) {
-                        PendingUpdateItem(label = "In-Game Name", from = user?.inGameName ?: "Alpha_Gamer", to = ignState)
-                    }
-                    if (ffUidState.trim() != (user?.freeFireUid ?: "").trim()) {
-                        PendingUpdateItem(label = "Hero UID", from = user?.freeFireUid ?: "FF-837492047", to = ffUidState)
-                    }
-                    if (bioState.trim() != (user?.profilePicture ?: "").trim()) {
-                        PendingUpdateItem(label = "Gamer Bio", from = user?.profilePicture ?: "No status set", to = bioState)
-                    }
-                    if (phoneState.trim() != (user?.phoneNumber ?: "").trim()) {
-                        PendingUpdateItem(label = "Primary Phone", from = user?.phoneNumber ?: "Not provided", to = phoneState)
-                    }
-                    if (extraPhoneState.trim() != (user?.extraMobileNumber ?: "").trim()) {
-                        PendingUpdateItem(label = "Secondary Phone", from = if (user?.extraMobileNumber.isNullOrBlank()) "Not provided" else user?.extraMobileNumber!!, to = extraPhoneState)
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("🎁 PREMIUM NEW FEATURES UNLOCKING FROM THIS UPDATE:", fontSize = 8.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    FeatureUnlockItem(feature = "👑 Platinum Elite Badge Activation", applied = false)
-                    FeatureUnlockItem(feature = "🎨 Custom Gold Neon Accent Styling", applied = false)
-                    FeatureUnlockItem(feature = "🚀 High-Priority FCM Broadcast Delivery", applied = false)
-                    
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Button(
-                        onClick = {
-                            viewModel.updateProfile(ignState, ffUidState, phoneState, extraPhoneState, emailState, bioState) {
-                                viewModel.setProfileUpdateApplied(true)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("🚀 Profile updates applied & premium features activated!")
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                // Show AI Studio modification details
+                if (isAppModified) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("apply_profile_update_btn"),
-                        shape = RoundedCornerShape(8.dp)
+                            .background(Color(0xFF201315), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, RedPrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Update", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("UPDATE", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Icon(imageVector = Icons.Default.Warning, contentDescription = "modified", tint = RedPrimary, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "APP DETECTED AS MODIFIED IN AI STUDIO DEVELOPMENT ENVIRONMENT",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RedPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (appUpdateAvailable) {
+                    Text(
+                        text = "There is one update",
+                        fontSize = 15.sp,
+                        color = NeonGold,
+                        fontWeight = FontWeight.Black
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "An app-level update or system customization patch is available. Click the button below to apply this update and sync live configurations automatically.",
+                        fontSize = 10.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    if (isApplyingAppUpdate) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            CircularProgressIndicator(color = RedPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Applying app-level customization patch...", color = GreyText, fontSize = 11.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                isApplyingAppUpdate = true
+                                viewModel.applyAppUpdate {
+                                    isApplyingAppUpdate = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("✅ System configurations successfully updated to the latest build.")
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("apply_app_update_btn"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Update", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("UPDATE NOW", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 } else {
-                    if (isVipApplied) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Up-to-date", tint = Color(0xFF81C784), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "Success! All draft profile changes have been successfully committed to the database. The premium VIP features listed below are active on your account.",
-                            fontSize = 9.sp,
+                            text = "The application and system settings are fully up-to-date with your latest modifications.",
+                            fontSize = 11.sp,
                             color = Color(0xFF81C784)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("ACTIVE PREMIUM FEATURES STATUS:", fontSize = 8.sp, color = NeonGold, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FeatureUnlockItem(feature = "👑 Platinum Elite Badge Active", applied = true)
-                        FeatureUnlockItem(feature = "🎨 Custom Gold Neon Accent Active", applied = true)
-                        FeatureUnlockItem(feature = "🚀 High-Priority FCM Broadcast Active", applied = true)
-                    } else {
-                        Text(
-                            "No pending changes detected. Try clicking the EDIT icon under 'EDIT GAME ACCOUNT CREDENTIALS' below, type in new details, and they will be automatically updated as pending. You can then apply the update here!",
-                            fontSize = 9.sp,
-                            color = GreyText
                         )
                     }
                 }
@@ -5388,102 +5359,19 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        // Profile Editing toggle card
+        // Read-only registered credentials card
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("EDIT GAME ACCOUNT CREDENTIALS", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
-                    IconButton(onClick = { isEditing = !isEditing }) {
-                        Icon(
-                            imageVector = if (isEditing) Icons.Default.Save else Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = RedPrimary
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                if (isEditing) {
-                    OutlinedTextField(
-                        value = ignState,
-                        onValueChange = { ignState = it },
-                        label = { Text("In-Game Name") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = ffUidState,
-                        onValueChange = { ffUidState = it },
-                        label = { Text("Profile Hero UID") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = bioState,
-                        onValueChange = { bioState = it },
-                        label = { Text("Gamer Bio / Status Message") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = phoneState,
-                        onValueChange = { phoneState = it },
-                        label = { Text("Primary Mobile Number") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = extraPhoneState,
-                        onValueChange = { extraPhoneState = it },
-                        label = { Text("Secondary Contact Number") },
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary, unfocusedBorderColor = Color(0xFF28252C)),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = maskEmail(emailState),
-                        onValueChange = {},
-                        label = { Text("Associated Google Mail (SECURED)") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF28252C),
-                            unfocusedBorderColor = Color(0xFF28252C)
-                        ),
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            viewModel.updateProfile(ignState, ffUidState, phoneState, extraPhoneState, emailState, bioState) {
-                                viewModel.setProfileUpdateApplied(true)
-                                isEditing = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Profile details updated & changes applied.")
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("SAVE & APPLY PROFILE CONFIGURATIONS")
-                    }
-                } else {
-                    ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
-                    ProfileFieldRow(label = "Free Fire UID", value = user?.freeFireUid ?: "FF-837492047")
-                    ProfileFieldRow(label = "Primary Mobile Number", value = user?.phoneNumber ?: "+91 98765 43210")
-                    ProfileFieldRow(label = "Secondary Contact Number", value = if (user?.extraMobileNumber.isNullOrBlank()) "Not Provided" else user?.extraMobileNumber!!)
-                    ProfileFieldRow(label = "Support Mail", value = maskEmail(user?.email ?: "gamer@battlezone.com"))
-                }
+                Text("REGISTERED ACCOUNT DETAILS", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
+                ProfileFieldRow(label = "Free Fire UID", value = user?.freeFireUid ?: "FF-837492047")
+                ProfileFieldRow(label = "Primary Mobile Number", value = user?.phoneNumber ?: "+91 98765 43210")
+                ProfileFieldRow(label = "Secondary Contact Number", value = if (user?.extraMobileNumber.isNullOrBlank()) "Not Provided" else user?.extraMobileNumber!!)
+                ProfileFieldRow(label = "Associated Google Mail", value = maskEmail(user?.email ?: "gamer@battlezone.com"))
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

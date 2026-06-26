@@ -1920,9 +1920,7 @@ class BattleZoneViewModel(
         val password = passwordInput.trim()
         
         viewModelScope.launch {
-            // Introduce a 1-second delay for verification as requested by the user
-            kotlinx.coroutines.delay(1000)
-            
+            // Check credentials instantly without delay
             val cleanEmail = email.replace("@", "_").replace(".", "_")
             val userId = "user_e_${cleanEmail.take(20)}"
             
@@ -1944,28 +1942,11 @@ class BattleZoneViewModel(
             if (user == null) { user = getFirestoreUserById(userId) }
             if (user == null) { user = getFirestoreUserByEmail(email) }
             
-            // Admins do not need to register. Auto create profile if email is admin.
-            if (user == null && email == "selva19122008@gmail.com") {
-                val adminUser = UserEntity(
-                    id = userId,
-                    inGameName = "Admin_Selva",
-                    freeFireUid = "ADMIN-1",
-                    phoneNumber = "+919999999999",
-                    extraMobileNumber = "",
-                    email = email,
-                    depositBalance = 5000.0,
-                    winningBalance = 5000.0,
-                    bonusBalance = 1000.0
-                )
-                repository.insertUser(adminUser)
-                user = adminUser
-            }
-            
             // If the user does not exist in any database (local or firestore), they are NOT registered!
             if (user == null) {
                 onFinished(
                     false,
-                    "No, you are not registered. You do not have an account like this. You need to register first and then come."
+                    "You haven't registered yet. Please register first."
                 )
                 return@launch
             }
@@ -3218,6 +3199,24 @@ class BattleZoneViewModel(
 
     fun setProfileUpdateApplied(applied: Boolean) {
         sharedPrefs.edit().putBoolean("profile_update_applied", applied).apply()
+    }
+
+    // App Updates / System Updates State Management
+    private val _isAppModifiedFlow = MutableStateFlow(true) // Defaults to true because it is custom-built/modified in AI Studio
+    val isAppModifiedFlow: StateFlow<Boolean> = _isAppModifiedFlow.asStateFlow()
+
+    private val _appUpdateAvailableFlow = MutableStateFlow(true) // Defaults to true so they see "There is one update"
+    val appUpdateAvailableFlow: StateFlow<Boolean> = _appUpdateAvailableFlow.asStateFlow()
+
+    fun isAppModified(): Boolean = _isAppModifiedFlow.value
+    fun isAppUpdateAvailable(): Boolean = _appUpdateAvailableFlow.value
+
+    fun applyAppUpdate(onFinished: () -> Unit) {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1200)
+            _appUpdateAvailableFlow.value = false
+            onFinished()
+        }
     }
 
     private var lastSentGmailOtp: String = ""
