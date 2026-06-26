@@ -354,7 +354,10 @@ class BattleZoneViewModel(
     }
 
     private fun mapToUser(m: Map<String, Any?>): UserEntity {
-        val rawBalance = (m["balance"] as? Number)?.toDouble() ?: ((m["depositBalance"] as? Number)?.toDouble() ?: 150.0)
+        val deposit = (m["depositBalance"] as? Number)?.toDouble() ?: 0.0
+        val winning = (m["winningBalance"] as? Number)?.toDouble() ?: 0.0
+        val bonus = (m["bonusBalance"] as? Number)?.toDouble() ?: 5.0
+        val total = deposit + winning + bonus
         return UserEntity(
             id = m["id"] as? String ?: "default_user",
             inGameName = m["inGameName"] as? String ?: "Alpha_Gamer",
@@ -363,13 +366,13 @@ class BattleZoneViewModel(
             email = m["email"] as? String ?: "gamer@battlezone.com",
             profilePicture = m["profilePicture"] as? String ?: "",
             referralCode = m["referralCode"] as? String ?: "BZONEFF77",
-            depositBalance = rawBalance,
-            winningBalance = (m["winningBalance"] as? Number)?.toDouble() ?: 50.0,
-            bonusBalance = (m["bonusBalance"] as? Number)?.toDouble() ?: 20.0,
+            depositBalance = deposit,
+            winningBalance = winning,
+            bonusBalance = bonus,
             referrerId = m["referrerId"] as? String,
             extraMobileNumber = m["extraMobileNumber"] as? String ?: "",
             isOnline = m["isOnline"] as? Boolean ?: false,
-            balance = rawBalance
+            balance = total
         )
     }
 
@@ -3982,7 +3985,8 @@ class BattleZoneViewModel(
                 if (player != null) {
                     // Refund to deposit balance
                     val updatedPlayer = player.copy(
-                        depositBalance = player.depositBalance + tournament.entryFee
+                        depositBalance = player.depositBalance + tournament.entryFee,
+                        balance = player.depositBalance + tournament.entryFee + player.winningBalance + player.bonusBalance
                     )
                     repository.insertUser(updatedPlayer)
 
@@ -4441,7 +4445,8 @@ class BattleZoneViewModel(
                 // Add prize pool rewards directly to winner winnings balance!
                 val prize = tournament.prizePool
                 val updatedWinner = winnerUser.copy(
-                    winningBalance = winnerUser.winningBalance + prize
+                    winningBalance = winnerUser.winningBalance + prize,
+                    balance = winnerUser.depositBalance + winnerUser.winningBalance + prize + winnerUser.bonusBalance
                 )
                 repository.insertUser(updatedWinner)
 
