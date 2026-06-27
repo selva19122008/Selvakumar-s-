@@ -229,10 +229,23 @@ class BattleZoneViewModel(
     }
 
     fun pushTournamentToFirestore(tournament: TournamentEntity) {
+        if (_userRole.value != "admin" && firestore != null) {
+            return
+        }
         try {
             firestore?.collection("tournaments")
                 ?.document("tourney_${tournament.id}")
                 ?.set(tournamentToMap(tournament))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun updateTournamentSlotsInFirestore(tournamentId: Int, slotsRemaining: Int) {
+        try {
+            firestore?.collection("tournaments")
+                ?.document("tourney_$tournamentId")
+                ?.update("slotsRemaining", slotsRemaining)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -508,43 +521,34 @@ class BattleZoneViewModel(
                    }
                    if (snapshot != null) {
                        viewModelScope.launch {
-                           var isProcessed = false
-                           for (doc in snapshot.documents) {
-                               if (isProcessed) continue
-                               isProcessed = true
-                               val m = doc.data
-                               if (m != null) {
-                                   val tournament = mapToTournament(m)
-                                    val remoteTourneys = snapshot.documents.mapNotNull { doc ->
-                                        doc.data?.let { mapToTournament(it) }
-                                    }
-                                    val remoteIds = remoteTourneys.map { it.id }.toSet()
+                            val remoteTourneys = snapshot.documents.mapNotNull { doc ->
+                                doc.data?.let { mapToTournament(it) }
+                            }
+                            val remoteIds = remoteTourneys.map { it.id }.toSet()
 
-                                    for (t in remoteTourneys) {
-                                        val ext = repository.getTournamentSync(t.id)
-                                        if (ext == null || ext != t) {
-                                            repository.insertTournament(t)
-                                        }
-                                    }
+                            for (t in remoteTourneys) {
+                                val ext = repository.getTournamentSync(t.id)
+                                if (ext == null || ext != t) {
+                                    repository.insertTournament(t)
+                                }
+                            }
 
-                                    try {
-                                        val localTourneys = repository.getTournamentsSync()
-                                        for (local in localTourneys) {
-                                            if (!remoteIds.contains(local.id)) {
-                                                repository.deleteTournament(local)
-                                            }
-                                        }
-                                    } catch (e: java.lang.Exception) {
-                                        e.printStackTrace()
+                            try {
+                                val localTourneys = repository.getTournamentsSync()
+                                for (local in localTourneys) {
+                                    if (!remoteIds.contains(local.id)) {
+                                        repository.deleteTournament(local)
                                     }
-                                   val existing: com.example.db.TournamentEntity? = null
-                                   if (existing == null) {
-                                       /* bypassed */
-                                   } else if (existing != tournament) {
-                                       /* bypassed */
-                                   }
-                               }
-                           }
+                                }
+                            } catch (e: java.lang.Exception) {
+                                e.printStackTrace()
+                            }
+
+
+
+
+
+
                        }
                    }
                }
@@ -583,42 +587,29 @@ class BattleZoneViewModel(
                     }
                     if (snapshot != null) {
                         viewModelScope.launch {
-                            var isProcessed = false
-                            for (doc in snapshot.documents) {
-                                if (isProcessed) continue
-                                isProcessed = true
-                                val m = doc.data
-                                if (m != null) {
-                                    val joinObj = mapToJoin(m)
-                                    val remoteJoins = snapshot.documents.mapNotNull { doc ->
-                                        doc.data?.let { mapToJoin(it) }
-                                    }
-                                    val remoteJoinKeys = remoteJoins.map { "${it.userId}_${it.tournamentId}" }.toSet()
+                            val remoteJoins = snapshot.documents.mapNotNull { doc ->
+                                doc.data?.let { mapToJoin(it) }
+                            }
+                            val remoteJoinKeys = remoteJoins.map { "${it.userId}_${it.tournamentId}" }.toSet()
 
-                                    for (j in remoteJoins) {
-                                        val ext = repository.getJoinSync(j.userId, j.tournamentId)
-                                        if (ext == null || ext != j) {
-                                            repository.insertJoin(j)
-                                        }
-                                    }
-
-                                    try {
-                                        val localJoins = repository.getAllJoinsFlow().first()
-                                        for (local in localJoins) {
-                                            val localKey = "${local.userId}_${local.tournamentId}"
-                                            if (!remoteJoinKeys.contains(localKey)) {
-                                                repository.deleteJoin(local)
-                                            }
-                                        }
-                                    } catch (e: java.lang.Exception) {
-                                        e.printStackTrace()
-                                    }
-                                    val existing: com.example.db.TournamentJoinEntity? = null
-                                    if (existing == null || existing != joinObj) {
-                                        /* bypassed */
-                                    }
+                            for (j in remoteJoins) {
+                                val ext = repository.getJoinSync(j.userId, j.tournamentId)
+                                if (ext == null || ext != j) {
+                                    repository.insertJoin(j)
                                 }
                             }
+
+                            try {
+                                val localJoins = repository.getAllJoinsFlow().first()
+                                for (local in localJoins) {
+                                    val localKey = "${local.userId}_${local.tournamentId}"
+                                    if (!remoteJoinKeys.contains(localKey)) {
+                                        repository.deleteJoin(local)
+                                    }
+                                }
+                            } catch (e: java.lang.Exception) {
+                                e.printStackTrace()
+                             }
                         }
                     }
                 }
@@ -2679,7 +2670,9 @@ class BattleZoneViewModel(
             // Update tournament slots
             val updatedTournament = tournament.copy(slotsRemaining = tournament.slotsRemaining - 1)
             repository.updateTournament(updatedTournament)
-            pushTournamentToFirestore(updatedTournament)
+            if (isRealtimeSyncEnabled.value) {
+                updateTournamentSlotsInFirestore(tournamentId, updatedTournament.slotsRemaining)
+            }
 
             // Update user balance
             saveAndSyncUser(user.copy(
@@ -3358,6 +3351,60 @@ class BattleZoneViewModel(
                 e.printStackTrace()
                 isRealtimeSyncEnabled.value = true
                 onFinished("Failure occurred during alignment: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun adminResetTournamentsToPreviousState(onFinished: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                if (firestore == null) {
+                    onFinished("Cloud Firestore is not initialized.")
+                    return@launch
+                }
+
+                // 1. Temporarily pause sync
+                val wasSyncEnabled = isRealtimeSyncEnabled.value
+                isRealtimeSyncEnabled.value = false
+                currentUserSnapshotListener?.remove()
+                currentUserSnapshotListener = null
+
+                // 2. Fetch all existing tournaments and joins from Firestore/Local and delete them from Firestore
+                val remoteTourneyMaps = fetchFirestoreCollection("tournaments")
+                val remoteJoinMaps = fetchFirestoreCollection("joins")
+
+                for (m in remoteTourneyMaps) {
+                    val id = (m["id"] as? Number)?.toInt()
+                    if (id != null) {
+                        deleteTournamentFromFirestore(id)
+                    }
+                }
+                for (m in remoteJoinMaps) {
+                    val userId = m["userId"] as? String
+                    val tournamentId = (m["tournamentId"] as? Number)?.toInt()
+                    if (userId != null && tournamentId != null) {
+                        deleteJoinFromFirestore(userId, tournamentId)
+                    }
+                }
+
+                // 3. Clear local Room database tables
+                repository.clearTournaments()
+                repository.clearJoins()
+
+                // 4. Force synchronization state on
+                isRealtimeSyncEnabled.value = true
+
+                // 5. Re-generate clean default sessions
+                generateDefaultSessions { count ->
+                    // 6. Restart sync
+                    startFirestoreSync()
+                    onFinished("Database reset successfully! Cleared all tournament and registration records and generated $count clean default sessions.")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isRealtimeSyncEnabled.value = true
+                startFirestoreSync()
+                onFinished("Reset failed: ${e.localizedMessage}")
             }
         }
     }

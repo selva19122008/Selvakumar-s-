@@ -12820,6 +12820,91 @@ fun AdminSecurityTab(
         }
         
         Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = Color(0xFF24222B), thickness = 1.dp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // System Reset Section
+        var resetResultMsg by remember { mutableStateOf("") }
+        var isResetting by remember { mutableStateOf(false) }
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "🚨 Emergency System Database Reset",
+                fontSize = 11.sp,
+                color = RedPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Clears all tournament and registration records across both local database and Cloud Firestore, temporarily pauses synchronizations, resets all states, and re-generates clean, default, standard gaming sessions.",
+                fontSize = 9.sp,
+                color = GreyText
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (resetResultMsg.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF2B161A), RoundedCornerShape(8.dp))
+                        .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.2f)), RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = resetResultMsg,
+                        fontSize = 10.sp,
+                        color = RedPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Button(
+                onClick = {
+                    isResetting = true
+                    resetResultMsg = "Resetting database and generating default sessions..."
+                    viewModel.adminResetTournamentsToPreviousState { msg ->
+                        isResetting = false
+                        resetResultMsg = msg
+                    }
+                },
+                enabled = !isResetting,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF331418),
+                    disabledContainerColor = Color(0xFF1E1113)
+                ),
+                border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .testTag("admin_system_reset_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isResetting) Icons.Default.Sync else Icons.Default.Delete,
+                        contentDescription = "Reset Icon",
+                        tint = RedPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isResetting) "RESETTING..." else "RESET SYSTEM DATABASE TO ORIGINAL STATE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = RedPrimary,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // 3. Scanner Controls Cards
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
