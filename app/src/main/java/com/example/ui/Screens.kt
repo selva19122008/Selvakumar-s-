@@ -10145,6 +10145,9 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var loginEmailInput by remember { mutableStateOf("") }
     var loginPasswordInput by remember { mutableStateOf("") }
     var registerPasswordInput by remember { mutableStateOf("") }
+    var resetNewPasswordInput by remember { mutableStateOf("") }
+    var resetConfirmPasswordInput by remember { mutableStateOf("") }
+    var resetErrorMsg by remember { mutableStateOf<String?>(null) }
     
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var showGoogleDialog by remember { mutableStateOf(false) }
@@ -10559,6 +10562,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                                 }
                                                             }
                                                         )
+                                                    } else if (otpFlowType == "FORGOT_PASSWORD") {
+                                                        authStep = "RESET_PASSWORD"
                                                     } else {
                                                         authStep = "FORM"
                                                     }
@@ -10779,6 +10784,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         authStep = "FORM"
                                                     }
                                                 )
+                                            } else if (otpFlowType == "FORGOT_PASSWORD") {
+                                                authStep = "RESET_PASSWORD"
                                             }
                                          } else {
                                              otpErrorMsg = "Incorrect OTP! The lobby remains locked. Try again."
@@ -10809,6 +10816,111 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                 }
                             ) {
                                 Text("CANCEL & RESTORE FORM", color = GreyText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else if (authStep == "RESET_PASSWORD") {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "🔒 RESET YOUR PASSWORD",
+                                fontSize = 12.sp,
+                                color = NeonGold,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Enter and confirm your new account password below.",
+                                fontSize = 10.sp,
+                                color = GreyText,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedTextField(
+                                value = resetNewPasswordInput,
+                                onValueChange = { 
+                                    resetNewPasswordInput = deduplicateInput(resetNewPasswordInput, it)
+                                    resetErrorMsg = null
+                                },
+                                label = { Text("New Password") },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "password", tint = RedPrimary) },
+                                placeholder = { Text("••••••••") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                visualTransformation = PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RedPrimary,
+                                    unfocusedBorderColor = Color(0xFF28252C),
+                                    focusedLabelColor = RedPrimary,
+                                    unfocusedLabelColor = GreyText,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("reset_new_password_input")
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = resetConfirmPasswordInput,
+                                onValueChange = { 
+                                    resetConfirmPasswordInput = deduplicateInput(resetConfirmPasswordInput, it)
+                                    resetErrorMsg = null
+                                },
+                                label = { Text("Confirm New Password") },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "confirm_password", tint = RedPrimary) },
+                                placeholder = { Text("••••••••") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                visualTransformation = PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RedPrimary,
+                                    unfocusedBorderColor = Color(0xFF28252C),
+                                    focusedLabelColor = RedPrimary,
+                                    unfocusedLabelColor = GreyText,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("reset_confirm_password_input")
+                            )
+                            resetErrorMsg?.let { msg ->
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(msg, color = RedPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(
+                                onClick = {
+                                    if (resetNewPasswordInput.isBlank() || resetConfirmPasswordInput.isBlank()) {
+                                        resetErrorMsg = "Please fill in all fields!"
+                                    } else if (resetNewPasswordInput != resetConfirmPasswordInput) {
+                                        resetErrorMsg = "Passwords do not match!"
+                                    } else {
+                                        viewModel.resetUserPassword(loginEmailInput, resetNewPasswordInput) { success, err ->
+                                            if (success) {
+                                                authStep = "FORM"
+                                                resetNewPasswordInput = ""
+                                                resetConfirmPasswordInput = ""
+                                                resetErrorMsg = null
+                                            } else {
+                                                resetErrorMsg = err ?: "Reset failed. Try again."
+                                            }
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reset_submit_btn")
+                            ) {
+                                Text("UPDATE SECURE PASSWORD", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            TextButton(
+                                onClick = {
+                                    authStep = "FORM"
+                                    resetNewPasswordInput = ""
+                                    resetConfirmPasswordInput = ""
+                                    resetErrorMsg = null
+                                }
+                            ) {
+                                Text("CANCEL", color = GreyText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     } else {
@@ -11105,6 +11217,34 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                             .fillMaxWidth()
                                             .testTag("login_password_input")
                                     )
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                if (loginEmailInput.isBlank()) {
+                                                    errorMsg = "Please enter your Email Address first to request password reset!"
+                                                } else {
+                                                    viewModel.forgotPasswordSendOtp(loginEmailInput) { success, err, otpCode ->
+                                                        if (success) {
+                                                            generatedOtp = otpCode ?: ""
+                                                            otpFlowType = "FORGOT_PASSWORD"
+                                                            authStep = "OTP"
+                                                            enteredOtp = ""
+                                                            otpErrorMsg = null
+                                                            viewModel.firebaseVerificationId = null
+                                                        } else {
+                                                            errorMsg = err ?: "Failed to trigger reset flow."
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.testTag("forgot_password_button")
+                                        ) {
+                                            Text("Forgot Password?", color = RedPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
                                     errorMsg?.let { msg ->
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(

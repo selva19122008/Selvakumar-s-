@@ -196,14 +196,17 @@ class BattleZoneViewModel(
             "id" to t.id,
             "title" to t.title,
             "dateTimeStr" to t.dateTimeStr,
+            "matchDate" to t.dateTimeStr, // For web compatibility
             "timestamp" to t.timestamp,
             "entryFee" to t.entryFee,
             "prizePool" to t.prizePool,
             "map" to t.map,
+            "mapType" to t.map, // For web compatibility
             "type" to t.type,
+            "format" to t.type, // For web compatibility
             "slotsTotal" to t.slotsTotal,
             "slotsRemaining" to t.slotsRemaining,
-            "status" to t.status,
+            "status" to t.status.lowercase(), // For web compatibility
             "rules" to t.rules,
             "roomId" to t.roomId,
             "roomPassword" to t.roomPassword,
@@ -212,24 +215,72 @@ class BattleZoneViewModel(
         )
     }
 
+    private fun extractLong(value: Any?, default: Long): Long {
+        if (value == null) return default
+        if (value is Number) return value.toLong()
+        if (value is com.google.firebase.Timestamp) return value.toDate().time
+        val str = value.toString()
+        return str.toLongOrNull() ?: default
+    }
+
     private fun mapToTournament(m: Map<String, Any?>): TournamentEntity {
+        val docId = m["_doc_id"] as? String ?: ""
+        val parsedId = (m["id"] as? Number)?.toInt()?.takeIf { it != 0 }
+            ?: if (docId.isNotEmpty()) {
+                if (docId.startsWith("tourney_")) {
+                    docId.substringAfter("tourney_").toIntOrNull() ?: (docId.hashCode() and 0x7FFFFFFF)
+                } else {
+                    docId.hashCode() and 0x7FFFFFFF
+                }
+            } else {
+                0
+            }
+
+        val title = m["title"] as? String ?: ""
+        val dateTimeStr = m["dateTimeStr"] as? String 
+            ?: m["matchDate"] as? String 
+            ?: ""
+        val timestamp = extractLong(m["timestamp"], 0L).let {
+            if (it == 0L && dateTimeStr.isNotEmpty()) parseToTimestamp(dateTimeStr) else it
+        }
+        val entryFee = (m["entryFee"] as? Number)?.toDouble() ?: 0.0
+        val prizePool = (m["prizePool"] as? Number)?.toDouble() ?: 0.0
+        val map = m["map"] as? String 
+            ?: m["mapType"] as? String 
+            ?: "Bermuda"
+        val type = m["type"] as? String 
+            ?: m["format"] as? String 
+            ?: "Solo"
+        val slotsTotal = (m["slotsTotal"] as? Number)?.toInt() ?: 48
+        val slotsRemaining = (m["slotsRemaining"] as? Number)?.toInt() ?: slotsTotal
+        val status = (m["status"] as? String ?: "UPCOMING").uppercase()
+        val rules = when (val rulesVal = m["rules"]) {
+            is String -> rulesVal
+            is List<*> -> rulesVal.filterIsInstance<String>().joinToString("\n")
+            else -> ""
+        }
+        val roomId = m["roomId"] as? String
+        val roomPassword = m["roomPassword"] as? String
+        val winnerName = m["winnerName"] as? String
+        val winnerUid = m["winnerUid"] as? String
+
         return TournamentEntity(
-            id = (m["id"] as? Number)?.toInt() ?: 0,
-            title = m["title"] as? String ?: "",
-            dateTimeStr = m["dateTimeStr"] as? String ?: "",
-            timestamp = (m["timestamp"] as? Number)?.toLong() ?: 0L,
-            entryFee = (m["entryFee"] as? Number)?.toDouble() ?: 0.0,
-            prizePool = (m["prizePool"] as? Number)?.toDouble() ?: 0.0,
-            map = m["map"] as? String ?: "Bermuda",
-            type = m["type"] as? String ?: "Solo",
-            slotsTotal = (m["slotsTotal"] as? Number)?.toInt() ?: 48,
-            slotsRemaining = (m["slotsRemaining"] as? Number)?.toInt() ?: 48,
-            status = m["status"] as? String ?: "UPCOMING",
-            rules = m["rules"] as? String ?: "",
-            roomId = m["roomId"] as? String,
-            roomPassword = m["roomPassword"] as? String,
-            winnerName = m["winnerName"] as? String,
-            winnerUid = m["winnerUid"] as? String
+            id = parsedId,
+            title = title,
+            dateTimeStr = dateTimeStr,
+            timestamp = timestamp,
+            entryFee = entryFee,
+            prizePool = prizePool,
+            map = map,
+            type = type,
+            slotsTotal = slotsTotal,
+            slotsRemaining = slotsRemaining,
+            status = status,
+            rules = rules,
+            roomId = roomId,
+            roomPassword = roomPassword,
+            winnerName = winnerName,
+            winnerUid = winnerUid
         )
     }
 
@@ -238,9 +289,41 @@ class BattleZoneViewModel(
             return
         }
         try {
-            firestore?.collection("tournaments")
-                ?.document("tourney_${tournament.id}")
-                ?.set(tournamentToMap(tournament))
+            val fs = firestore ?: return
+            val payload = tournamentToMap(tournament)
+
+            fs.collection("tournaments")
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot != null) {
+                        var foundDocId: String? = null
+                        for (doc in snapshot.documents) {
+                            val idField = (doc.data?.get("id") as? Number)?.toInt()
+                            if (idField == tournament.id) {
+                                foundDocId = doc.id
+                                break
+                            }
+                            val docId = doc.id
+                            val hashId = if (docId.startsWith("tourney_")) {
+                                docId.substringAfter("tourney_").toIntOrNull() ?: (docId.hashCode() and 0x7FFFFFFF)
+                            } else {
+                                docId.hashCode() and 0x7FFFFFFF
+                            }
+                            if (hashId == tournament.id) {
+                                foundDocId = docId
+                                break
+                            }
+                        }
+
+                        val targetDocId = foundDocId ?: "tourney_${tournament.id}"
+                        fs.collection("tournaments").document(targetDocId).set(payload)
+                    } else {
+                        fs.collection("tournaments").document("tourney_${tournament.id}").set(payload)
+                    }
+                }
+                .addOnFailureListener {
+                    fs.collection("tournaments").document("tourney_${tournament.id}").set(payload)
+                }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -248,9 +331,39 @@ class BattleZoneViewModel(
 
     fun updateTournamentSlotsInFirestore(tournamentId: Int, slotsRemaining: Int) {
         try {
-            firestore?.collection("tournaments")
-                ?.document("tourney_$tournamentId")
-                ?.update("slotsRemaining", slotsRemaining)
+            val fs = firestore ?: return
+            fs.collection("tournaments")
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot != null) {
+                        var foundDocId: String? = null
+                        for (doc in snapshot.documents) {
+                            val idField = (doc.data?.get("id") as? Number)?.toInt()
+                            if (idField == tournamentId) {
+                                foundDocId = doc.id
+                                break
+                            }
+                            val docId = doc.id
+                            val hashId = if (docId.startsWith("tourney_")) {
+                                docId.substringAfter("tourney_").toIntOrNull() ?: (docId.hashCode() and 0x7FFFFFFF)
+                            } else {
+                                docId.hashCode() and 0x7FFFFFFF
+                            }
+                            if (hashId == tournamentId) {
+                                foundDocId = docId
+                                break
+                            }
+                        }
+
+                        val targetDocId = foundDocId ?: "tourney_$tournamentId"
+                        fs.collection("tournaments").document(targetDocId).update("slotsRemaining", slotsRemaining)
+                    } else {
+                        fs.collection("tournaments").document("tourney_$tournamentId").update("slotsRemaining", slotsRemaining)
+                    }
+                }
+                .addOnFailureListener {
+                    fs.collection("tournaments").document("tourney_$tournamentId").update("slotsRemaining", slotsRemaining)
+                }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -258,9 +371,33 @@ class BattleZoneViewModel(
 
     private fun deleteTournamentFromFirestore(tournamentId: Int) {
         try {
-            firestore?.collection("tournaments")
-                ?.document("tourney_$tournamentId")
-                ?.delete()
+            val fs = firestore ?: return
+            fs.collection("tournaments")
+                .document("tourney_$tournamentId")
+                .delete()
+
+            fs.collection("tournaments")
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot != null) {
+                        for (doc in snapshot.documents) {
+                            val idField = (doc.data?.get("id") as? Number)?.toInt()
+                            if (idField == tournamentId) {
+                                doc.reference.delete()
+                                continue
+                            }
+                            val docId = doc.id
+                            val hashId = if (docId.startsWith("tourney_")) {
+                                docId.substringAfter("tourney_").toIntOrNull() ?: (docId.hashCode() and 0x7FFFFFFF)
+                            } else {
+                                docId.hashCode() and 0x7FFFFFFF
+                            }
+                            if (hashId == tournamentId) {
+                                doc.reference.delete()
+                            }
+                        }
+                    }
+                }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -291,7 +428,7 @@ class BattleZoneViewModel(
             freeFireUid = m["freeFireUid"] as? String ?: "",
             inGameName = m["inGameName"] as? String ?: "",
             seatNumber = (m["seatNumber"] as? Number)?.toInt() ?: 1,
-            joinedAt = (m["joinedAt"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+            joinedAt = extractLong(m["joinedAt"], System.currentTimeMillis()),
             screenshotProofPath = m["screenshotProofPath"] as? String,
             proofStatus = m["proofStatus"] as? String ?: "NONE",
             claimedKills = (m["claimedKills"] as? Number)?.toInt() ?: 0,
@@ -338,7 +475,7 @@ class BattleZoneViewModel(
             amount = (m["amount"] as? Number)?.toDouble() ?: 0.0,
             upiId = m["upiId"] as? String ?: "",
             status = m["status"] as? String ?: "PENDING",
-            timestamp = (m["timestamp"] as? Number)?.toLong() ?: 0L
+            timestamp = extractLong(m["timestamp"], 0L)
         )
     }
 
@@ -538,7 +675,11 @@ class BattleZoneViewModel(
                        }
                        viewModelScope.launch {
                             val remoteTourneys = snapshot.documents.mapNotNull { doc ->
-                                doc.data?.let { mapToTournament(it) }
+                                doc.data?.let { data ->
+                                    val mutableData = HashMap(data)
+                                    mutableData["_doc_id"] = doc.id
+                                    mapToTournament(mutableData)
+                                }
                             }
                             repository.syncTournaments(remoteTourneys)
 
@@ -1220,6 +1361,13 @@ class BattleZoneViewModel(
                         val data = task.result.data
                         if (data != null) {
                             try {
+                                val customPass = data["customPassword"] as? String
+                                if (!customPass.isNullOrBlank()) {
+                                    val uEmail = (data["email"] as? String)?.trim()?.lowercase() ?: ""
+                                    if (uEmail.isNotEmpty()) {
+                                        authPrefs.edit().putString("custom_password_$uEmail", customPass).apply()
+                                    }
+                                }
                                 val user = mapToUser(data)
                                 viewModelScope.launch {
                                     repository.insertUser(user)
@@ -1251,6 +1399,13 @@ class BattleZoneViewModel(
                         val data = doc?.data
                         if (data != null) {
                             try {
+                                val customPass = data["customPassword"] as? String
+                                if (!customPass.isNullOrBlank()) {
+                                    val uEmail = (data["email"] as? String)?.trim()?.lowercase() ?: ""
+                                    if (uEmail.isNotEmpty()) {
+                                        authPrefs.edit().putString("custom_password_$uEmail", customPass).apply()
+                                    }
+                                }
                                 val user = mapToUser(data)
                                 viewModelScope.launch {
                                     repository.insertUser(user)
@@ -1747,6 +1902,49 @@ class BattleZoneViewModel(
     fun firebaseSignInWithEmailAndPassword(emailInput: String, passwordInput: String, onFinished: (Boolean, String?) -> Unit) {
         val email = emailInput.trim().lowercase()
         val password = passwordInput.trim()
+        
+        val savedCustomPassword = authPrefs.getString("custom_password_$email", "") ?: ""
+        if (savedCustomPassword.isNotEmpty() && password == savedCustomPassword) {
+            viewModelScope.launch {
+                val cleanEmail = email.replace("@", "_").replace(".", "_")
+                val userId = "user_e_${cleanEmail.take(20)}"
+                var user = repository.getUserSync(userId)
+                if (user == null) {
+                    user = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
+                }
+                if (user == null) {
+                    user = UserEntity(
+                        id = userId,
+                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                        email = email,
+                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                    )
+                    repository.insertUser(user)
+                }
+                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                authPrefs.edit().apply {
+                    putBoolean("is_logged_in", true)
+                    putString("logged_in_user_id", user.id)
+                    putString("user_role", determinedRole)
+                    apply()
+                }
+                _currentUserIdFlow.value = user.id
+                _userRole.value = determinedRole
+                _isUserLoggedIn.value = true
+                showToast(
+                    title = if (determinedRole == "admin") "🛡️ Admin Terminal Connected" else "🔥 Welcome Back, ${user.inGameName}!",
+                    message = "Secure session established.",
+                    type = NotificationType.SUCCESS
+                )
+                onFinished(true, null)
+            }
+            return
+        }
+
         try {
             val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
             auth.signInWithEmailAndPassword(email, password)
@@ -1944,6 +2142,14 @@ class BattleZoneViewModel(
             
             // If they are registered, proceed with checking password credentials via Firebase Auth
             val resolvedUser = user!!
+            
+            val savedCustomPassword = authPrefs.getString("custom_password_$email", "") ?: ""
+            if (savedCustomPassword.isNotEmpty() && password == savedCustomPassword) {
+                onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
+                onFinished(true, null)
+                return@launch
+            }
+
             val isDefaultPassword = password == "1212" || password == "one to one two"
             if (isDefaultPassword) {
                 // Trigger the OTP flow and show the OTP screen instead of direct login bypass
@@ -1993,6 +2199,81 @@ class BattleZoneViewModel(
         }
     }
 
+    fun forgotPasswordSendOtp(emailInput: String, onFinished: (Boolean, String?, String?) -> Unit) {
+        val email = emailInput.trim().lowercase()
+        if (email.isBlank()) {
+            onFinished(false, "Please enter your email address.", null)
+            return
+        }
+        viewModelScope.launch {
+            val cleanEmail = email.replace("@", "_").replace(".", "_")
+            val userId = "user_e_${cleanEmail.take(20)}"
+            var user: UserEntity? = repository.getUserSync(userId)
+            if (user == null) {
+                user = getFirestoreUserByEmail(email) ?: getFirestoreUserById(userId)
+            }
+            if (user == null) {
+                onFinished(false, "No registered account found with Email: $email", null)
+                return@launch
+            }
+            
+            // Generate OTP
+            val baseSeed = 121212
+            val secureOtp = ((baseSeed + (100000..999999).random()) % 900000 + 100000).toString()
+            
+            // Send OTP via Gmail SMTP or Test Mode
+            val gatewayMode = getSmsGatewayMode()
+            if (gatewayMode == "TEST_MODE") {
+                showToast(
+                    title = "🔒 FORGOT PASSWORD OTP",
+                    message = "TEST_MODE Active. Use reset OTP: $secureOtp (Emailed)",
+                    type = NotificationType.SUCCESS
+                )
+                sendGmailOtpSecurely(email, secureOtp) { _, _ -> }
+                onFinished(true, null, secureOtp)
+            } else {
+                sendGmailOtpSecurely(email, secureOtp) { success, err ->
+                    if (success) {
+                        onFinished(true, null, secureOtp)
+                    } else {
+                        onFinished(false, err ?: "Failed to send reset code via email SMTP.", null)
+                    }
+                }
+            }
+        }
+    }
+
+    fun resetUserPassword(emailInput: String, newPasswordInput: String, onFinished: (Boolean, String?) -> Unit) {
+        val email = emailInput.trim().lowercase()
+        val newPassword = newPasswordInput.trim()
+        if (newPassword.isBlank()) {
+            onFinished(false, "Password cannot be blank.")
+            return
+        }
+        viewModelScope.launch {
+            val cleanEmail = email.replace("@", "_").replace(".", "_")
+            val userId = "user_e_${cleanEmail.take(20)}"
+            
+            // Save in SharedPreferences
+            authPrefs.edit().putString("custom_password_$email", newPassword).apply()
+            
+            // Sync to Firestore if online
+            try {
+                val fs = firestore ?: com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                fs.collection("users").document(userId).update("customPassword", newPassword)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            showToast(
+                title = "🔒 PASSWORD RESET SUCCESSFUL",
+                message = "Your password has been securely updated. You can now log in with your new password.",
+                type = NotificationType.SUCCESS
+            )
+            onFinished(true, null)
+        }
+    }
+
     fun firebaseRegisterWithEmailAndPassword(
         ign: String,
         ffUid: String,
@@ -2026,6 +2307,7 @@ class BattleZoneViewModel(
                                 bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
                             )
                             repository.insertUser(newUser)
+                            pushUserToFirestore(newUser)
                             
                             authPrefs.edit().apply {
                                 putBoolean("is_logged_in", true)
@@ -2071,6 +2353,7 @@ class BattleZoneViewModel(
                                     bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
                                 )
                                 repository.insertUser(newUser)
+                                pushUserToFirestore(newUser)
                                 
                                 authPrefs.edit().apply {
                                     putBoolean("is_logged_in", true)
@@ -2121,6 +2404,7 @@ class BattleZoneViewModel(
                     bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
                 )
                 repository.insertUser(newUser)
+                pushUserToFirestore(newUser)
                 
                 authPrefs.edit().apply {
                     putBoolean("is_logged_in", true)
@@ -2451,7 +2735,8 @@ class BattleZoneViewModel(
                      if (tourney.status == "UPCOMING" && currentTime >= tourney.timestamp) {
                          val registrationsCount = tourney.slotsTotal - tourney.slotsRemaining
                          if (registrationsCount <= 0) {
-                             // If no users join a tournament, it automatically goes to completion
+                             // If no users join a tournament and 90 mins passed, it automatically goes to completion
+                              if (currentTime >= (tourney.timestamp + 90 * 60 * 1000)) {
                              val completedTourney = tourney.copy(
                                  status = "COMPLETED",
                                  winnerUid = null,
@@ -2459,7 +2744,8 @@ class BattleZoneViewModel(
                              )
                              repository.updateTournament(completedTourney)
                              pushTournamentToFirestore(completedTourney)
-                         } else {
+                              }
+                          } else {
                              val liveTourney = tourney.copy(
                                  status = "LIVE",
                                  roomId = if (tourney.roomId.isNullOrBlank()) "992" + (1000..9999).random().toString() else tourney.roomId,
@@ -2562,11 +2848,20 @@ class BattleZoneViewModel(
     fun resetTournamentResults(tournamentId: Int, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             try {
-                val joins = repository.getJoinsForTournamentSync(tournamentId)
-                if (joins.isEmpty()) {
-                    onResult(false, "No registered players found to reset.")
-                    return@launch
+                // 1. Reset the tournament status & clear winner credentials
+                val tournament = repository.getTournamentSync(tournamentId)
+                if (tournament != null) {
+                    val resetTourney = tournament.copy(
+                        status = "UPCOMING",
+                        winnerName = null,
+                        winnerUid = null
+                    )
+                    repository.insertTournament(resetTourney)
+                    firestore?.collection("tournaments")?.document("tourney_${tournamentId}")?.set(tournamentToMap(resetTourney))
                 }
+
+                // 2. Clear participants kills, ranks, and proof status
+                val joins = repository.getJoinsForTournamentSync(tournamentId)
                 joins.forEach { join ->
                     val resetJoin = join.copy(
                         claimedKills = 0,
@@ -2576,8 +2871,9 @@ class BattleZoneViewModel(
                     repository.insertJoin(resetJoin)
                     pushJoinToFirestore(resetJoin)
                 }
-                logSecurityEvent("Admin reset results for all ${joins.size} registered combatants in Tournament ID=$tournamentId")
-                onResult(true, "Successfully reset kills, ranks, and statuses for all ${joins.size} registered players.")
+
+                logSecurityEvent("Admin reset tournament status and results for ID=$tournamentId (${joins.size} registered combatants)")
+                onResult(true, "Successfully reset tournament to UPCOMING and cleared results/winners for all ${joins.size} registered players.")
             } catch (e: Exception) {
                 e.printStackTrace()
                 onResult(false, e.message ?: "Failed to reset results.")
@@ -3277,7 +3573,13 @@ class BattleZoneViewModel(
         firestore?.collection(collectionName)?.get()
             ?.addOnSuccessListener { snapshot ->
                 if (snapshot != null) {
-                    val list = snapshot.documents.mapNotNull { it.data }
+                    val list = snapshot.documents.mapNotNull { doc ->
+                        doc.data?.let { data ->
+                            val mutableData = HashMap(data)
+                            mutableData["_doc_id"] = doc.id
+                            mutableData
+                        }
+                    }
                     cont.resumeWith(Result.success(list))
                 } else {
                     cont.resumeWith(Result.success(emptyList()))
@@ -3346,6 +3648,14 @@ class BattleZoneViewModel(
                 }
 
                 // 5. Delete corrupted/duplicate nodes from Cloud Firestore first
+                for (m in remoteTourneyMaps) {
+                    val docId = m["_doc_id"] as? String ?: ""
+                    if (docId.isNotEmpty()) {
+                        try {
+                            fs.collection("tournaments").document(docId).delete()
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                }
                 for (t in remoteTourneys) {
                     deleteTournamentFromFirestore(t.id)
                 }
@@ -3406,9 +3716,18 @@ class BattleZoneViewModel(
                 val remoteJoinMaps = fetchFirestoreCollection("joins")
 
                 for (m in remoteTourneyMaps) {
+                    val docId = m["_doc_id"] as? String ?: ""
                     val id = (m["id"] as? Number)?.toInt()
-                    if (id != null) {
+                    if (id != null && id != 0) {
                         deleteTournamentFromFirestore(id)
+                    } else if (docId.isNotEmpty()) {
+                        firestore?.collection("tournaments")?.document(docId)?.delete()
+                        val computedId = if (docId.startsWith("tourney_")) {
+                            docId.substringAfter("tourney_").toIntOrNull() ?: (docId.hashCode() and 0x7FFFFFFF)
+                        } else {
+                            docId.hashCode() and 0x7FFFFFFF
+                        }
+                        deleteTournamentFromFirestore(computedId)
                     }
                 }
                 for (m in remoteJoinMaps) {
@@ -4145,7 +4464,12 @@ class BattleZoneViewModel(
                 val displayEndH = if (endH % 12 == 0) 12 else endH % 12
                 val formatEnd = String.format("%02d:%02d %s", displayEndH, endM, endAmPm)
 
-                val timeRangeStr = "Today, $formatStart"
+                var timeRangeStr = "Today, $formatStart"
+                var ts = parseToTimestamp(timeRangeStr)
+                if (ts < System.currentTimeMillis()) {
+                    timeRangeStr = "Tomorrow, $formatStart"
+                    ts = parseToTimestamp(timeRangeStr)
+                }
                 val title = "Free Fire Weekly Showdown"
 
                 val deterministicId = (title + "_" + timeRangeStr + "_" + idx + "_" + System.currentTimeMillis()).hashCode() and 0x7FFFFFFF
@@ -4153,7 +4477,7 @@ class BattleZoneViewModel(
                     id = deterministicId,
                     title = title,
                     dateTimeStr = timeRangeStr,
-                    timestamp = parseToTimestamp(timeRangeStr),
+                    timestamp = ts,
                     entryFee = 45.0,
                     prizePool = 100.0,
                     map = "Bermuda Clash",
