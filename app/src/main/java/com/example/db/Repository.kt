@@ -29,6 +29,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     suspend fun deleteTournament(tournament: TournamentEntity) = tournamentDao.deleteTournament(tournament)
     suspend fun insertTournaments(tournaments: List<TournamentEntity>) = tournamentDao.insertTournaments(tournaments)
     suspend fun clearTournaments() = tournamentDao.clearTournaments()
+    suspend fun syncTournaments(remoteTourneys: List<TournamentEntity>) = tournamentDao.syncTournaments(remoteTourneys)
 
     // Joins
     fun getJoinsForTournamentFlow(tournamentId: Int): Flow<List<TournamentJoinEntity>> = joinDao.getJoinsForTournamentFlow(tournamentId)
@@ -41,6 +42,7 @@ class BattleZoneRepository(private val db: AppDatabase) {
     suspend fun insertJoin(join: TournamentJoinEntity) = joinDao.insertJoin(join)
     suspend fun deleteJoin(join: TournamentJoinEntity) = joinDao.deleteJoin(join)
     suspend fun clearJoins() = joinDao.clearJoins()
+    suspend fun syncJoins(remoteJoins: List<TournamentJoinEntity>) = joinDao.syncJoins(remoteJoins)
 
     // Transactions
     fun getTransactionsForUserFlow(userId: String): Flow<List<TransactionEntity>> = transactionDao.getTransactionsForUserFlow(userId)

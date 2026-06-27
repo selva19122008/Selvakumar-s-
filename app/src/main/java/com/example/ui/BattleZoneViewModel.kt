@@ -54,6 +54,11 @@ class BattleZoneViewModel(
     private var firebaseAuth: com.google.firebase.auth.FirebaseAuth? = null
     private var firestore: com.google.firebase.firestore.FirebaseFirestore? = null
     private var currentUserSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var tournamentsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var withdrawalsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var joinsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var usersSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var settingsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     // Active Current User and Persistence with SharedPreferences
     private val authPrefs by lazy {
@@ -511,8 +516,15 @@ class BattleZoneViewModel(
 
     fun startFirestoreSync() {
         if (!isRealtimeSyncEnabled.value) return
+        
+        tournamentsSnapshotListener?.remove()
+        withdrawalsSnapshotListener?.remove()
+        joinsSnapshotListener?.remove()
+        usersSnapshotListener?.remove()
+        settingsSnapshotListener?.remove()
+        
         try {
-            firestore?.collection("tournaments")
+            tournamentsSnapshotListener = firestore?.collection("tournaments")
                ?.addSnapshotListener { snapshot, error ->
                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                    if (error != null) {
@@ -520,29 +532,15 @@ class BattleZoneViewModel(
                        return@addSnapshotListener
                    }
                    if (snapshot != null) {
+                       if (snapshot.metadata.isFromCache && snapshot.documents.isEmpty()) {
+                           // Ignore initial empty cache snapshot to prevent deleting local database before server results arrive
+                           return@addSnapshotListener
+                       }
                        viewModelScope.launch {
                             val remoteTourneys = snapshot.documents.mapNotNull { doc ->
                                 doc.data?.let { mapToTournament(it) }
                             }
-                            val remoteIds = remoteTourneys.map { it.id }.toSet()
-
-                            for (t in remoteTourneys) {
-                                val ext = repository.getTournamentSync(t.id)
-                                if (ext == null || ext != t) {
-                                    repository.insertTournament(t)
-                                }
-                            }
-
-                            try {
-                                val localTourneys = repository.getTournamentsSync()
-                                for (local in localTourneys) {
-                                    if (!remoteIds.contains(local.id)) {
-                                        repository.deleteTournament(local)
-                                    }
-                                }
-                            } catch (e: java.lang.Exception) {
-                                e.printStackTrace()
-                            }
+                            repository.syncTournaments(remoteTourneys)
 
 
 
@@ -553,7 +551,7 @@ class BattleZoneViewModel(
                    }
                }
 
-            firestore?.collection("withdrawals")
+            withdrawalsSnapshotListener = firestore?.collection("withdrawals")
                ?.addSnapshotListener { snapshot, error ->
                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                    if (error != null) {
@@ -578,7 +576,7 @@ class BattleZoneViewModel(
                    }
                }
 
-             firestore?.collection("joins")
+             joinsSnapshotListener = firestore?.collection("joins")
                 ?.addSnapshotListener { snapshot, error ->
                     if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                     if (error != null) {
@@ -586,35 +584,20 @@ class BattleZoneViewModel(
                         return@addSnapshotListener
                     }
                     if (snapshot != null) {
+                        if (snapshot.metadata.isFromCache && snapshot.documents.isEmpty()) {
+                            // Ignore initial empty cache snapshot to prevent deleting local database before server results arrive
+                            return@addSnapshotListener
+                        }
                         viewModelScope.launch {
                             val remoteJoins = snapshot.documents.mapNotNull { doc ->
                                 doc.data?.let { mapToJoin(it) }
                             }
-                            val remoteJoinKeys = remoteJoins.map { "${it.userId}_${it.tournamentId}" }.toSet()
-
-                            for (j in remoteJoins) {
-                                val ext = repository.getJoinSync(j.userId, j.tournamentId)
-                                if (ext == null || ext != j) {
-                                    repository.insertJoin(j)
-                                }
-                            }
-
-                            try {
-                                val localJoins = repository.getAllJoinsFlow().first()
-                                for (local in localJoins) {
-                                    val localKey = "${local.userId}_${local.tournamentId}"
-                                    if (!remoteJoinKeys.contains(localKey)) {
-                                        repository.deleteJoin(local)
-                                    }
-                                }
-                            } catch (e: java.lang.Exception) {
-                                e.printStackTrace()
-                             }
+                            repository.syncJoins(remoteJoins)
                         }
                     }
                 }
 
-             firestore?.collection("users")
+             usersSnapshotListener = firestore?.collection("users")
                 ?.addSnapshotListener { snapshot, error ->
                     if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
                     if (error != null) {
@@ -638,7 +621,7 @@ class BattleZoneViewModel(
                 }
 
             // Real-time Firestore configuration listener for multi-device sync
-            firestore?.collection("settings")?.document("global_config")
+            settingsSnapshotListener = firestore?.collection("settings")?.document("global_config")
                ?.addSnapshotListener { snapshot, error ->
                    if (error != null) {
                        error.printStackTrace()
@@ -2302,10 +2285,12 @@ class BattleZoneViewModel(
 
     val isRealtimeSyncEnabled = MutableStateFlow(true)
     val isAutoTournamentPromotionEnabled = MutableStateFlow(true)
+    val isAutoDeleteOtpEnabled = MutableStateFlow(true)
 
     init {
         isRealtimeSyncEnabled.value = sharedPrefs.getBoolean("realtime_sync_enabled", true)
         isAutoTournamentPromotionEnabled.value = sharedPrefs.getBoolean("auto_tournament_promotion_enabled", true)
+        isAutoDeleteOtpEnabled.value = sharedPrefs.getBoolean("auto_delete_otp_enabled", true)
         viewModelScope.launch {
             repository.prefillIfEmpty()
             startFirestoreSync()
@@ -2495,12 +2480,12 @@ class BattleZoneViewModel(
                          pushTournamentToFirestore(completedTourney)
                      }
 
-                     // Clean up completed tournaments by 12:00 AM PST the next day
+                     // Clean up completed tournaments by 12:00 AM PST 3 days after completion
                      if (tourney.status == "COMPLETED") {
                          try {
                              val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Los_Angeles"))
                              cal.timeInMillis = tourney.timestamp
-                             cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                             cal.add(java.util.Calendar.DAY_OF_YEAR, 3)
                              cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
                              cal.set(java.util.Calendar.MINUTE, 0)
                              cal.set(java.util.Calendar.SECOND, 0)
@@ -2559,6 +2544,43 @@ class BattleZoneViewModel(
                     currentUserSnapshotListener?.remove()
                     currentUserSnapshotListener = null
                 }
+            }
+        }
+    }
+
+    fun setAutoDeleteOtpEnabled(enabled: Boolean) {
+        sharedPrefs.edit().putBoolean("auto_delete_otp_enabled", enabled).apply()
+        isAutoDeleteOtpEnabled.value = enabled
+        logSecurityEvent("Auto-delete verification OTPs setting set to: $enabled")
+    }
+
+    fun clearActiveOtp() {
+        lastSentGmailOtp = ""
+        logSecurityEvent("Verification OTP manually invalidated/cleared by Admin.")
+    }
+
+    fun resetTournamentResults(tournamentId: Int, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val joins = repository.getJoinsForTournamentSync(tournamentId)
+                if (joins.isEmpty()) {
+                    onResult(false, "No registered players found to reset.")
+                    return@launch
+                }
+                joins.forEach { join ->
+                    val resetJoin = join.copy(
+                        claimedKills = 0,
+                        claimedRank = 0,
+                        proofStatus = "PENDING"
+                    )
+                    repository.insertJoin(resetJoin)
+                    pushJoinToFirestore(resetJoin)
+                }
+                logSecurityEvent("Admin reset results for all ${joins.size} registered combatants in Tournament ID=$tournamentId")
+                onResult(true, "Successfully reset kills, ranks, and statuses for all ${joins.size} registered players.")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(false, e.message ?: "Failed to reset results.")
             }
         }
     }
@@ -3228,6 +3250,16 @@ class BattleZoneViewModel(
         if (!enabled) {
             currentUserSnapshotListener?.remove()
             currentUserSnapshotListener = null
+            tournamentsSnapshotListener?.remove()
+            tournamentsSnapshotListener = null
+            withdrawalsSnapshotListener?.remove()
+            withdrawalsSnapshotListener = null
+            joinsSnapshotListener?.remove()
+            joinsSnapshotListener = null
+            usersSnapshotListener?.remove()
+            usersSnapshotListener = null
+            settingsSnapshotListener?.remove()
+            settingsSnapshotListener = null
         } else {
             startFirestoreSync()
             if (currentUserId != "default_user") {
@@ -3421,6 +3453,15 @@ class BattleZoneViewModel(
 
     fun sendGmailOtpSecurely(recipientEmail: String, otpCode: String, onFinished: (Boolean, String?) -> Unit) {
         lastSentGmailOtp = otpCode.trim()
+        if (isAutoDeleteOtpEnabled.value) {
+            viewModelScope.launch(Dispatchers.Main) {
+                kotlinx.coroutines.delay(60000) // Auto-delete/expire after 60 seconds
+                if (lastSentGmailOtp == otpCode.trim()) {
+                    lastSentGmailOtp = ""
+                    logSecurityEvent("Verification OTP ($otpCode) was automatically deleted after 60 seconds.")
+                }
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             var gmailUser = getGmailUser().trim().lowercase().replace(" ", "")
             var gmailAppPassword = getGmailAppPassword().trim().replace(" ", "")
@@ -3680,6 +3721,10 @@ class BattleZoneViewModel(
             val isEmailAdmin = email.trim().lowercase() == "selva19122008@gmail.com"
             val isSmtpOtpValid = typed == expected || (isEmailAdmin && typed == "1212") || (expected.isEmpty() && typed == "654321" && isEmailAdmin)
             if (isSmtpOtpValid) {
+                if (isAutoDeleteOtpEnabled.value) {
+                    lastSentGmailOtp = ""
+                    logSecurityEvent("Verification OTP cleared on successful verification.")
+                }
                 onFinished(true, null)
             } else {
                 onFinished(false, "Incorrect OTP verification code.")
@@ -3895,7 +3940,7 @@ class BattleZoneViewModel(
     fun parseToTimestamp(dateTimeStr: String): Long {
         try {
             val cleanStr = dateTimeStr.trim()
-            val targetCal = java.util.Calendar.getInstance()
+            val targetCal = java.util.Calendar.getInstance(java.util.TimeZone.getDefault())
             
             var datePart = "today"
             var timePart = ""
@@ -3923,7 +3968,9 @@ class BattleZoneViewModel(
                 targetCal.add(java.util.Calendar.DAY_OF_YEAR, 1)
             } else if (datePart != "today") {
                 try {
-                    val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.US)
+                    val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.US).apply {
+                        timeZone = java.util.TimeZone.getDefault()
+                    }
                     sdf.parse(datePart)?.let { parsedDate ->
                         targetCal.time = parsedDate
                     }
@@ -3941,52 +3988,55 @@ class BattleZoneViewModel(
                 var minutes = 0
                 var parsed = false
 
-                // Try parsing with standard SimpleDateFormat formats first (case-insensitive and extremely robust)
-                val formatPatterns = listOf(
-                    "hh:mm a", "h:mm a", "hh:mma", "h:mma",
-                    "HH:mm", "H:mm", "h a", "hh a", "ha", "hha"
-                )
-                for (pattern in formatPatterns) {
-                    try {
-                        val sdf = java.text.SimpleDateFormat(pattern, java.util.Locale.US)
-                        sdf.parse(cleanTime)?.let { parsedTime ->
-                            val tCal = java.util.Calendar.getInstance()
-                            tCal.time = parsedTime
-                            hours = tCal.get(java.util.Calendar.HOUR_OF_DAY)
-                            minutes = tCal.get(java.util.Calendar.MINUTE)
-                            parsed = true
+                // We use Regex parsing FIRST to extract hours and minutes directly.
+                // This is extremely robust and is 100% safe from standard-time vs daylight-saving-time conversions of the 1970 epoch.
+                val timeRegex = Regex("""(\d{1,2}):?(\d{2})?\s*(AM|PM)?""", RegexOption.IGNORE_CASE)
+                val match = timeRegex.find(cleanTime)
+                if (match != null) {
+                    hours = match.groupValues[1].toInt()
+                    val minutesStr = match.groupValues[2]
+                    minutes = if (!minutesStr.isNullOrEmpty()) minutesStr.toInt() else 0
+                    val ampm = match.groupValues[3].uppercase()
+
+                    if (ampm.isNotEmpty()) {
+                        if (ampm == "PM" && hours < 12) {
+                            hours += 12
+                        } else if (ampm == "AM" && hours == 12) {
+                            hours = 0
                         }
-                        if (parsed) break
-                    } catch (e: Exception) {
-                        // try next format
+                    } else {
+                        // Intelligent AM/PM inference for convenient 12-hour typing
+                        if (hours in 1..11) {
+                            if (hours in 1..6) {
+                                hours += 12 // e.g. "3:20" -> 3:20 PM (15:20)
+                            }
+                        }
                     }
+                    parsed = true
                 }
 
                 if (!parsed) {
-                    // Fall back to regex with case-insensitive flag enabled
-                    val timeRegex = Regex("""(\d{1,2}):?(\d{2})?\s*(AM|PM)?""", RegexOption.IGNORE_CASE)
-                    val match = timeRegex.find(cleanTime)
-                    if (match != null) {
-                        hours = match.groupValues[1].toInt()
-                        val minutesStr = match.groupValues[2]
-                        minutes = if (minutesStr.isNotEmpty()) minutesStr.toInt() else 0
-                        val ampm = match.groupValues[3].uppercase()
-
-                        if (ampm.isNotEmpty()) {
-                            if (ampm == "PM" && hours < 12) {
-                                hours += 12
-                            } else if (ampm == "AM" && hours == 12) {
-                                hours = 0
+                    // Fall back to standard SimpleDateFormat parsing if regex failed
+                    val formatPatterns = listOf(
+                        "hh:mm a", "h:mm a", "hh:mma", "h:mma",
+                        "HH:mm", "H:mm", "h a", "hh a", "ha", "hha"
+                    )
+                    for (pattern in formatPatterns) {
+                        try {
+                            val sdf = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                                timeZone = java.util.TimeZone.getDefault()
                             }
-                        } else {
-                            // Intelligent AM/PM inference for convenient 12-hour typing
-                            if (hours in 1..11) {
-                                if (hours in 1..6) {
-                                    hours += 12 // e.g. "3:20" -> 3:20 PM (15:20)
-                                }
+                            sdf.parse(cleanTime)?.let { parsedTime ->
+                                val tCal = java.util.Calendar.getInstance(java.util.TimeZone.getDefault())
+                                tCal.time = parsedTime
+                                hours = tCal.get(java.util.Calendar.HOUR_OF_DAY)
+                                minutes = tCal.get(java.util.Calendar.MINUTE)
+                                parsed = true
                             }
+                            if (parsed) break
+                        } catch (e: Exception) {
+                            // try next format
                         }
-                        parsed = true
                     }
                 }
 
@@ -4995,6 +5045,16 @@ class BattleZoneViewModel(
             pushJoinToFirestore(updatedJoin)
             onResult(true)
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        currentUserSnapshotListener?.remove()
+        tournamentsSnapshotListener?.remove()
+        withdrawalsSnapshotListener?.remove()
+        joinsSnapshotListener?.remove()
+        usersSnapshotListener?.remove()
+        settingsSnapshotListener?.remove()
     }
 }
 

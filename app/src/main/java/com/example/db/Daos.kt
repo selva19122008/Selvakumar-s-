@@ -55,6 +55,25 @@ interface TournamentDao {
 
     @Query("DELETE FROM tournaments")
     suspend fun clearTournaments()
+
+    @Transaction
+    suspend fun syncTournaments(remoteTourneys: List<TournamentEntity>) {
+        val local = getAllTournamentsSync()
+        val remoteIds = remoteTourneys.map { it.id }.toSet()
+        
+        val toInsert = remoteTourneys.filter { r ->
+            val l = local.find { it.id == r.id }
+            l == null || l != r
+        }
+        if (toInsert.isNotEmpty()) {
+            insertTournaments(toInsert)
+        }
+        
+        val toDelete = local.filter { l -> !remoteIds.contains(l.id) }
+        for (d in toDelete) {
+            deleteTournament(d)
+        }
+    }
 }
 
 @Dao
@@ -88,6 +107,31 @@ interface JoinDao {
 
     @Query("DELETE FROM user_tournament_joins")
     suspend fun clearJoins()
+
+    @Query("SELECT * FROM user_tournament_joins")
+    suspend fun getAllJoinsSync(): List<TournamentJoinEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertJoins(joins: List<TournamentJoinEntity>)
+
+    @Transaction
+    suspend fun syncJoins(remoteJoins: List<TournamentJoinEntity>) {
+        val local = getAllJoinsSync()
+        val remoteKeys = remoteJoins.map { "${it.userId}_${it.tournamentId}" }.toSet()
+        
+        val toInsert = remoteJoins.filter { r ->
+            val l = local.find { it.userId == r.userId && it.tournamentId == r.tournamentId }
+            l == null || l != r
+        }
+        if (toInsert.isNotEmpty()) {
+            insertJoins(toInsert)
+        }
+        
+        val toDelete = local.filter { l -> !remoteKeys.contains("${l.userId}_${l.tournamentId}") }
+        for (d in toDelete) {
+            deleteJoin(d)
+        }
+    }
 }
 
 @Dao

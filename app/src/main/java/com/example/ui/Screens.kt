@@ -1962,7 +1962,7 @@ fun TournamentDashboardCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "SCHEDULE: ${match.dateTimeStr}",
+                        text = "SCHEDULE: ${match.localDateTimeStr}",
                         fontSize = 10.sp,
                         color = GreyText,
                         fontWeight = FontWeight.Bold,
@@ -2824,7 +2824,7 @@ fun TournamentDetailsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("GAME DATE", fontSize = 9.sp, color = GreyText)
-                    Text(match.dateTimeStr, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = RedSecondary, maxLines = 1)
+                    Text(match.localDateTimeStr, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = RedSecondary, maxLines = 1)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -3244,7 +3244,7 @@ fun TournamentDetailsScreen(
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = "Schedule: ${match.dateTimeStr}",
+                                                text = "Schedule: ${match.localDateTimeStr}",
                                                 fontSize = 11.sp,
                                                 color = GreyText
                                             )
@@ -6833,7 +6833,7 @@ fun AdminTournamentsTab(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Time: ${match.dateTimeStr}", color = GreyText, fontSize = 11.sp)
+                        Text("Time: ${match.localDateTimeStr}", color = GreyText, fontSize = 11.sp)
                         Text("•", color = Color.DarkGray, fontSize = 11.sp)
                         Text("Fee: ₹${match.entryFee}", color = NeonGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
@@ -7461,6 +7461,7 @@ fun AdminTournamentsTab(
             
             var showDisqualifyConfirmForJoin by remember { mutableStateOf<TournamentJoinEntity?>(null) }
             var refundOnDisqualify by remember { mutableStateOf(true) }
+            var showResetConfirmDialog by remember { mutableStateOf(false) }
             
             Dialog(onDismissRequest = { selectPlayersManagementForTournament = null }) {
                 Surface(
@@ -7535,6 +7536,43 @@ fun AdminTournamentsTab(
                                 color = NeonGold,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                        
+                        if (registeredJoins.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF241519), RoundedCornerShape(8.dp))
+                                    .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.4f)), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = "Reset Tournament Results",
+                                        fontSize = 11.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Wipes kills and ranks back to zero and restores status to pending for all participants.",
+                                        fontSize = 8.sp,
+                                        color = GreyText
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        showResetConfirmDialog = true
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.height(30.dp).testTag("reset_all_results_btn")
+                                ) {
+                                    Text("RESET ALL", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
                         }
                         
                         Spacer(modifier = Modifier.height(12.dp))
@@ -7835,6 +7873,42 @@ fun AdminTournamentsTab(
                         }
                     }
                 }
+            }
+
+            if (showResetConfirmDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetConfirmDialog = false },
+                    containerColor = DarkSurface,
+                    title = {
+                        Text("Reset All Match Results?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    },
+                    text = {
+                        Text(
+                            "Are you sure you want to reset the kills and ranks back to zero, and set statuses to PENDING for all registered combatants in this tournament?",
+                            color = GreyText,
+                            fontSize = 12.sp
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showResetConfirmDialog = false
+                                viewModel.resetTournamentResults(focusMatch.id) { success, msg ->
+                                    scope.launch {
+                                        snackBars.showSnackbar(msg ?: "Results updated.")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("YES, RESET", color = RedPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetConfirmDialog = false }) {
+                            Text("CANCEL", color = Color.White)
+                        }
+                    }
+                )
             }
         }
 
@@ -11077,14 +11151,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                                 type = NotificationType.SUCCESS
                                                             )
                                                         } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                            viewModel.showToast(
+                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway is emailing a 6-digit OTP to $destination." else "Custom SMS Gateway is sending a 6-digit OTP code to your number.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
                                                             viewModel.sendOtpSms(destination, secureOtp) { success, err ->
-                                                                if (success) {
-                                                                    viewModel.showToast(
-                                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
-                                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                } else {
+                                                                if (!success) {
                                                                     viewModel.showToast(
                                                                         title = "⚠️ CUSTOM GATEWAY ERROR",
                                                                         message = err ?: "Failed to deliver OTP. Try again or contact support.",
@@ -11227,14 +11300,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             } else {
                                                                 targetNumber
                                                             }
+                                                            viewModel.showToast(
+                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway is emailing a 6-digit OTP to $destination." else "Custom SMS Gateway is sending a 6-digit OTP code to your number.",
+                                                                type = NotificationType.SUCCESS
+                                                            )
                                                             viewModel.sendOtpSms(destination, secureOtp) { success, err ->
-                                                                if (success) {
-                                                                    viewModel.showToast(
-                                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
-                                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
-                                                                        type = NotificationType.SUCCESS
-                                                                    )
-                                                                } else {
+                                                                if (!success) {
                                                                     viewModel.showToast(
                                                                         title = "⚠️ CUSTOM GATEWAY ERROR",
                                                                         message = err ?: "Failed to deliver OTP. Try again or contact support.",
@@ -11489,14 +11561,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                         type = NotificationType.SUCCESS
                                                     )
                                                 } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
+                                                    viewModel.showToast(
+                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway is emailing a 6-digit OTP to $destination." else "Custom SMS Gateway is sending a 6-digit OTP code to your number.",
+                                                        type = NotificationType.SUCCESS
+                                                    )
                                                     viewModel.sendOtpSms(destination, secureOtp) { success, err ->
-                                                        if (success) {
-                                                            viewModel.showToast(
-                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
-                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $destination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
-                                                                type = NotificationType.SUCCESS
-                                                            )
-                                                        } else {
+                                                        if (!success) {
                                                             viewModel.showToast(
                                                                 title = "⚠️ CUSTOM GATEWAY ERROR",
                                                                 message = err ?: "Failed to deliver OTP. Try again or contact support.",
@@ -11696,14 +11767,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     } else {
                                                         determinedPhone
                                                     }
+                                                    viewModel.showToast(
+                                                        title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                        message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway is emailing a 6-digit OTP to $targetDestination." else "Custom SMS Gateway is sending a 6-digit OTP code to your number.",
+                                                        type = NotificationType.SUCCESS
+                                                    )
                                                     viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
-                                                        if (success) {
-                                                            viewModel.showToast(
-                                                                title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
-                                                                message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $targetDestination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
-                                                                type = NotificationType.SUCCESS
-                                                            )
-                                                        } else {
+                                                        if (!success) {
                                                             viewModel.showToast(
                                                                 title = "⚠️ CUSTOM GATEWAY ERROR",
                                                                 message = err ?: "Failed to deliver OTP. Try again or contact support.",
@@ -11969,14 +12039,13 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 } else {
                                                     phoneWithCountry
                                                 }
+                                                viewModel.showToast(
+                                                    title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
+                                                    message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway is emailing a 6-digit OTP to $targetDestination." else "Custom SMS Gateway is sending a 6-digit OTP code to your number.",
+                                                    type = NotificationType.SUCCESS
+                                                )
                                                 viewModel.sendOtpSms(targetDestination, secureOtp) { success, err ->
-                                                    if (success) {
-                                                        viewModel.showToast(
-                                                            title = if (currentGateway == "GMAIL_SMTP") "📧 EMAIL OTP DISPATCHED" else "✉️ SMS OTP DISPATCHED",
-                                                            message = if (currentGateway == "GMAIL_SMTP") "Our secure Gmail Gateway emailed a 6-digit OTP to $targetDestination." else "Custom SMS Gateway successfully sent a 6-digit OTP code to your number.",
-                                                            type = NotificationType.SUCCESS
-                                                        )
-                                                    } else {
+                                                    if (!success) {
                                                         viewModel.showToast(
                                                             title = "⚠️ CUSTOM GATEWAY ERROR",
                                                             message = err ?: "Failed to deliver OTP. Try again or contact support.",
@@ -12394,6 +12463,7 @@ fun AdminSecurityTab(
     val anomalies by viewModel.securityAuditAnomalies.collectAsStateWithLifecycle()
     val isAuditRunning by viewModel.isAuditRunning.collectAsStateWithLifecycle()
     val securityMetrics by viewModel.securityMetrics.collectAsStateWithLifecycle()
+    val isAutoDeleteOtpEnabled by viewModel.isAutoDeleteOtpEnabled.collectAsStateWithLifecycle()
     var activeScanProgress by remember { mutableFloatStateOf(0f) }
     var terminalLogs by remember { mutableStateOf(listOf("System Antivirus module online. Ready to scan Firestore arrays & transaction logs.")) }
     Column(
@@ -12613,6 +12683,117 @@ fun AdminSecurityTab(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isFirestoreInitializing) "PROVISIONING CLOUD ARRAYS..." else "INITIALIZE & SYNC CLOUD FIRESTORE",
+                        fontSize = 10.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+        }
+
+        // 2.2 OTP Gateway Security Sanctum Panel
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF24222B)), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(RedPrimary.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                            .padding(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Lock Icon",
+                            tint = RedPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        "OTP SECURITY GATEWAY SANCTUM",
+                        fontSize = 11.sp,
+                        color = RedPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Configure security levels for user setup and entry OTP verifications. Automatically expire and self-delete sent OTP payloads after 60 seconds of inactivity, or trigger a complete global invalidation.",
+                    fontSize = 9.sp,
+                    color = GreyText
+                )
+                
+                Spacer(modifier = Modifier.height(14.dp))
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF131115), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            text = "Auto-Delete Active OTP",
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Expiring verification OTP payloads instantly after 60s of dispatch for robust protection against brute-forcing.",
+                            fontSize = 8.sp,
+                            color = GreyText
+                        )
+                    }
+                    Switch(
+                        checked = isAutoDeleteOtpEnabled,
+                        onCheckedChange = {
+                            viewModel.setAutoDeleteOtpEnabled(it)
+                            scope.launch {
+                                snackbarHost.showSnackbar(if (it) "🔒 Auto-delete verification OTPs activated." else "⚠️ Auto-delete verification OTPs deactivated.")
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = RedPrimary,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.Black
+                        ),
+                        modifier = Modifier.testTag("auto_delete_otp_switch")
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Button(
+                    onClick = {
+                        viewModel.clearActiveOtp()
+                        scope.launch {
+                            snackbarHost.showSnackbar("🗑️ Active Verification OTP manually invalidated!")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF131118)),
+                    border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("force_clear_otp_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Force clear OTP icon",
+                        tint = RedPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "FORCE CLEAR ACTIVE VERIFICATION OTP",
                         fontSize = 10.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Black

@@ -153,3 +153,38 @@ data class NotificationEntity(
     val tournamentId: Int? = null
 )
 
+val TournamentEntity.localDateTimeStr: String
+    get() {
+        val sdfTime = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+        val sdfDate = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.US)
+        
+        val targetCal = java.util.Calendar.getInstance()
+        targetCal.timeInMillis = timestamp
+        
+        val nowCal = java.util.Calendar.getInstance()
+        
+        // Check if same day/year
+        val isSameDay = targetCal.get(java.util.Calendar.YEAR) == nowCal.get(java.util.Calendar.YEAR) &&
+                        targetCal.get(java.util.Calendar.DAY_OF_YEAR) == nowCal.get(java.util.Calendar.DAY_OF_YEAR)
+                        
+        // Check if tomorrow
+        val tomCal = java.util.Calendar.getInstance()
+        tomCal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        val isTomorrow = targetCal.get(java.util.Calendar.YEAR) == tomCal.get(java.util.Calendar.YEAR) &&
+                         targetCal.get(java.util.Calendar.DAY_OF_YEAR) == tomCal.get(java.util.Calendar.DAY_OF_YEAR)
+                         
+        // Check if yesterday
+        val yesCal = java.util.Calendar.getInstance()
+        yesCal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val isYesterday = targetCal.get(java.util.Calendar.YEAR) == yesCal.get(java.util.Calendar.YEAR) &&
+                          targetCal.get(java.util.Calendar.DAY_OF_YEAR) == yesCal.get(java.util.Calendar.DAY_OF_YEAR)
+                          
+        val timeStr = sdfTime.format(java.util.Date(timestamp))
+        return when {
+            isSameDay -> "Today, $timeStr"
+            isTomorrow -> "Tomorrow, $timeStr"
+            isYesterday -> "Yesterday, $timeStr"
+            else -> "${sdfDate.format(java.util.Date(timestamp))}, $timeStr"
+        }
+    }
+
