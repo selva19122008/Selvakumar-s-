@@ -176,24 +176,6 @@ class BattleZoneViewModel(
                         }
                     }
 
-                    if (user == null && userId.isNotEmpty()) {
-                        val fallbackEmail = if (!email.isNullOrBlank()) email else "gamer@battlezone.com"
-                        val fallbackPhone = if (!phone.isNullOrBlank()) phone else "+91 9999999999"
-                        val defaultIgn = if (!email.isNullOrBlank()) email.substringBefore("@") else "FF_Gamer"
-
-                        user = UserEntity(
-                            id = userId,
-                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                            phoneNumber = fallbackPhone,
-                            email = fallbackEmail,
-                            depositBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
-                            winningBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
-                            bonusBalance = if (fallbackEmail == "selva19122008@gmail.com") 1000.0 else 5.0
-                        )
-                        repository.insertUser(user)
-                    }
-
                     if (user != null) {
                         val determinedRole = if (user.email.trim().lowercase() == "selva19122008@gmail.com") "admin" else "user"
                         authPrefs.edit().apply {
@@ -210,6 +192,18 @@ class BattleZoneViewModel(
                         val updated = user.copy(isOnline = true)
                         repository.insertUser(updated)
                         pushUserToFirestore(updated)
+                    } else if (userId.isNotEmpty()) {
+                        val determinedRole = if (email?.trim()?.lowercase() == "selva19122008@gmail.com") "admin" else "user"
+                        authPrefs.edit().apply {
+                            putBoolean("is_logged_in", true)
+                            putString("logged_in_user_id", userId)
+                            putString("user_role", determinedRole)
+                            apply()
+                        }
+                        _currentUserIdFlow.value = userId
+                        _userRole.value = determinedRole
+                        _isUserLoggedIn.value = true
+                        startUserFirestoreSync(userId)
                     }
                 } else {
                     _isUserLoggedIn.value = false
@@ -2222,6 +2216,29 @@ class BattleZoneViewModel(
         }
     }
 
+    fun updateUserProfile(ign: String, ffUid: String, extraMobile: String) {
+        viewModelScope.launch {
+            val userId = getSavedLoggedInUserId()
+            if (userId != "default_user" && userId.isNotBlank()) {
+                val current = repository.getUserSync(userId)
+                if (current != null) {
+                    val updated = current.copy(
+                        inGameName = ign.trim(),
+                        freeFireUid = ffUid.trim(),
+                        extraMobileNumber = extraMobile.trim()
+                    )
+                    repository.insertUser(updated)
+                    pushUserToFirestore(updated)
+                    showToast(
+                        title = "👤 Profile Updated",
+                        message = "Your account details have been updated successfully.",
+                        type = NotificationType.SUCCESS
+                    )
+                }
+            }
+        }
+    }
+
     fun verifyCredentialsAndTriggerOtp(
         emailInput: String,
         passwordInput: String,
@@ -2262,22 +2279,29 @@ class BattleZoneViewModel(
                         .addOnCompleteListener { task ->
                             if (task.isSuccessful) {
                                 auth.signOut()
-                                val defaultIgn = email.substringBefore("@")
-                                val newUser = UserEntity(
-                                    id = userId,
-                                    inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                    phoneNumber = "+91 9999999999",
-                                    email = email,
-                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
-                                )
                                 viewModelScope.launch {
-                                    repository.insertUser(newUser)
-                                    pushUserToFirestore(newUser)
-                                    onTriggerOtp(newUser.phoneNumber, newUser)
-                                    onFinished(true, null)
+                                    val existingUser = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
+                                    if (existingUser != null) {
+                                        repository.insertUser(existingUser)
+                                        onTriggerOtp(existingUser.phoneNumber, existingUser)
+                                        onFinished(true, null)
+                                    } else {
+                                        val defaultIgn = email.substringBefore("@")
+                                        val newUser = UserEntity(
+                                            id = userId,
+                                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                            phoneNumber = "+91 9999999999",
+                                            email = email,
+                                            depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                            winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                            bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                        )
+                                        repository.insertUser(newUser)
+                                        pushUserToFirestore(newUser)
+                                        onTriggerOtp(newUser.phoneNumber, newUser)
+                                        onFinished(true, null)
+                                    }
                                 }
                             } else {
                                 val exception = task.exception
@@ -2288,22 +2312,29 @@ class BattleZoneViewModel(
                                 } else {
                                     val mode = getSmsGatewayMode()
                                     if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
-                                        val defaultIgn = email.substringBefore("@")
-                                        val fallbackUser = UserEntity(
-                                            id = userId,
-                                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                            phoneNumber = "+91 9999999999",
-                                            email = email,
-                                            depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                            winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                            bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
-                                        )
                                         viewModelScope.launch {
-                                            repository.insertUser(fallbackUser)
-                                            pushUserToFirestore(fallbackUser)
-                                            onTriggerOtp(fallbackUser.phoneNumber, fallbackUser)
-                                            onFinished(true, null)
+                                            val existingUser = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
+                                            if (existingUser != null) {
+                                                repository.insertUser(existingUser)
+                                                onTriggerOtp(existingUser.phoneNumber, existingUser)
+                                                onFinished(true, null)
+                                            } else {
+                                                val defaultIgn = email.substringBefore("@")
+                                                val fallbackUser = UserEntity(
+                                                    id = userId,
+                                                    inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                                    phoneNumber = "+91 9999999999",
+                                                    email = email,
+                                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                                )
+                                                repository.insertUser(fallbackUser)
+                                                pushUserToFirestore(fallbackUser)
+                                                onTriggerOtp(fallbackUser.phoneNumber, fallbackUser)
+                                                onFinished(true, null)
+                                            }
                                         }
                                     } else {
                                         onFinished(false, exception?.localizedMessage ?: "Connection error. Please try again.")
@@ -2448,6 +2479,19 @@ class BattleZoneViewModel(
                 type = NotificationType.SUCCESS
             )
             onFinished(true, null)
+        }
+    }
+
+    fun checkEmailRegistered(email: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val cleanEmail = email.trim().lowercase()
+            val cleanEmailKey = cleanEmail.replace("@", "_").replace(".", "_")
+            val userId = "user_e_${cleanEmailKey.take(20)}"
+            var user = repository.getUserSync(userId)
+            if (user == null) {
+                user = getFirestoreUserByEmail(cleanEmail) ?: getFirestoreUserById(userId)
+            }
+            onResult(user != null)
         }
     }
 
@@ -3953,10 +3997,10 @@ class BattleZoneViewModel(
         lastSentGmailOtp = otpCode.trim()
         if (isAutoDeleteOtpEnabled.value) {
             viewModelScope.launch(Dispatchers.Main) {
-                kotlinx.coroutines.delay(60000) // Auto-delete/expire after 60 seconds
+                kotlinx.coroutines.delay(300000) // Auto-delete/expire after 5 minutes
                 if (lastSentGmailOtp == otpCode.trim()) {
                     lastSentGmailOtp = ""
-                    logSecurityEvent("Verification OTP ($otpCode) was automatically deleted after 60 seconds.")
+                    logSecurityEvent("Verification OTP ($otpCode) was automatically deleted after 5 minutes.")
                 }
             }
         }
