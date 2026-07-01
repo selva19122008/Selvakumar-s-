@@ -15,6 +15,8 @@ import com.example.ui.BattleZoneViewModelFactory
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
+    private lateinit var viewModel: BattleZoneViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -53,13 +55,27 @@ class MainActivity : ComponentActivity() {
         
         // 2. Build our main ViewModel
         val factory = BattleZoneViewModelFactory(application, repository)
-        val viewModel = ViewModelProvider(this, factory)[BattleZoneViewModel::class.java]
+        viewModel = ViewModelProvider(this, factory)[BattleZoneViewModel::class.java]
         
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
                 BattleZoneMainApp(viewModel = viewModel)
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::viewModel.isInitialized) {
+            viewModel.updateUserOnlineStatus(true)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (::viewModel.isInitialized) {
+            viewModel.updateUserOnlineStatus(false)
         }
     }
 }

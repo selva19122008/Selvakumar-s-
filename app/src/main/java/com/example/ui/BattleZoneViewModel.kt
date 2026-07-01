@@ -59,6 +59,7 @@ class BattleZoneViewModel(
     private var joinsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var usersSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var settingsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var transactionsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     // Active Current User and Persistence with SharedPreferences
     private val authPrefs by lazy {
@@ -111,81 +112,121 @@ class BattleZoneViewModel(
         viewModelScope.launch {
             // Give repository a moment to perform any initial setup tasks
             kotlinx.coroutines.delay(300)
-            val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
-            val firebaseUser = auth.currentUser
-            if (firebaseUser != null) {
-                val email = firebaseUser.email?.trim()?.lowercase()
-                val phone = firebaseUser.phoneNumber?.trim()
-
-                var userId = ""
-                var user: UserEntity? = null
-
-                if (!email.isNullOrBlank()) {
-                    val cleanEmail = email.replace("@", "_").replace(".", "_")
-                    userId = "user_e_${cleanEmail.take(20)}"
-                    user = repository.getUserSync(userId)
+            
+            val isLocalLoggedIn = authPrefs.getBoolean("is_logged_in", false)
+            val savedUserId = authPrefs.getString("logged_in_user_id", "default_user") ?: "default_user"
+            val savedRole = authPrefs.getString("user_role", "user") ?: "user"
+            
+            if (isLocalLoggedIn && savedUserId != "default_user" && savedUserId.isNotBlank()) {
+                // Restore session immediately from SharedPreferences to remain logged in!
+                _currentUserIdFlow.value = savedUserId
+                _userRole.value = savedRole
+                _isUserLoggedIn.value = true
+                startUserFirestoreSync(savedUserId)
+                
+                // Set the user online in local SQLite and Firestore immediately
+                viewModelScope.launch {
+                    var user = repository.getUserSync(savedUserId)
                     if (user == null) {
-                        try {
-                            val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
-                            user = allUsersLocal.find { it.email.trim().lowercase() == email }
-                        } catch (e: Exception) {
-                            // ignore fallback
-                        }
+                        user = getFirestoreUserById(savedUserId)
                     }
-                } else if (!phone.isNullOrBlank()) {
-                    val cleanPhone = phone.replace(" ", "").replace("+", "").replace("-", "")
-                    userId = "user_$cleanPhone"
-                    user = repository.getUserByPhoneSync(phone)
-                    if (user == null) {
-                        user = repository.getUserSync(userId)
+                    if (user != null) {
+                        val updated = user.copy(isOnline = true)
+                        repository.insertUser(updated)
+                        pushUserToFirestore(updated)
                     }
-                }
-
-                // Callbacks or cloud profile fallbacks if local database didn't have it synchronized yet
-                if (user == null && userId.isNotEmpty()) {
-                    if (!email.isNullOrBlank()) {
-                        user = getFirestoreUserByEmail(email) ?: getFirestoreUserById(userId)
-                    } else if (!phone.isNullOrBlank()) {
-                        user = getFirestoreUserByPhone(phone) ?: getFirestoreUserById(userId)
-                    }
-                }
-
-                if (user == null && userId.isNotEmpty()) {
-                    val fallbackEmail = if (!email.isNullOrBlank()) email else "gamer@battlezone.com"
-                    val fallbackPhone = if (!phone.isNullOrBlank()) phone else "+91 9999999999"
-                    val defaultIgn = if (!email.isNullOrBlank()) email.substringBefore("@") else "FF_Gamer"
-
-                    user = UserEntity(
-                        id = userId,
-                        inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                        phoneNumber = fallbackPhone,
-                        email = fallbackEmail,
-                        depositBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        winningBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        bonusBalance = if (fallbackEmail == "selva19122008@gmail.com") 1000.0 else 5.0
-                    )
-                    repository.insertUser(user)
-                }
-
-                if (user != null) {
-                    val determinedRole = if (user.email.trim().lowercase() == "selva19122008@gmail.com") "admin" else "user"
-                    authPrefs.edit().apply {
-                        putBoolean("is_logged_in", true)
-                        putString("logged_in_user_id", user.id)
-                        putString("user_role", determinedRole)
-                        apply()
-                    }
-                    _currentUserIdFlow.value = user.id
-                    _userRole.value = determinedRole
-                    _isUserLoggedIn.value = true
-                    startUserFirestoreSync(user.id)
                 }
             } else {
-                // If there is no active Firebase currentUser, but local SP has been marked logged in via real mode, log them out to stay in sync
-                if (getSmsGatewayMode() != "TEST_MODE" && authPrefs.getBoolean("is_logged_in", false)) {
+                val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+                val firebaseUser = auth.currentUser
+                if (firebaseUser != null) {
+                    val email = firebaseUser.email?.trim()?.lowercase()
+                    val phone = firebaseUser.phoneNumber?.trim()
+
+                    var userId = ""
+                    var user: UserEntity? = null
+
+                    if (!email.isNullOrBlank()) {
+                        val cleanEmail = email.replace("@", "_").replace(".", "_")
+                        userId = "user_e_${cleanEmail.take(20)}"
+                        user = repository.getUserSync(userId)
+                        if (user == null) {
+                            try {
+                                val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                                user = allUsersLocal.find { it.email.trim().lowercase() == email }
+                            } catch (e: Exception) {
+                                // ignore fallback
+                            }
+                        }
+                    } else if (!phone.isNullOrBlank()) {
+                        val cleanPhone = phone.replace(" ", "").replace("+", "").replace("-", "")
+                        userId = "user_$cleanPhone"
+                        user = repository.getUserByPhoneSync(phone)
+                        if (user == null) {
+                            user = repository.getUserSync(userId)
+                        }
+                    }
+
+                    // Callbacks or cloud profile fallbacks if local database didn't have it synchronized yet
+                    if (user == null && userId.isNotEmpty()) {
+                        if (!email.isNullOrBlank()) {
+                            user = getFirestoreUserByEmail(email) ?: getFirestoreUserById(userId)
+                        } else if (!phone.isNullOrBlank()) {
+                            user = getFirestoreUserByPhone(phone) ?: getFirestoreUserById(userId)
+                        }
+                    }
+
+                    if (user == null && userId.isNotEmpty()) {
+                        val fallbackEmail = if (!email.isNullOrBlank()) email else "gamer@battlezone.com"
+                        val fallbackPhone = if (!phone.isNullOrBlank()) phone else "+91 9999999999"
+                        val defaultIgn = if (!email.isNullOrBlank()) email.substringBefore("@") else "FF_Gamer"
+
+                        user = UserEntity(
+                            id = userId,
+                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                            phoneNumber = fallbackPhone,
+                            email = fallbackEmail,
+                            depositBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
+                            winningBalance = if (fallbackEmail == "selva19122008@gmail.com") 5000.0 else 0.0,
+                            bonusBalance = if (fallbackEmail == "selva19122008@gmail.com") 1000.0 else 5.0
+                        )
+                        repository.insertUser(user)
+                    }
+
+                    if (user != null) {
+                        val determinedRole = if (user.email.trim().lowercase() == "selva19122008@gmail.com") "admin" else "user"
+                        authPrefs.edit().apply {
+                            putBoolean("is_logged_in", true)
+                            putString("logged_in_user_id", user.id)
+                            putString("user_role", determinedRole)
+                            apply()
+                        }
+                        _currentUserIdFlow.value = user.id
+                        _userRole.value = determinedRole
+                        _isUserLoggedIn.value = true
+                        startUserFirestoreSync(user.id)
+                        
+                        val updated = user.copy(isOnline = true)
+                        repository.insertUser(updated)
+                        pushUserToFirestore(updated)
+                    }
+                } else {
                     _isUserLoggedIn.value = false
-                    authPrefs.edit().remove("is_logged_in").remove("logged_in_user_id").remove("user_role").apply()
+                }
+            }
+        }
+    }
+
+    fun updateUserOnlineStatus(isOnline: Boolean) {
+        val userId = getSavedLoggedInUserId()
+        if (userId != "default_user" && userId.isNotBlank()) {
+            viewModelScope.launch {
+                val user = repository.getUserSync(userId)
+                if (user != null) {
+                    val updated = user.copy(isOnline = isOnline)
+                    repository.insertUser(updated)
+                    pushUserToFirestore(updated)
                 }
             }
         }
@@ -508,6 +549,45 @@ class BattleZoneViewModel(
         )
     }
 
+    private fun mapToTransaction(m: Map<String, Any?>): TransactionEntity {
+        return TransactionEntity(
+            id = (m["id"] as? Number)?.toInt() ?: 0,
+            userId = m["userId"] as? String ?: "",
+            title = m["title"] as? String ?: "",
+            amount = (m["amount"] as? Number)?.toDouble() ?: 0.0,
+            type = m["type"] as? String ?: "DEPOSIT",
+            category = m["category"] as? String ?: "DEPOSIT",
+            status = m["status"] as? String ?: "PENDING",
+            timestamp = extractLong(m["timestamp"], System.currentTimeMillis()),
+            invoiceId = m["invoiceId"] as? String ?: ""
+        )
+    }
+
+    private fun transactionToMap(t: TransactionEntity): HashMap<String, Any?> {
+        return hashMapOf(
+            "id" to t.id,
+            "userId" to t.userId,
+            "title" to t.title,
+            "amount" to t.amount,
+            "type" to t.type,
+            "category" to t.category,
+            "status" to t.status,
+            "timestamp" to t.timestamp,
+            "invoiceId" to t.invoiceId
+        )
+    }
+
+    fun pushTransactionToFirestore(t: TransactionEntity) {
+        try {
+            firestore?.collection("transactions")
+                ?.document("txn_${t.id}")
+                ?.set(transactionToMap(t))
+                ?.addOnFailureListener { it.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun mapToUser(m: Map<String, Any?>): UserEntity {
         val deposit = (m["depositBalance"] as? Number)?.toDouble() ?: 0.0
         val winning = (m["winningBalance"] as? Number)?.toDouble() ?: 0.0
@@ -651,14 +731,34 @@ class BattleZoneViewModel(
             }
     }
 
+    fun syncLocalTransactionsAndWithdrawalsWithFirestore() {
+        viewModelScope.launch {
+            try {
+                val allTxns = repository.allTransactions.firstOrNull() ?: emptyList()
+                allTxns.forEach { t ->
+                    pushTransactionToFirestore(t)
+                }
+                val allWithdrawals = repository.allWithdrawals.firstOrNull() ?: emptyList()
+                allWithdrawals.forEach { w ->
+                    pushWithdrawalToFirestore(w)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun startFirestoreSync() {
         if (!isRealtimeSyncEnabled.value) return
+        
+        syncLocalTransactionsAndWithdrawalsWithFirestore()
         
         tournamentsSnapshotListener?.remove()
         withdrawalsSnapshotListener?.remove()
         joinsSnapshotListener?.remove()
         usersSnapshotListener?.remove()
         settingsSnapshotListener?.remove()
+        transactionsSnapshotListener?.remove()
         
         try {
             tournamentsSnapshotListener = firestore?.collection("tournaments")
@@ -802,7 +902,30 @@ class BattleZoneViewModel(
                                    m["gmail_app_password"]?.let { putString("gmail_app_password", it.toString()) }
                                    apply()
                                }
-                           } catch (e: Exception) {
+                  
+             transactionsSnapshotListener = firestore?.collection("transactions")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (!isRealtimeSyncEnabled.value) return@addSnapshotListener
+                    if (error != null) {
+                        error.printStackTrace()
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null) {
+                        viewModelScope.launch {
+                            for (doc in snapshot.documents) {
+                                val m = doc.data
+                                if (m != null) {
+                                    val transaction = mapToTransaction(m)
+                                    val existing = repository.getTransactionByIdSync(transaction.id)
+                                    if (existing == null || existing != transaction) {
+                                        repository.insertTransaction(transaction)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+         } catch (e: Exception) {
                                e.printStackTrace()
                            }
                        }
@@ -2133,10 +2256,64 @@ class BattleZoneViewModel(
             
             // If the user does not exist in any database (local or firestore), they are NOT registered!
             if (user == null) {
-                onFinished(
-                    false,
-                    "You haven't registered yet. Please register first."
-                )
+                try {
+                    val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+                    auth.signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                auth.signOut()
+                                val defaultIgn = email.substringBefore("@")
+                                val newUser = UserEntity(
+                                    id = userId,
+                                    inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                    phoneNumber = "+91 9999999999",
+                                    email = email,
+                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                )
+                                viewModelScope.launch {
+                                    repository.insertUser(newUser)
+                                    pushUserToFirestore(newUser)
+                                    onTriggerOtp(newUser.phoneNumber, newUser)
+                                    onFinished(true, null)
+                                }
+                            } else {
+                                val exception = task.exception
+                                if (exception is com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+                                    onFinished(false, "You haven't registered yet. Please register first.")
+                                } else if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+                                    onFinished(false, "Incorrect password. Please try again.")
+                                } else {
+                                    val mode = getSmsGatewayMode()
+                                    if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                                        val defaultIgn = email.substringBefore("@")
+                                        val fallbackUser = UserEntity(
+                                            id = userId,
+                                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
+                                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
+                                            phoneNumber = "+91 9999999999",
+                                            email = email,
+                                            depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                            winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
+                                            bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                        )
+                                        viewModelScope.launch {
+                                            repository.insertUser(fallbackUser)
+                                            pushUserToFirestore(fallbackUser)
+                                            onTriggerOtp(fallbackUser.phoneNumber, fallbackUser)
+                                            onFinished(true, null)
+                                        }
+                                    } else {
+                                        onFinished(false, exception?.localizedMessage ?: "Connection error. Please try again.")
+                                    }
+                                }
+                            }
+                        }
+                } catch (e: Exception) {
+                    onFinished(false, "Authentication service error. Please register first or check your connection.")
+                }
                 return@launch
             }
             
@@ -3556,6 +3733,8 @@ class BattleZoneViewModel(
             usersSnapshotListener = null
             settingsSnapshotListener?.remove()
             settingsSnapshotListener = null
+            transactionsSnapshotListener?.remove()
+            transactionsSnapshotListener = null
         } else {
             startFirestoreSync()
             if (currentUserId != "default_user") {
@@ -4086,17 +4265,19 @@ class BattleZoneViewModel(
     fun addPendingMoney(amount: Double, gateway: String, referenceId: String, onFinished: (String) -> Unit) {
         viewModelScope.launch {
             val invoiceId = "TXN-DEP-${UUID.randomUUID().toString().take(8).uppercase()}"
-            repository.insertTransaction(
-                TransactionEntity(
-                    userId = currentUserId,
-                    title = "Deposit via $gateway (UTR: $referenceId)",
-                    amount = amount,
-                    type = "DEPOSIT",
-                    category = "DEPOSIT",
-                    status = "PENDING", // PENDING approval by admin
-                    invoiceId = invoiceId
-                )
+            val deterministicId = invoiceId.hashCode() and 0x7FFFFFFF
+            val transaction = TransactionEntity(
+                id = deterministicId,
+                userId = currentUserId,
+                title = "Deposit via $gateway (UTR: $referenceId)",
+                amount = amount,
+                type = "DEPOSIT",
+                category = "DEPOSIT",
+                status = "PENDING", // PENDING approval by admin
+                invoiceId = invoiceId
             )
+            repository.insertTransaction(transaction)
+            pushTransactionToFirestore(transaction)
             showToast(
                 title = "⏳ Deposit Request Submitted",
                 message = "Requested ₹${amount} via ${gateway}. Admin is validating ref UTR: ${referenceId}",
@@ -4114,6 +4295,7 @@ class BattleZoneViewModel(
                 // Update transaction status to SUCCESS
                 val updatedTxn = transaction.copy(status = "SUCCESS")
                 repository.insertTransaction(updatedTxn)
+                pushTransactionToFirestore(updatedTxn)
                 
                 // Credit user balance
                 val user = repository.getUserSync(transaction.userId)
@@ -4144,6 +4326,7 @@ class BattleZoneViewModel(
                 // Update transaction status to FAILED
                 val updatedTxn = transaction.copy(status = "FAILED")
                 repository.insertTransaction(updatedTxn)
+                pushTransactionToFirestore(updatedTxn)
                 showToast(
                     title = "❌ Deposit Rejected",
                     message = "Deposit request for ₹${transaction.amount} was rejected by system administrator.",
@@ -5193,6 +5376,7 @@ class BattleZoneViewModel(
         viewModelScope.launch {
             try {
                 repository.deleteTransactionByIdSync(id)
+                firestore?.collection("transactions")?.document("txn_$id")?.delete()
                 onFinished(true)
             } catch (e: Exception) {
                 onFinished(false)
@@ -5379,6 +5563,7 @@ class BattleZoneViewModel(
         joinsSnapshotListener?.remove()
         usersSnapshotListener?.remove()
         settingsSnapshotListener?.remove()
+        transactionsSnapshotListener?.remove()
     }
 }
 

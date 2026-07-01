@@ -7402,14 +7402,57 @@ fun AdminTournamentsTab(
         // winner distribution dialog
         if (selectWinnersForTournament != null) {
             val focusMatchWinner = selectWinnersForTournament!!
-            var winnerFFUid by remember { mutableStateOf("FF-837492047") }
-            var winnerInGameName by remember { mutableStateOf("Alpha_Gamer") }
+            val allJoinsState = viewModel.allJoins.collectAsStateWithLifecycle()
+            val registeredJoins = allJoinsState.value.filter { it.tournamentId == focusMatchWinner.id }
+            
+            var winnerFFUid by remember { mutableStateOf(registeredJoins.firstOrNull()?.freeFireUid ?: "FF-837492047") }
+            var winnerInGameName by remember { mutableStateOf(registeredJoins.firstOrNull()?.inGameName ?: "Alpha_Gamer") }
+            
             Dialog(onDismissRequest = { selectWinnersForTournament = null }) {
                 Surface(shape = RoundedCornerShape(12.dp), color = DarkSurface, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text("Declare Prize Champions", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                         Text("Selected player will automatically receive ₹${focusMatchWinner.prizePool} credited to winnings balance.", fontSize = 9.sp, color = GreyText)
                         Spacer(modifier = Modifier.height(12.dp))
+                        
+                        if (registeredJoins.isEmpty()) {
+                            Text("No players have joined this match yet.", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                        } else {
+                            Text("Select Winner from Joins:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color.White, modifier = Modifier.padding(bottom = 6.dp))
+                            LazyColumn(modifier = Modifier.heightIn(max = 160.dp).fillMaxWidth().padding(bottom = 12.dp)) {
+                                items(registeredJoins) { join ->
+                                    val isSelected = winnerFFUid == join.freeFireUid
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) RedPrimary.copy(alpha = 0.2f) else Color(0xFF1E1C21))
+                                            .clickable {
+                                                winnerFFUid = join.freeFireUid
+                                                winnerInGameName = join.inGameName
+                                            }
+                                            .padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = isSelected,
+                                            onClick = {
+                                                winnerFFUid = join.freeFireUid
+                                                winnerInGameName = join.inGameName
+                                            },
+                                            colors = RadioButtonDefaults.colors(selectedColor = RedPrimary)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(join.inGameName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                            Text("UID: ${join.freeFireUid}", fontSize = 11.sp, color = GreyText)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
                         OutlinedTextField(
                             value = winnerInGameName,
                             onValueChange = { winnerInGameName = it },
@@ -8112,21 +8155,65 @@ fun AdminWithdrawalsTab(
 ) {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    var showHistory by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text("ACTIVE WITHDRAWALS PROPOSAL QUEUE", fontSize = 12.sp, color = GreyText, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { showHistory = false },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (!showHistory) RedPrimary else Color(0xFF1E1C24)
+                ),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("ACTIVE QUEUE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Button(
+                onClick = { showHistory = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (showHistory) RedPrimary else Color(0xFF1E1C24)
+                ),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("PAID / REJECTED HISTORY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+
+        val displayedWithdrawals = if (showHistory) {
+            withdrawals.filter { it.status == "COMPLETED" || it.status == "SUCCESS" || it.status == "REJECTED" }
+        } else {
+            withdrawals.filter { it.status == "PENDING" || it.status == "IN_PROGRESS" }
+        }
+
+        Text(
+            if (showHistory) "COMPLETED WITHDRAWALS HISTORY ARCHIVE" else "ACTIVE WITHDRAWALS PROPOSAL QUEUE", 
+            fontSize = 12.sp, 
+            color = GreyText, 
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(10.dp))
-        val activeWithdrawals = withdrawals.filter { it.status == "PENDING" || it.status == "IN_PROGRESS" }
-        if (activeWithdrawals.isEmpty()) {
+
+        if (displayedWithdrawals.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No active withdrawal requests available.", color = GreyText, fontSize = 12.sp)
+                Text(
+                    if (showHistory) "No archived withdrawal history available." else "No active withdrawal requests available.", 
+                    color = GreyText, 
+                    fontSize = 12.sp
+                )
             }
         } else {
             LazyColumn {
-                items(activeWithdrawals) { req ->
+                items(displayedWithdrawals) { req ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         border = BorderStroke(1.dp, Color(0xFF1E1C24)),
@@ -8144,9 +8231,24 @@ fun AdminWithdrawalsTab(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("UserId: ${req.userId}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        val statusLabel = if (req.status == "IN_PROGRESS") "IN PROGRESS" else "PENDING"
-                                        val statusBgColor = if (req.status == "IN_PROGRESS") Color(0xFF1E88E5) else NeonGold.copy(alpha = 0.2f)
-                                        val statusTextColor = if (req.status == "IN_PROGRESS") Color.White else NeonGold
+                                        val statusLabel = when (req.status) {
+                                            "IN_PROGRESS" -> "IN PROGRESS"
+                                            "COMPLETED", "SUCCESS" -> "PAID"
+                                            "REJECTED" -> "REJECTED"
+                                            else -> "PENDING"
+                                        }
+                                        val statusBgColor = when (req.status) {
+                                            "IN_PROGRESS" -> Color(0xFF1E88E5)
+                                            "COMPLETED", "SUCCESS" -> Color(0xFF00E676).copy(alpha = 0.2f)
+                                            "REJECTED" -> RedPrimary.copy(alpha = 0.2f)
+                                            else -> NeonGold.copy(alpha = 0.2f)
+                                        }
+                                        val statusTextColor = when (req.status) {
+                                            "IN_PROGRESS" -> Color.White
+                                            "COMPLETED", "SUCCESS" -> Color(0xFF00E676)
+                                            "REJECTED" -> RedPrimary
+                                            else -> NeonGold
+                                        }
                                         Box(
                                             modifier = Modifier
                                                 .background(statusBgColor, RoundedCornerShape(4.dp))
@@ -8173,7 +8275,6 @@ fun AdminWithdrawalsTab(
                                             modifier = Modifier.testTag("admin_withdrawal_upi_id")
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        // Elegant, high-visibility outlined Copy Button
                                         Box(
                                             modifier = Modifier
                                                 .background(Color(0xFF28252C), RoundedCornerShape(4.dp))
@@ -8218,36 +8319,45 @@ fun AdminWithdrawalsTab(
                                 horizontalArrangement = Arrangement.End,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (req.status == "PENDING") {
+                                if (req.status == "PENDING" || req.status == "IN_PROGRESS") {
+                                    if (req.status == "PENDING") {
+                                        Button(
+                                            onClick = { viewModel.adminSetWithdrawalInProgress(req.id) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF6C00)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp),
+                                            modifier = Modifier.height(28.dp)
+                                        ) {
+                                            Text("PROGRESS", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     Button(
-                                        onClick = { viewModel.adminSetWithdrawalInProgress(req.id) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF6C00)),
+                                        onClick = { viewModel.adminRejectWithdrawal(req.id) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
                                         shape = RoundedCornerShape(4.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text("PROGRESS", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text("REJECT", fontSize = 9.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                Button(
-                                    onClick = { viewModel.adminRejectWithdrawal(req.id) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF281116)),
-                                    shape = RoundedCornerShape(4.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp),
-                                    modifier = Modifier.height(28.dp)
-                                ) {
-                                    Text("REJECT", fontSize = 9.sp, color = RedPrimary, fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = { viewModel.adminApproveWithdrawal(req.id) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                                    shape = RoundedCornerShape(4.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp),
-                                    modifier = Modifier.height(28.dp)
-                                ) {
-                                    Text("APPROVE & DISBURSE", fontSize = 9.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                    Button(
+                                        onClick = { viewModel.adminApproveWithdrawal(req.id) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                                        shape = RoundedCornerShape(4.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("APPROVE & DISBURSE", fontSize = 9.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Text(
+                                        text = "PROCESSED STATUS: ${req.status}", 
+                                        color = if (req.status == "REJECTED") RedPrimary else Color(0xFF00E676), 
+                                        fontSize = 10.sp, 
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
                                 }
                             }
                         }
@@ -8589,13 +8699,14 @@ fun ProofSubmissionCard(
     if (showSubmitDialog) {
         var killsInput by remember { mutableStateOf("0") }
         var rankInput by remember { mutableStateOf("1") }
+        var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
         
-        val presetScreenshots = listOf(
-            Pair("https://images.unsplash.com/photo-1542751371-adc38448a05e", "Booyah #1 Victory Screen"),
-            Pair("https://images.unsplash.com/photo-1511512578047-dfb367046420", "#3 Placement Battle Screen"),
-            Pair("https://images.unsplash.com/photo-1560253023-3ec5d502959f", "#12 Placement High Fire Screen")
-        )
-        var selectedPresetUrl by remember { mutableStateOf(presetScreenshots[0].first) }
+        val imagePickerLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ) { uri: android.net.Uri? ->
+            selectedImageUri = uri
+        }
+        
         val scope = rememberCoroutineScope()
         Dialog(onDismissRequest = { showSubmitDialog = false }) {
             Surface(
@@ -8648,66 +8759,71 @@ fun ProofSubmissionCard(
                         modifier = Modifier.fillMaxWidth().testTag("proof_kills_input")
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    // Simulated image file select
+                    
                     Text("SELECT MATCH RESULT SCREENSHOT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreyText)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    presetScreenshots.forEach { (url, title) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (selectedImageUri == null) {
+                        Button(
+                            onClick = { imagePickerLauncher.launch("image/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1C24)),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedPresetUrl = url }
-                                .background(
-                                    if (selectedPresetUrl == url) Color(0xFF281116) else Color.Transparent,
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .padding(8.dp)
+                                .height(56.dp)
+                                .border(BorderStroke(1.dp, RedPrimary.copy(alpha = 0.3f)), RoundedCornerShape(8.dp))
+                                .testTag("select_screenshot_button")
                         ) {
-                            RadioButton(
-                                selected = selectedPresetUrl == url,
-                                onClick = { selectedPresetUrl = url },
-                                colors = RadioButtonDefaults.colors(selectedColor = RedPrimary, unselectedColor = GreyText)
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Screenshot",
+                                tint = RedPrimary,
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Column {
-                                Text(title, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                                Text("Mock file: ${url.takeLast(12)}...png", fontSize = 10.sp, color = GreyText)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("CHOOSE ORIGINAL SCREENSHOT FILE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    } else {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1C24)),
+                            border = BorderStroke(1.dp, Color(0xFF28252C)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Selected Screenshot", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    TextButton(
+                                        onClick = { imagePickerLauncher.launch("image/*") },
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("CHANGE FILE", color = RedPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(140.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color.Black),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    coil.compose.AsyncImage(
+                                        model = selectedImageUri,
+                                        contentDescription = "Preview match proof screenshot",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text("OR ENTER CUSTOM SCREENSHOT / MATERIALS URL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreyText)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = selectedPresetUrl,
-                        onValueChange = { selectedPresetUrl = it },
-                        label = { Text("Paste materials/screenshot link (e.g. imgur, drive)", fontSize = 11.sp) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = RedPrimary,
-                            unfocusedBorderColor = Color(0xFF28252C)
-                        ),
-                        modifier = Modifier.fillMaxWidth().testTag("proof_custom_url_input")
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    // Image loading preview box
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black)
-                            .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        coil.compose.AsyncImage(
-                            model = selectedPresetUrl,
-                            contentDescription = "Preview match proof screenshot",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                    
                     Spacer(modifier = Modifier.height(20.dp))
                     // Action buttons
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -8717,11 +8833,17 @@ fun ProofSubmissionCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
+                                if (selectedImageUri == null) {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Please select an original screenshot file from your device first!")
+                                    }
+                                    return@Button
+                                }
                                 val rank = rankInput.toIntOrNull() ?: 1
                                 val kills = killsInput.toIntOrNull() ?: 0
                                 viewModel.submitScreenshotProof(
                                     tournamentId = join.tournamentId,
-                                    screenshotPath = selectedPresetUrl,
+                                    screenshotPath = selectedImageUri.toString(),
                                     kills = kills,
                                     rank = rank,
                                     onResult = { success, msg ->
@@ -9076,6 +9198,7 @@ fun AdminDepositsTab(
     val scope = rememberCoroutineScope()
     val allTransactions by viewModel.adminAllTransactions.collectAsStateWithLifecycle()
     val pendingDeposits = allTransactions.filter { it.type == "DEPOSIT" && it.status == "PENDING" }
+    var showDepositHistory by remember { mutableStateOf(false) }
     var upiState by remember { mutableStateOf(viewModel.getAdminUpiId()) }
     var payeeState by remember { mutableStateOf(viewModel.getAdminPayeeName()) }
     var bankAccState by remember { mutableStateOf(viewModel.getAdminBankAccount()) }
@@ -9776,9 +9899,47 @@ fun AdminDepositsTab(
         }
         Spacer(modifier = Modifier.height(20.dp))
         // Part 2: Review user pending deposits
-        Text("PENDING GATEWAY DEPOSITS QUEUE (${pendingDeposits.size})", fontSize = 11.sp, color = GreyText, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { showDepositHistory = false },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (!showDepositHistory) RedPrimary else Color(0xFF1E1C24)
+                ),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("PENDING PAY-INS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Button(
+                onClick = { showDepositHistory = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (showDepositHistory) RedPrimary else Color(0xFF1E1C24)
+                ),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("APPROVED / REJECTED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+
+        val displayedDeposits = if (showDepositHistory) {
+            allTransactions.filter { it.type == "DEPOSIT" && it.status != "PENDING" }
+        } else {
+            allTransactions.filter { it.type == "DEPOSIT" && it.status == "PENDING" }
+        }
+
+        Text(
+            if (showDepositHistory) "APPROVED & REJECTED DEPOSITS HISTORY" else "PENDING GATEWAY DEPOSITS QUEUE (${pendingDeposits.size})", 
+            fontSize = 11.sp, 
+            color = GreyText, 
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        if (pendingDeposits.isEmpty()) {
+        if (displayedDeposits.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 modifier = Modifier
@@ -9786,11 +9947,15 @@ fun AdminDepositsTab(
                     .border(BorderStroke(1.dp, Color(0xFF28252C)), RoundedCornerShape(12.dp))
             ) {
                 Box(modifier = Modifier.padding(32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("No pending pay-ins are waiting for manual check.", color = GreyText, fontSize = 11.sp)
+                    Text(
+                        if (showDepositHistory) "No processed deposit history available." else "No pending pay-ins are waiting for manual check.", 
+                        color = GreyText, 
+                        fontSize = 11.sp
+                    )
                 }
             }
         } else {
-            pendingDeposits.forEach { dp ->
+            displayedDeposits.forEach { dp ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     modifier = Modifier
@@ -9804,72 +9969,76 @@ fun AdminDepositsTab(
                                 Text("USER: ${dp.userId}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 Text("Amount: ₹${dp.amount}", color = NeonGold, fontSize = 13.sp, fontWeight = FontWeight.Black)
                             }
+                            val statusColor = if (dp.status == "SUCCESS") Color.Green else if (dp.status == "PENDING") Color(0xFFFF5722) else RedPrimary
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF22110D)),
-                                border = BorderStroke(1.dp, Color(0xFFFF5722).copy(alpha = 0.4f))
+                                colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.1f)),
+                                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f))
                             ) {
-                                Text("PENDING", color = Color(0xFFFF5722), fontSize = 8.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Text(dp.status, color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(dp.title, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Medium)
                         Text("Invoice Ref: ${dp.invoiceId} | Date: ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.US).format(dp.timestamp)}", fontSize = 8.sp, color = GreyText)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    viewModel.adminRejectDeposit(dp.id) { success ->
-                                        if (success) {
-                                            scope.launch { snackbarHost.showSnackbar("Transaction Rejected.") }
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF140D0F)),
-                                border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 6.dp)
+                        
+                        if (dp.status == "PENDING") {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Close, contentDescription = "Reject", tint = RedPrimary, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("REJECT", color = RedPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = {
-                                    viewModel.adminDeleteTransaction(dp.id) { success ->
-                                        if (success) {
-                                            scope.launch { snackbarHost.showSnackbar("Duplicate Money Entry completely deleted.") }
+                                Button(
+                                    onClick = {
+                                        viewModel.adminRejectDeposit(dp.id) { success ->
+                                            if (success) {
+                                                scope.launch { snackbarHost.showSnackbar("Transaction Rejected.") }
+                                            }
                                         }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF241416)),
-                                border = BorderStroke(1.dp, Color(0xFFE53935)),
-                                modifier = Modifier.weight(1.1f),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Dup", tint = Color(0xFFE53935), modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("DELETE DUP", color = Color(0xFFE53935), fontSize = 9.sp, fontWeight = FontWeight.Black)
-                            }
-                            Button(
-                                onClick = {
-                                    viewModel.adminApproveDeposit(dp.id) { success ->
-                                        if (success) {
-                                            scope.launch { snackbarHost.showSnackbar("Transaction Approved & ₹${dp.amount} Credited to ${dp.userId}!") }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF140D0F)),
+                                    border = BorderStroke(1.dp, RedPrimary.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Close, contentDescription = "Reject", tint = RedPrimary, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("REJECT", color = RedPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = {
+                                        viewModel.adminDeleteTransaction(dp.id) { success ->
+                                            if (success) {
+                                                scope.launch { snackbarHost.showSnackbar("Duplicate Money Entry completely deleted.") }
+                                            }
                                         }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F1B12)),
-                                border = BorderStroke(1.dp, Color.Green.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1.1f),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = "Approve", tint = Color.Green, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("APPROVE", color = Color.Green, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF241416)),
+                                    border = BorderStroke(1.dp, Color(0xFFE53935)),
+                                    modifier = Modifier.weight(1.1f),
+                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Dup", tint = Color(0xFFE53935), modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("DELETE DUP", color = Color(0xFFE53935), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                }
+                                Button(
+                                    onClick = {
+                                        viewModel.adminApproveDeposit(dp.id) { success ->
+                                            if (success) {
+                                                scope.launch { snackbarHost.showSnackbar("Transaction Approved & ₹${dp.amount} Credited to ${dp.userId}!") }
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F1B12)),
+                                    border = BorderStroke(1.dp, Color.Green.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1.1f),
+                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Approve", tint = Color.Green, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("APPROVE", color = Color.Green, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
