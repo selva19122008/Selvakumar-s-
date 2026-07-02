@@ -12028,29 +12028,25 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     Spacer(modifier = Modifier.height(20.dp))
                                     Button(
                                         onClick = {
-                                            if (ignInput.isBlank() || phoneInput.isBlank()) {
-                                                errorMsg = "Please fill in your Game Name and Mobile Number!"
+                                            if (ignInput.isBlank() || phoneInput.isBlank() || emailInput.isBlank() || registerPasswordInput.isBlank()) {
+                                                errorMsg = "Please fill in all required fields (Game Name, Mobile Number, Email Address, and Password)!"
                                             } else if (phoneInput.length != 10 || !(phoneInput.startsWith("6") || phoneInput.startsWith("7") || phoneInput.startsWith("8") || phoneInput.startsWith("9"))) {
                                                 errorMsg = "Please enter a valid 10-digit Indian Mobile Number (starting with 6, 7, 8, or 9)."
+                                            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailInput.trim()).matches()) {
+                                                errorMsg = "Please enter a valid email address."
+                                            } else if (registerPasswordInput.length < 6) {
+                                                errorMsg = "Password must be at least 6 characters long."
                                             } else if (extraMobileInput.isNotBlank() && (extraMobileInput.length != 10 || !(extraMobileInput.startsWith("6") || extraMobileInput.startsWith("7") || extraMobileInput.startsWith("8") || extraMobileInput.startsWith("9")))) {
                                                 errorMsg = "Secondary Contact Number must be a valid 10-digit Indian number."
                                                                           } else {
                                                 val determinedPhone = "+91" + phoneInput.trim()
                                                 val determinedExtra = if (extraMobileInput.isNotBlank()) "+91" + extraMobileInput.trim() else ""
-                                                val determinedEmail = if (emailInput.isBlank()) {
-                                                    "gamer_${phoneInput.trim()}@battlezone.com".lowercase()
-                                                } else {
-                                                    emailInput.trim()
-                                                }
+                                                val determinedEmail = emailInput.trim().lowercase()
                                                 viewModel.checkEmailRegistered(determinedEmail) { isRegistered ->
                                                     if (isRegistered) {
                                                         errorMsg = "The email address is already registered. Please login or use a different email."
                                                     } else {
-                                                        val determinedPassword = if (registerPasswordInput.isBlank()) {
-                                                            "battle123"
-                                                        } else {
-                                                            registerPasswordInput
-                                                        }
+                                                        val determinedPassword = registerPasswordInput
                                                         val secureOtp = (100000..999999).random().toString()
                                                         generatedOtp = secureOtp
                                                         otpFlowType = "REGISTER_EMAIL_PASS"
@@ -12348,53 +12344,6 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 }
             }
             Spacer(modifier = Modifier.height(18.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF28252C)))
-                Text(
-                    text = "  OR CONNECT SECURELY WITH  ",
-                    color = GreyText,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.sp
-                )
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF28252C)))
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            // Google Sign In button
-            Button(
-                onClick = { 
-                    customGoogleEmail = ""
-                    if (!hasGoogleAccountPermissionCached) {
-                        showGooglePermissionDialog = true
-                    } else {
-                        showGoogleDialog = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.Black
-                ),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Text(
-                    text = "G  ",
-                    color = Color(0xFF4285F4),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "Continue with Google Account",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = Color(0xFF1F1C25)
-                )
-            }
             Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "BY ENTERING, YOU AGREE TO LOBBY FAIR-PLAY RULES",

@@ -2329,32 +2329,8 @@ class BattleZoneViewModel(
             
             // If the user does not exist in any database (local or firestore), they are NOT registered!
             if (user == null) {
-                // Check if the email is registered in Firebase Auth or exists as a registered sign-in method
-                var emailExistsInAuth = false
-                try {
-                    val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
-                    val methodsResult = kotlin.coroutines.suspendCoroutine { cont ->
-                        auth.fetchSignInMethodsForEmail(email)
-                            .addOnCompleteListener { t ->
-                                if (t.isSuccessful && t.result != null) {
-                                    val methods = t.result.signInMethods ?: emptyList<String>()
-                                    cont.resumeWith(Result.success(methods.isNotEmpty()))
-                                } else {
-                                    cont.resumeWith(Result.success(false))
-                                }
-                            }
-                    }
-                    emailExistsInAuth = methodsResult
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                if (!emailExistsInAuth && email != "battlezone.support@gmail.com") {
-                    onFinished(false, "You do not have an account. Please register first.")
-                    return@launch
-                }
-
-                // If email exists in Auth, but we don't have the user in Firestore/Room, check Firebase login
+                // Since Firebase email enumeration protection is enabled by default in Google Cloud projects,
+                // fetchSignInMethodsForEmail is blocked and unreliable. We directly verify via signInWithEmailAndPassword.
                 try {
                     val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
                     auth.signInWithEmailAndPassword(email, password)
@@ -2394,12 +2370,30 @@ class BattleZoneViewModel(
                                 }
                             } else {
                                 val exception = task.exception
-                                if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+                                val msg = exception?.message ?: ""
+                                val isWrongPassword = exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException ||
+                                        msg.contains("password", ignoreCase = true) ||
+                                        msg.contains("credential", ignoreCase = true) ||
+                                        msg.contains("wrong", ignoreCase = true)
+                                
+                                val isUserNotFound = exception is com.google.firebase.auth.FirebaseAuthInvalidUserException ||
+                                        msg.contains("no user record", ignoreCase = true) ||
+                                        msg.contains("user-not-found", ignoreCase = true) ||
+                                        msg.contains("does not exist", ignoreCase = true) ||
+                                        msg.contains("identifier", ignoreCase = true)
+
+                                if (isWrongPassword) {
                                     onFinished(false, "Incorrect password. Please try again.")
-                                } else if (exception is com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+                                } else if (isUserNotFound) {
                                     onFinished(false, "You do not have an account. Please register first.")
                                 } else {
-                                    onFinished(false, exception?.localizedMessage ?: "Invalid password or network connection issue.")
+                                    // Other errors (e.g. Network offline). If in TEST_MODE, check if this email is completely missing.
+                                    val mode = getSmsGatewayMode()
+                                    if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
+                                        onFinished(false, "You do not have an account or network is offline. Please register first.")
+                                    } else {
+                                        onFinished(false, exception?.localizedMessage ?: "Invalid password or network connection issue.")
+                                    }
                                 }
                             }
                         }
@@ -2438,7 +2432,13 @@ class BattleZoneViewModel(
                             onFinished(true, null)
                         } else {
                             val exception = task.exception
-                            if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+                            val msg = exception?.message ?: ""
+                            val isWrongPassword = exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException ||
+                                    msg.contains("password", ignoreCase = true) ||
+                                    msg.contains("credential", ignoreCase = true) ||
+                                    msg.contains("wrong", ignoreCase = true)
+
+                            if (isWrongPassword) {
                                 // Wrong password entered for a registered user!
                                 onFinished(false, "Incorrect password. Please try again.")
                             } else {
