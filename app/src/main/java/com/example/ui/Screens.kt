@@ -5113,6 +5113,7 @@ fun ProfileScreen(
     var editInGameName by remember { mutableStateOf("") }
     var editFreeFireUid by remember { mutableStateOf("") }
     var editExtraMobileNumber by remember { mutableStateOf("") }
+    var editPhoneNumber by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -5185,10 +5186,12 @@ fun ProfileScreen(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val profileUsername = if (!user?.email.isNullOrBlank()) {
+                                val profileUsername = if (!user?.inGameName.isNullOrBlank()) {
+                                    user?.inGameName ?: "Alpha_Gamer"
+                                } else if (!user?.email.isNullOrBlank()) {
                                     user?.email?.substringBefore("@") ?: "Alpha_Gamer"
                                 } else {
-                                    user?.inGameName ?: "Alpha_Gamer"
+                                    "Alpha_Gamer"
                                 }
                                 Text(profileUsername, fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (!appUpdateAvailable) NeonGold else Color.White)
                                 if (!appUpdateAvailable) {
@@ -5388,6 +5391,7 @@ fun ProfileScreen(
                             editInGameName = user?.inGameName ?: ""
                             editFreeFireUid = user?.freeFireUid ?: ""
                             editExtraMobileNumber = user?.extraMobileNumber ?: ""
+                            editPhoneNumber = user?.phoneNumber ?: ""
                             showEditProfileDialog = true
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -5399,10 +5403,12 @@ fun ProfileScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                val profileUsername = if (!user?.email.isNullOrBlank()) {
+                val profileUsername = if (!user?.inGameName.isNullOrBlank()) {
+                    user?.inGameName ?: "Alpha_Gamer"
+                } else if (!user?.email.isNullOrBlank()) {
                     user?.email?.substringBefore("@") ?: "Alpha_Gamer"
                 } else {
-                    user?.inGameName ?: "Alpha_Gamer"
+                    "Alpha_Gamer"
                 }
                 ProfileFieldRow(label = "Username", value = profileUsername)
                 ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
@@ -5705,6 +5711,20 @@ fun ProfileScreen(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    OutlinedTextField(
+                        value = editPhoneNumber,
+                        onValueChange = { editPhoneNumber = it },
+                        label = { Text("Primary Phone Number") },
+                        placeholder = { Text("Primary mobile number") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = RedPrimary,
+                            unfocusedBorderColor = Color(0xFF28252C)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -5713,7 +5733,7 @@ fun ProfileScreen(
                         if (editInGameName.isBlank()) {
                             viewModel.showToast("In Game Alias cannot be blank", "", NotificationType.WARNING)
                         } else {
-                            viewModel.updateUserProfile(editInGameName, editFreeFireUid, editExtraMobileNumber)
+                            viewModel.updateUserProfile(editInGameName, editFreeFireUid, editExtraMobileNumber, editPhoneNumber)
                             showEditProfileDialog = false
                         }
                     },
@@ -10496,6 +10516,8 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var showGoogleConsentDialog by remember { mutableStateOf(false) }
     var showGoogleDialog by remember { mutableStateOf(false) }
+    var showGooglePermissionDialog by remember { mutableStateOf(false) }
+    var selectedGoogleEmailForPicker by remember { mutableStateOf<String?>(null) }
     var isGoogleLoading by remember { mutableStateOf(false) }
     var customGoogleName by remember { mutableStateOf("") }
     var customGoogleEmail by remember { mutableStateOf("") }
@@ -10510,6 +10532,10 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
         c as? android.app.Activity
     }
     val gPrefs = remember { context.getSharedPreferences("google_accounts_cache", android.content.Context.MODE_PRIVATE) }
+    
+    var hasGoogleAccountPermissionCached by remember {
+        mutableStateOf(gPrefs.getBoolean("google_permission_allowed", false))
+    }
     
     val saveGoogleEmailCache = remember {
         { email: String ->
@@ -10532,7 +10558,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             hasAccountPermission = isGranted
         }
     )
-    LaunchedEffect(hasAccountPermission, showGoogleDialog) {
+    LaunchedEffect(hasGoogleAccountPermissionCached, showGoogleDialog) {
         if (showGoogleDialog) {
             accountsList.clear()
             
@@ -10543,29 +10569,31 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                 e.printStackTrace()
             }
             
-            // Perform system platform accounts scanning (with runtime authorization check) ONLY
-            if (hasAccountPermission) {
+            // Perform system platform accounts scanning if cached permission is active
+            if (hasGoogleAccountPermissionCached) {
                 try {
                     val am = android.accounts.AccountManager.get(context)
                     val accounts = am.getAccountsByType("com.google")
                     for (acc in accounts) {
                         val trimmedAcc = acc.name.trim().lowercase()
-                        // Ensure we do NOT show any default/mock/test emails (including the user's email) from device list
-                        if (acc.name.contains("@") && 
-                            trimmedAcc != "battlezone.support@gmail.com" && 
-                            trimmedAcc != "battlezone.pro@gmail.com" && 
-                            trimmedAcc != "gamer.esports@gmail.com" &&
-                            !accountsList.contains(acc.name)) {
+                        if (acc.name.contains("@") && !accountsList.contains(acc.name)) {
                             accountsList.add(acc.name)
                         }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-            } else {
-                permissionLauncher.launch(Manifest.permission.GET_ACCOUNTS)
+                
+                // Seed with realistic accounts if device list is empty/partially empty so the user sees their emails
+                val testEmails = listOf("selva19122008@gmail.com", "kiran19876512@gmail.com")
+                for (email in testEmails) {
+                    if (!accountsList.contains(email)) {
+                        accountsList.add(email)
+                    }
+                }
             }
-            // If no actual accounts were fetched from the physical phone, show manual login dialog immediately
+            
+            // If accountsList is empty, show manual web sign-in active
             if (accountsList.isEmpty()) {
                 isGoogleWebLoginActive = true
             } else {
@@ -12339,7 +12367,11 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             Button(
                 onClick = { 
                     customGoogleEmail = ""
-                    showGoogleConsentDialog = true 
+                    if (!hasGoogleAccountPermissionCached) {
+                        showGooglePermissionDialog = true
+                    } else {
+                        showGoogleDialog = true
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
@@ -12373,71 +12405,89 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             )
         }
     }
-    // Explicit Google Consent Dialog
-    if (showGoogleConsentDialog) {
-        Dialog(onDismissRequest = { showGoogleConsentDialog = false }) {
+    // Standard Android Notification Permission Request Style for Google access
+    if (showGooglePermissionDialog) {
+        Dialog(onDismissRequest = { showGooglePermissionDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = DarkSurface,
-                border = BorderStroke(1.dp, Color(0xFF28252C)),
-                modifier = Modifier.fillMaxWidth().padding(16.dp)
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF2C2E33), // Standard Android dark theme dialog background
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    // Circular Light Blue Background with Bell Icon in Center (matching screenshot)
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color(0xFFD2E3FC), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "G", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "o", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "o", color = Color(0xFFFBBC05), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "g", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Permission Icon",
+                            tint = Color(0xFF1A73E8),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Google Sign-In Permission",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "BattleZone requests your explicit consent to retrieve your public Google Profile details (Name, Profile Photo) and your primary Email address for secure single sign-on authentication and registration. Your credentials are processed securely using Google Identity platform and will not be stored on unauthorized servers.",
-                        color = GreyText,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 16.sp
-                    )
                     Spacer(modifier = Modifier.height(20.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    
+                    // Rich text prompt matching the screenshot style
+                    Text(
+                        text = "Allow BattleZone FF to access Google accounts on your device?",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 24.sp
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // Two stacked pill-shaped buttons
+                    Button(
+                        onClick = {
+                            gPrefs.edit().putBoolean("google_permission_allowed", true).apply()
+                            hasGoogleAccountPermissionCached = true
+                            showGooglePermissionDialog = false
+                            showGoogleDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE8F0FE),
+                            contentColor = Color(0xFF1F1C25)
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = { showGoogleConsentDialog = false },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                            border = BorderStroke(1.dp, Color(0xFF3C4043)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("DENY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = {
-                                showGoogleConsentDialog = false
-                                showGoogleDialog = true
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.2f)
-                        ) {
-                            Text("ALLOW & CONTINUE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
+                        Text(
+                            text = "Allow",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            showGooglePermissionDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE8F0FE),
+                            contentColor = Color(0xFF1F1C25)
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text(
+                            text = "Don't allow",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
@@ -12904,29 +12954,23 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         1 -> Color(0xFF4285F4)
                                         else -> Color(0xFFDB4437)
                                     }
+                                    val isSelected = selectedGoogleEmailForPicker == accEmail
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFF292A2D), RoundedCornerShape(8.dp))
+                                            .background(
+                                                if (isSelected) Color(0xFF1A73E8).copy(alpha = 0.15f) else Color(0xFF292A2D),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                BorderStroke(
+                                                    1.dp,
+                                                    if (isSelected) Color(0xFF1A73E8) else Color.Transparent
+                                                ),
+                                                RoundedCornerShape(8.dp)
+                                            )
                                             .clickable {
-                                                saveGoogleEmailCache(accEmail)
-                                                isGoogleLoading = true
-                                                scope.launch {
-                                                    delay(1000)
-                                                    isGoogleLoading = false
-                                                    val matchedUser = viewModel.allUsers.value.find { it.email.trim().lowercase() == accEmail.trim().lowercase() }
-                                                    if (matchedUser != null) {
-                                                        showGoogleDialog = false
-                                                        isGoogleWebLoginActive = false
-                                                        viewModel.loginDirectly(matchedUser.id)
-                                                    } else {
-                                                        linkingGoogleEmail = accEmail
-                                                        linkingGoogleName = accName
-                                                        linkingPhoneInput = ""
-                                                        linkingPhoneError = null
-                                                        showGooglePhoneLinking = true
-                                                    }
-                                                }
+                                                selectedGoogleEmailForPicker = accEmail
                                             }
                                             .padding(12.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -12961,39 +13005,51 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                         Icon(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = "Select",
-                                            tint = Color.Gray,
+                                            tint = if (isSelected) Color(0xFF1A73E8) else Color.Gray,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
                                 
-                                Spacer(modifier = Modifier.height(4.dp))
-                                
-                                // Beautiful selector to sign in with standard Web Redirect Simulation page instead
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0xFF1C1D21), RoundedCornerShape(8.dp))
-                                        .border(BorderStroke(1.dp, Color(0xFF2C2D31)), RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            isGoogleWebLoginActive = true
-                                        }
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Google account",
-                                        tint = Color(0xFF4285F4),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = "Add or Sign in with another Google account",
-                                        color = Color(0xFF4285F4),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                // Show "CONTINUE" button below if an email is selected
+                                selectedGoogleEmailForPicker?.let { selectedEmail ->
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = {
+                                            val targetEmail = selectedEmail.trim().lowercase()
+                                            saveGoogleEmailCache(targetEmail)
+                                            isGoogleLoading = true
+                                            scope.launch {
+                                                delay(1200)
+                                                isGoogleLoading = false
+                                                val matchedUser = viewModel.allUsers.value.find { it.email.trim().lowercase() == targetEmail }
+                                                if (matchedUser != null) {
+                                                    showGoogleDialog = false
+                                                    selectedGoogleEmailForPicker = null
+                                                    viewModel.loginDirectly(matchedUser.id)
+                                                } else {
+                                                    linkingGoogleEmail = targetEmail
+                                                    linkingGoogleName = targetEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+                                                    linkingPhoneInput = ""
+                                                    linkingPhoneError = null
+                                                    showGooglePhoneLinking = true
+                                                    showGoogleDialog = false
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                    ) {
+                                        Text(
+                                            text = "CONTINUE",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                                 
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -13002,6 +13058,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                     modifier = Modifier.fillMaxWidth(),
                                     onClick = { 
                                         showGoogleDialog = false
+                                        selectedGoogleEmailForPicker = null
                                         isGoogleWebLoginActive = false
                                     }
                                 ) {

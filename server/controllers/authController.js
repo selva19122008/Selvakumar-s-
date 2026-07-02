@@ -385,7 +385,7 @@ exports.sandboxVerifyOtp = async (req, res) => {
  */
 exports.sendLiveGmailOtp = async (req, res) => {
   try {
-    const { email, purpose } = req.body;
+    const { email, purpose, gmailUser, gmailAppPassword } = req.body;
 
     if (!email || !email.trim() || !email.includes('@')) {
       return res.status(400).json({
@@ -410,7 +410,7 @@ exports.sendLiveGmailOtp = async (req, res) => {
     );
 
     // Call the Nodemailer free SMTP service to deliver
-    await emailService.sendOtpEmail(cleanEmail, otpCode, purpose || 'Login Account Verification');
+    await emailService.sendOtpEmail(cleanEmail, otpCode, purpose || 'Login Account Verification', gmailUser, gmailAppPassword);
 
     return res.status(200).json({
       success: true,

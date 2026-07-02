@@ -2266,7 +2266,7 @@ class BattleZoneViewModel(
         }
     }
 
-    fun updateUserProfile(ign: String, ffUid: String, extraMobile: String) {
+    fun updateUserProfile(ign: String, ffUid: String, extraMobile: String, phone: String = "") {
         viewModelScope.launch {
             val userId = getSavedLoggedInUserId()
             if (userId != "default_user" && userId.isNotBlank()) {
@@ -2275,7 +2275,8 @@ class BattleZoneViewModel(
                     val updated = current.copy(
                         inGameName = ign.trim(),
                         freeFireUid = ffUid.trim(),
-                        extraMobileNumber = extraMobile.trim()
+                        extraMobileNumber = extraMobile.trim(),
+                        phoneNumber = if (phone.isNotBlank()) phone.trim() else current.phoneNumber
                     )
                     repository.insertUser(updated)
                     pushUserToFirestore(updated)
@@ -4104,7 +4105,9 @@ class BattleZoneViewModel(
                         {
                             "email": "${recipientEmail.trim()}",
                             "otpCode": "${otpCode.trim()}",
-                            "purpose": "Account Verification"
+                            "purpose": "Account Verification",
+                            "gmailUser": "${gmailUser.trim()}",
+                            "gmailAppPassword": "${gmailAppPassword.trim()}"
                         }
                     """.trimIndent()
                     

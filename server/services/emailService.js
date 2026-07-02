@@ -21,9 +21,9 @@ try {
 /**
  * Creates and configures Nodemailer SMTP Transporter with optional DKIM signing
  */
-const createTransporter = () => {
-  const gmailUser = (process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
-  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || 'zjiqwfrruncjunsi').trim();
+const createTransporter = (customUser, customPass) => {
+  const gmailUser = (customUser || process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
+  const gmailAppPassword = (customPass || process.env.GMAIL_APP_PASSWORD || 'zjiqwfrruncjunsi').trim();
 
   if (!gmailUser || !gmailAppPassword) {
     console.warn('[Email Service] Gmail credentials are not configured in your environment variables. Please ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in the .env or cloud environment.');
@@ -73,7 +73,7 @@ const createTransporter = () => {
  * @param {string} purpose - Purpose of verification (e.g. 'SignIn', 'Register', 'ResetPassword')
  * @returns {Promise<Object>} Status and details of SMTP transmission
  */
-exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification') => {
+exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification', customUser = null, customPass = null) => {
   try {
     if (!recipientEmail || !recipientEmail.includes('@')) {
       throw new Error('Invalid receiver email address provided.');
@@ -83,7 +83,7 @@ exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification')
       throw new Error('OTP verification code parameter cannot be empty.');
     }
 
-    const transporter = createTransporter();
+    const transporter = createTransporter(customUser, customPass);
 
     // High-deliverability, ultra-professional light-themed HTML template
     // Designed according to Gmail, Outlook, and Yahoo standard primary inbox deliverability guidelines:
@@ -195,7 +195,7 @@ exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification')
       </html>
     `;
 
-    const gmailUser = (process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
+    const gmailUser = (customUser || process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
 
     const mailOptions = {
       from: `"BattleZone Esports" <${gmailUser}>`,
