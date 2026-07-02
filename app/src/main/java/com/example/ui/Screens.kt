@@ -6101,7 +6101,7 @@ fun AdminMetricsTab(
                                 Text(usr.inGameName, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 val statusColor = if (usr.isOnline) Color(0xFF00E676) else Color.Gray
-                                val statusText = if (usr.isOnline) "ONLINE" else "OFFLINE"
+                                val statusText = if (usr.isOnline) "ONLINE (LOGGED IN)" else "OFFLINE (NOT LOGGED IN)"
                                 Box(
                                     modifier = Modifier
                                         .background(statusColor.copy(alpha = 0.15f), shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))

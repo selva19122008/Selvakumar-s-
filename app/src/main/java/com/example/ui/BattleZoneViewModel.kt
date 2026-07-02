@@ -221,9 +221,26 @@ class BattleZoneViewModel(
                     val updated = user.copy(isOnline = isOnline)
                     repository.insertUser(updated)
                     pushUserToFirestore(updated)
+                    cacheUserEntityDetails(updated)
                 }
             }
         }
+    }
+
+    fun cacheUserDetails(email: String, ign: String, ffUid: String, phone: String) {
+        val cleanEmail = email.trim().lowercase()
+        if (cleanEmail.isNotEmpty()) {
+            authPrefs.edit().apply {
+                putString("registered_ign_$cleanEmail", ign.trim())
+                putString("registered_ffUid_$cleanEmail", ffUid.trim())
+                putString("registered_phone_$cleanEmail", phone.trim())
+                apply()
+            }
+        }
+    }
+
+    fun cacheUserEntityDetails(user: UserEntity) {
+        cacheUserDetails(user.email, user.inGameName, user.freeFireUid, user.phoneNumber)
     }
 
     private fun tournamentToMap(t: TournamentEntity): HashMap<String, Any?> {
@@ -2030,17 +2047,28 @@ class BattleZoneViewModel(
                     user = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
                 }
                 if (user == null) {
+                    val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
+                    val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
+                    val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
+                    
+                    val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+                    val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
+                    val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 " + (7000000000L..9999999999L).random().toString()
+
                     user = UserEntity(
                         id = userId,
-                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                        inGameName = defaultIgn,
+                        freeFireUid = defaultFfUid,
+                        phoneNumber = defaultPhone,
                         email = email,
                         depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                         winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                         bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
                     )
                     repository.insertUser(user)
+                    cacheUserEntityDetails(user)
+                } else {
+                    cacheUserEntityDetails(user)
                 }
                 val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
                 authPrefs.edit().apply {
@@ -2089,17 +2117,28 @@ class BattleZoneViewModel(
                                 user = getFirestoreUserByEmail(email)
                             }
                             if (user == null) {
+                                val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
+                                val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
+                                val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
+                                
+                                val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+                                val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
+                                val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 " + (7000000000L..9999999999L).random().toString()
+
                                 user = UserEntity(
                                     id = userId,
-                                    inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                    phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                                    inGameName = defaultIgn,
+                                    freeFireUid = defaultFfUid,
+                                    phoneNumber = defaultPhone,
                                     email = email,
                                     depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                     winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                     bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
                                 )
                                 repository.insertUser(user)
+                                cacheUserEntityDetails(user)
+                            } else {
+                                cacheUserEntityDetails(user)
                             }
                             
                             val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
@@ -2136,17 +2175,28 @@ class BattleZoneViewModel(
                                 val userId = "user_e_${cleanEmail.take(20)}"
                                 var user = repository.getUserSync(userId)
                                 if (user == null) {
+                                    val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
+                                    val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
+                                    val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
+                                    
+                                    val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+                                    val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
+                                    val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 " + (7000000000L..9999999999L).random().toString()
+
                                     user = UserEntity(
                                         id = userId,
-                                        inGameName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                        freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                        phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
+                                        inGameName = defaultIgn,
+                                        freeFireUid = defaultFfUid,
+                                        phoneNumber = defaultPhone,
                                         email = email,
                                         depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                         winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                         bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
                                     )
                                     repository.insertUser(user)
+                                    cacheUserEntityDetails(user)
+                                } else {
+                                    cacheUserEntityDetails(user)
                                 }
                                 val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
                                 authPrefs.edit().apply {
@@ -2229,6 +2279,7 @@ class BattleZoneViewModel(
                     )
                     repository.insertUser(updated)
                     pushUserToFirestore(updated)
+                    cacheUserEntityDetails(updated)
                     showToast(
                         title = "👤 Profile Updated",
                         message = "Your account details have been updated successfully.",
@@ -2271,6 +2322,10 @@ class BattleZoneViewModel(
             if (user == null) { user = getFirestoreUserById(userId) }
             if (user == null) { user = getFirestoreUserByEmail(email) }
             
+            if (user != null) {
+                cacheUserEntityDetails(user)
+            }
+            
             // If the user does not exist in any database (local or firestore), they are NOT registered!
             if (user == null) {
                 try {
@@ -2286,12 +2341,19 @@ class BattleZoneViewModel(
                                         onTriggerOtp(existingUser.phoneNumber, existingUser)
                                         onFinished(true, null)
                                     } else {
-                                        val defaultIgn = email.substringBefore("@")
+                                        val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
+                                        val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
+                                        val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
+                                        
+                                        val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+                                        val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
+                                        val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 9999999999"
+
                                         val newUser = UserEntity(
                                             id = userId,
-                                            inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                            freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                            phoneNumber = "+91 9999999999",
+                                            inGameName = defaultIgn,
+                                            freeFireUid = defaultFfUid,
+                                            phoneNumber = defaultPhone,
                                             email = email,
                                             depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                             winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
@@ -2319,12 +2381,19 @@ class BattleZoneViewModel(
                                                 onTriggerOtp(existingUser.phoneNumber, existingUser)
                                                 onFinished(true, null)
                                             } else {
-                                                val defaultIgn = email.substringBefore("@")
+                                                val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
+                                                val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
+                                                val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
+                                                
+                                                val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+                                                val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
+                                                val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 9999999999"
+
                                                 val fallbackUser = UserEntity(
                                                     id = userId,
-                                                    inGameName = defaultIgn.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() },
-                                                    freeFireUid = "FF-" + (1000000..9999999).random().toString(),
-                                                    phoneNumber = "+91 9999999999",
+                                                    inGameName = defaultIgn,
+                                                    freeFireUid = defaultFfUid,
+                                                    phoneNumber = defaultPhone,
                                                     email = email,
                                                     depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
                                                     winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
@@ -2529,6 +2598,7 @@ class BattleZoneViewModel(
                             )
                             repository.insertUser(newUser)
                             pushUserToFirestore(newUser)
+                            cacheUserEntityDetails(newUser)
                             
                             authPrefs.edit().apply {
                                 putBoolean("is_logged_in", true)
@@ -2575,6 +2645,7 @@ class BattleZoneViewModel(
                                 )
                                 repository.insertUser(newUser)
                                 pushUserToFirestore(newUser)
+                                cacheUserEntityDetails(newUser)
                                 
                                 authPrefs.edit().apply {
                                     putBoolean("is_logged_in", true)
