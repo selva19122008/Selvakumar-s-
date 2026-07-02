@@ -96,7 +96,7 @@ class BattleZoneViewModel(
         viewModelScope.launch {
             currentUser.collect { user ->
                 if (user != null && _userRole.value == "admin") {
-                    if (user.email != "selva19122008@gmail.com") {
+                    if (user.email != "battlezone.support@gmail.com") {
                         // Securely demote role if an unauthorised user attempts to assume administrative status
                         setUserRole("user")
                         logSecurityEvent("ALERT: Unauthorised admin access attempt blocked for user: ${user.email}")
@@ -177,7 +177,7 @@ class BattleZoneViewModel(
                     }
 
                     if (user != null) {
-                        val determinedRole = if (user.email.trim().lowercase() == "selva19122008@gmail.com") "admin" else "user"
+                        val determinedRole = if (user.email.trim().lowercase() == "battlezone.support@gmail.com") "admin" else "user"
                         authPrefs.edit().apply {
                             putBoolean("is_logged_in", true)
                             putString("logged_in_user_id", user.id)
@@ -193,7 +193,7 @@ class BattleZoneViewModel(
                         repository.insertUser(updated)
                         pushUserToFirestore(updated)
                     } else if (userId.isNotEmpty()) {
-                        val determinedRole = if (email?.trim()?.lowercase() == "selva19122008@gmail.com") "admin" else "user"
+                        val determinedRole = if (email?.trim()?.lowercase() == "battlezone.support@gmail.com") "admin" else "user"
                         authPrefs.edit().apply {
                             putBoolean("is_logged_in", true)
                             putString("logged_in_user_id", userId)
@@ -1665,17 +1665,17 @@ class BattleZoneViewModel(
 
     fun isFirebaseUserAdmin(): Boolean {
         val localEmail = currentUser.value?.email?.lowercase()?.trim() ?: ""
-        if (localEmail == "selva19122008@gmail.com") {
+        if (localEmail == "battlezone.support@gmail.com") {
             return true
         }
         if (getSmsGatewayMode() == "TEST_MODE" || firebaseAuth == null) {
-            if (localEmail == "selva19122008@gmail.com") {
+            if (localEmail == "battlezone.support@gmail.com") {
                 return true
             }
         }
         return try {
             val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
-            val currentFirebaseUser = auth.currentUser ?: return (localEmail == "selva19122008@gmail.com")
+            val currentFirebaseUser = auth.currentUser ?: return (localEmail == "battlezone.support@gmail.com")
             val uid = currentFirebaseUser.uid
             val email = currentFirebaseUser.email?.lowercase()?.trim() ?: ""
 
@@ -1688,13 +1688,13 @@ class BattleZoneViewModel(
 
             val storedDeviceAdminUid = authPrefs.getString("admin_device_uid", "") ?: ""
 
-            val isAuthorizedEmail = email == "selva19122008@gmail.com"
+            val isAuthorizedEmail = email == "battlezone.support@gmail.com"
             val isAuthorizedUid = authorizedUids.contains(uid) || (storedDeviceAdminUid.isNotEmpty() && uid == storedDeviceAdminUid)
 
-            (isAuthorizedEmail && isAuthorizedUid) || (isAuthorizedUid && email.isNotEmpty()) || (localEmail == "selva19122008@gmail.com")
+            (isAuthorizedEmail && isAuthorizedUid) || (isAuthorizedUid && email.isNotEmpty()) || (localEmail == "battlezone.support@gmail.com")
         } catch (e: Exception) {
             e.printStackTrace()
-            localEmail == "selva19122008@gmail.com"
+            localEmail == "battlezone.support@gmail.com"
         }
     }
 
@@ -2061,16 +2061,16 @@ class BattleZoneViewModel(
                         freeFireUid = defaultFfUid,
                         phoneNumber = defaultPhone,
                         email = email,
-                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                        depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                        winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                        bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                     )
                     repository.insertUser(user)
                     cacheUserEntityDetails(user)
                 } else {
                     cacheUserEntityDetails(user)
                 }
-                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                 authPrefs.edit().apply {
                     putBoolean("is_logged_in", true)
                     putString("logged_in_user_id", user.id)
@@ -2131,9 +2131,9 @@ class BattleZoneViewModel(
                                     freeFireUid = defaultFfUid,
                                     phoneNumber = defaultPhone,
                                     email = email,
-                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                    depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                    winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                    bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                                 )
                                 repository.insertUser(user)
                                 cacheUserEntityDetails(user)
@@ -2141,13 +2141,13 @@ class BattleZoneViewModel(
                                 cacheUserEntityDetails(user)
                             }
                             
-                            val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                            val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                             
                             authPrefs.edit().apply {
                                 putBoolean("is_logged_in", true)
                                 putString("logged_in_user_id", user.id)
                                 putString("user_role", determinedRole)
-                                if (email == "selva19122008@gmail.com") {
+                                if (email == "battlezone.support@gmail.com") {
                                     val fbUid = auth.currentUser?.uid ?: ""
                                     if (fbUid.isNotEmpty()) {
                                         putString("admin_device_uid", fbUid)
@@ -2169,7 +2169,7 @@ class BattleZoneViewModel(
                         }
                     } else {
                         // If Firebase fails but we are in TEST_MODE or GMAIL_SMTP, let's treat it as a local offline login success
-                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
                             viewModelScope.launch {
                                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                                 val userId = "user_e_${cleanEmail.take(20)}"
@@ -2189,16 +2189,16 @@ class BattleZoneViewModel(
                                         freeFireUid = defaultFfUid,
                                         phoneNumber = defaultPhone,
                                         email = email,
-                                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                        depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                        winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                        bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                                     )
                                     repository.insertUser(user)
                                     cacheUserEntityDetails(user)
                                 } else {
                                     cacheUserEntityDetails(user)
                                 }
-                                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                                 authPrefs.edit().apply {
                                     putBoolean("is_logged_in", true)
                                     putString("logged_in_user_id", user.id)
@@ -2240,13 +2240,13 @@ class BattleZoneViewModel(
                         freeFireUid = "FF-" + (1000000..9999999).random().toString(),
                         phoneNumber = "+91 " + (7000000000L..9999999999L).random().toString(),
                         email = email,
-                        depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                        bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                        depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                        winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                        bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                     )
                     repository.insertUser(user)
                 }
-                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                 authPrefs.edit().apply {
                     putBoolean("is_logged_in", true)
                     putString("logged_in_user_id", user.id)
@@ -2355,9 +2355,9 @@ class BattleZoneViewModel(
                                             freeFireUid = defaultFfUid,
                                             phoneNumber = defaultPhone,
                                             email = email,
-                                            depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                            winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                            bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                            depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                            winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                            bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                                         )
                                         repository.insertUser(newUser)
                                         pushUserToFirestore(newUser)
@@ -2373,7 +2373,7 @@ class BattleZoneViewModel(
                                     onFinished(false, "Incorrect password. Please try again.")
                                 } else {
                                     val mode = getSmsGatewayMode()
-                                    if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                                    if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
                                         viewModelScope.launch {
                                             val existingUser = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
                                             if (existingUser != null) {
@@ -2395,9 +2395,9 @@ class BattleZoneViewModel(
                                                     freeFireUid = defaultFfUid,
                                                     phoneNumber = defaultPhone,
                                                     email = email,
-                                                    depositBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                                    winningBalance = if (email == "selva19122008@gmail.com") 5000.0 else 0.0,
-                                                    bonusBalance = if (email == "selva19122008@gmail.com") 1000.0 else 5.0
+                                                    depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                                    winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
+                                                    bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
                                                 )
                                                 repository.insertUser(fallbackUser)
                                                 pushUserToFirestore(fallbackUser)
@@ -2452,7 +2452,7 @@ class BattleZoneViewModel(
                             } else {
                                 // Other errors (e.g. Network offline). If in TEST_MODE or GMAIL_SMTP, allow offline bypass since the profile is registered
                                 val mode = getSmsGatewayMode()
-                                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
                                     onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
                                     onFinished(true, null)
                                 } else {
@@ -2466,7 +2466,7 @@ class BattleZoneViewModel(
                 e.printStackTrace()
                 // Catch any exception (e.g. Firebase initialization offline). If TEST_MODE/GMAIL_SMTP, let registered profiles pass with offline fallback
                 val mode = getSmsGatewayMode()
-                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
                     onTriggerOtp(resolvedUser.phoneNumber, resolvedUser)
                     onFinished(true, null)
                 } else {
@@ -2583,7 +2583,7 @@ class BattleZoneViewModel(
                         viewModelScope.launch {
                             val cleanEmail = email.replace("@", "_").replace(".", "_")
                             val userId = "user_e_${cleanEmail.take(20)}"
-                            val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                            val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                             
                             val newUser = UserEntity(
                                 id = userId,
@@ -2604,7 +2604,7 @@ class BattleZoneViewModel(
                                 putBoolean("is_logged_in", true)
                                 putString("logged_in_user_id", userId)
                                 putString("user_role", determinedRole)
-                                if (email == "selva19122008@gmail.com") {
+                                if (email == "battlezone.support@gmail.com") {
                                     val fbUid = auth.currentUser?.uid ?: ""
                                     if (fbUid.isNotEmpty()) {
                                         putString("admin_device_uid", fbUid)
@@ -2626,11 +2626,11 @@ class BattleZoneViewModel(
                         }
                     } else {
                         // If Firebase fails but we are in TEST_MODE or GMAIL_SMTP, treat it as a local offline registration success
-                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "selva19122008@gmail.com") {
+                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
                             viewModelScope.launch {
                                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                                 val userId = "user_e_${cleanEmail.take(20)}"
-                                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                                 
                                 val newUser = UserEntity(
                                     id = userId,
@@ -2682,7 +2682,7 @@ class BattleZoneViewModel(
             viewModelScope.launch {
                 val cleanEmail = email.replace("@", "_").replace(".", "_")
                 val userId = "user_e_${cleanEmail.take(20)}"
-                val determinedRole = if (email == "selva19122008@gmail.com") "admin" else "user"
+                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
                 
                 val newUser = UserEntity(
                     id = userId,
@@ -2760,12 +2760,12 @@ class BattleZoneViewModel(
                 authPrefs.edit().apply {
                     putBoolean("is_logged_in", true)
                     putString("logged_in_user_id", userId)
-                    putString("user_role", if (user.email.lowercase().trim() == "selva19122008@gmail.com") "admin" else "user")
+                    putString("user_role", if (user.email.lowercase().trim() == "battlezone.support@gmail.com") "admin" else "user")
                     putString("last_registered_user_id", userId)
                     apply()
                 }
                 _currentUserIdFlow.value = userId
-                _userRole.value = if (user.email.lowercase().trim() == "selva19122008@gmail.com") "admin" else "user"
+                _userRole.value = if (user.email.lowercase().trim() == "battlezone.support@gmail.com") "admin" else "user"
                 _isUserLoggedIn.value = true
                 showToast(
                     title = "🚀 SECURE FAST RE-ENTRY",
@@ -4331,7 +4331,7 @@ class BattleZoneViewModel(
             val typed = otpCode.trim()
             val expected = lastSentGmailOtp.trim()
             
-            val isEmailAdmin = email.trim().lowercase() == "selva19122008@gmail.com"
+            val isEmailAdmin = email.trim().lowercase() == "battlezone.support@gmail.com"
             val isSmtpOtpValid = typed == expected || (isEmailAdmin && typed == "1212") || (expected.isEmpty() && typed == "654321" && isEmailAdmin)
             if (isSmtpOtpValid) {
                 if (isAutoDeleteOtpEnabled.value) {

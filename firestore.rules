@@ -9,7 +9,7 @@ service cloud.firestore {
         request.auth.uid == "ADMIN_FIREBASE_UID_PLACEHOLDER" || 
         request.auth.uid == "Z0p9YnVfM6iiog" || 
         request.auth.uid == "selva_admin_uid_main_phone" || 
-        request.auth.token.email == "selva19122008@gmail.com"
+        request.auth.token.email == "battlezone.support@gmail.com"
       );
     }
 

@@ -40,7 +40,7 @@ export default function FirestoreUserList({
     { id: 'mock-u-101', inGameName: 'Gamer_9122', email: 'gamer9122@gmail.com', phoneNumber: '+919999999991', freeFireUid: 'UID991208', depositBalance: 150.00, winningBalance: 320.00, role: 'user', createdAt: new Date().toISOString() },
     { id: 'mock-u-102', inGameName: 'Elite_Shooter', email: 'shooter_pro@gmail.com', phoneNumber: '+919999999992', freeFireUid: 'UID881245', depositBalance: 45.00, winningBalance: 610.00, role: 'user', createdAt: new Date().toISOString() },
     { id: 'mock-u-103', inGameName: 'Phoenix_FF', email: 'phoenix_gamer@gmail.com', phoneNumber: '+919999999993', freeFireUid: 'UID772418', depositBalance: 500.00, winningBalance: 0.00, role: 'user', createdAt: new Date().toISOString() },
-    { id: 'mock-u-104', inGameName: 'Admin_Selva', email: 'selva19122008@gmail.com', phoneNumber: '+919999999999', freeFireUid: 'UID001912', depositBalance: 10.00, winningBalance: 1200.00, role: 'admin', createdAt: new Date().toISOString() }
+    { id: 'mock-u-104', inGameName: 'Admin_Selva', email: 'battlezone.support@gmail.com', phoneNumber: '+919999999999', freeFireUid: 'UID001912', depositBalance: 10.00, winningBalance: 1200.00, role: 'admin', createdAt: new Date().toISOString() }
   ];
 
   // Initialize and subscribe to Firestore

@@ -500,7 +500,7 @@ exports.verifyLiveGmailOtp = async (req, res) => {
           inGameName: defaultInGameName,
           freeFireUid: defaultFreeFireUid,
           referralCode: userReferralCode,
-          role: cleanEmail === 'selva19122008@gmail.com' ? 'admin' : 'user' // Automated role allocation
+          role: cleanEmail === 'battlezone.support@gmail.com' ? 'admin' : 'user' // Automated role allocation
         });
 
         await user.save({ session });
