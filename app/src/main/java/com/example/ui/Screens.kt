@@ -5185,7 +5185,12 @@ fun ProfileScreen(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(user?.inGameName ?: "Alpha_Gamer", fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (!appUpdateAvailable) NeonGold else Color.White)
+                                val profileUsername = if (!user?.email.isNullOrBlank()) {
+                                    user?.email?.substringBefore("@") ?: "Alpha_Gamer"
+                                } else {
+                                    user?.inGameName ?: "Alpha_Gamer"
+                                }
+                                Text(profileUsername, fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (!appUpdateAvailable) NeonGold else Color.White)
                                 if (!appUpdateAvailable) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Row(
@@ -5394,11 +5399,28 @@ fun ProfileScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
+                val profileUsername = if (!user?.email.isNullOrBlank()) {
+                    user?.email?.substringBefore("@") ?: "Alpha_Gamer"
+                } else {
+                    user?.inGameName ?: "Alpha_Gamer"
+                }
+                ProfileFieldRow(label = "Username", value = profileUsername)
                 ProfileFieldRow(label = "In Game Alias", value = user?.inGameName ?: "Alpha_Gamer")
                 ProfileFieldRow(label = "Free Fire UID", value = user?.freeFireUid ?: "FF-837492047")
                 ProfileFieldRow(label = "Primary Mobile Number", value = user?.phoneNumber ?: "+91 98765 43210")
                 ProfileFieldRow(label = "Secondary Contact Number", value = if (user?.extraMobileNumber.isNullOrBlank()) "Not Provided" else user?.extraMobileNumber!!)
                 ProfileFieldRow(label = "Associated Google Mail", value = maskEmail(user?.email ?: "gamer@battlezone.com"))
+
+                if (user?.id?.startsWith("user_g_") == true || viewModel.authPrefs.getString("login_method_${user?.id}", "") == "google") {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = Color(0xFF28252C), thickness = 0.8.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("GOOGLE ACCOUNT DETAILS (SECURE)", fontSize = 11.sp, color = NeonGold, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ProfileFieldRow(label = "Google Display Name", value = user?.inGameName?.replace("_", " ") ?: "Selva")
+                    ProfileFieldRow(label = "Google Associated Email", value = user?.email ?: "selva19122008@gmail.com")
+                    ProfileFieldRow(label = "Authentication Method", value = "Google Secure Federated Sign-In")
+                }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -10472,6 +10494,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
     var resetErrorMsg by remember { mutableStateOf<String?>(null) }
     
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var showGoogleConsentDialog by remember { mutableStateOf(false) }
     var showGoogleDialog by remember { mutableStateOf(false) }
     var isGoogleLoading by remember { mutableStateOf(false) }
     var customGoogleName by remember { mutableStateOf("") }
@@ -10757,7 +10780,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                  }
                              }
                             
-                            if (generatedOtp.isNotEmpty()) {
+                            if (generatedOtp.isNotEmpty() && isEmailAdmin) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Box(
                                     modifier = Modifier
@@ -11609,7 +11632,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             }
                                                             viewModel.showToast(
                                                                 title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                message = "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email.",
+                                                                message = if (targetEmail.trim().lowercase() == "battlezone.support@gmail.com") "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email." else "TEST_MODE Active. Verification OTP dispatched to email.",
                                                                 type = NotificationType.SUCCESS
                                                             )
                                                         } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
@@ -11746,7 +11769,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             }
                                                             viewModel.showToast(
                                                                 title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                message = "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email if linked.",
+                                                                message = if (targetEmail.trim().lowercase() == "battlezone.support@gmail.com") "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email if linked." else "TEST_MODE Active. Verification OTP dispatched to email.",
                                                                 type = NotificationType.SUCCESS
                                                             )
                                                         } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
@@ -12023,7 +12046,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                             }
                                                             viewModel.showToast(
                                                                 title = "🔒 SECURE ACCOUNT VERIFICATION",
-                                                                message = "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email.",
+                                                                message = if (determinedEmail.trim().lowercase() == "battlezone.support@gmail.com") "TEST_MODE Active. Use verification OTP: $otp to enter. Dispatched to email." else "TEST_MODE Active. Verification OTP dispatched to email.",
                                                                 type = NotificationType.SUCCESS
                                                             )
                                                         } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
@@ -12219,7 +12242,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                     }
                                                     viewModel.showToast(
                                                         title = "🔒 NEW REGISTRATION OTP",
-                                                        message = "TEST_MODE Active. Use account setup verification OTP: $otp to verify. Dispatched to email.",
+                                                        message = if (targetEmail.trim().lowercase() == "battlezone.support@gmail.com") "TEST_MODE Active. Use account setup verification OTP: $otp to verify. Dispatched to email." else "TEST_MODE Active. Account setup verification OTP dispatched to email.",
                                                         type = NotificationType.SUCCESS
                                                     )
                                                 } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {
@@ -12316,7 +12339,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             Button(
                 onClick = { 
                     customGoogleEmail = ""
-                    showGoogleDialog = true 
+                    showGoogleConsentDialog = true 
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
@@ -12350,6 +12373,77 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
             )
         }
     }
+    // Explicit Google Consent Dialog
+    if (showGoogleConsentDialog) {
+        Dialog(onDismissRequest = { showGoogleConsentDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = DarkSurface,
+                border = BorderStroke(1.dp, Color(0xFF28252C)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(text = "G", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "o", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "o", color = Color(0xFFFBBC05), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "g", color = Color(0xFF4285F4), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "l", color = Color(0xFF34A853), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "e", color = Color(0xFFEA4335), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Google Sign-In Permission",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "BattleZone requests your explicit consent to retrieve your public Google Profile details (Name, Profile Photo) and your primary Email address for secure single sign-on authentication and registration. Your credentials are processed securely using Google Identity platform and will not be stored on unauthorized servers.",
+                        color = GreyText,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showGoogleConsentDialog = false },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFF3C4043)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("DENY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = {
+                                showGoogleConsentDialog = false
+                                showGoogleDialog = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            Text("ALLOW & CONTINUE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Google Sign-In Account Picker Simulation Dialog
     if (showGoogleDialog) {
         Dialog(onDismissRequest = { 
@@ -12485,7 +12579,7 @@ fun LoginRegistrationScreen(viewModel: BattleZoneViewModel) {
                                                 }
                                                 viewModel.showToast(
                                                     title = "🔒 ONBOARDING SECURE OTP",
-                                                    message = "Use verification OTP: $secureOtp to link phone $phoneWithCountry to Google. Dispatched to email.",
+                                                    message = if (linkingGoogleEmail.trim().lowercase() == "battlezone.support@gmail.com") "Use verification OTP: $secureOtp to link phone $phoneWithCountry to Google. Dispatched to email." else "Onboarding verification OTP dispatched to email.",
                                                     type = NotificationType.SUCCESS
                                                 )
                                             } else if (currentGateway == "GMAIL_SMTP" || currentGateway == "TWILIO" || currentGateway == "FAST2SMS" || currentGateway == "CUSTOM_HTTP_API") {

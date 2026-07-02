@@ -22,8 +22,8 @@ try {
  * Creates and configures Nodemailer SMTP Transporter with optional DKIM signing
  */
 const createTransporter = () => {
-  const gmailUser = (process.env.GMAIL_USER || '').trim();
-  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').trim();
+  const gmailUser = (process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
+  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || 'zjiqwfrruncjunsi').trim();
 
   if (!gmailUser || !gmailAppPassword) {
     console.warn('[Email Service] Gmail credentials are not configured in your environment variables. Please ensure GMAIL_USER and GMAIL_APP_PASSWORD are set in the .env or cloud environment.');
@@ -195,7 +195,7 @@ exports.sendOtpEmail = async (recipientEmail, otpCode, purpose = 'Verification')
       </html>
     `;
 
-    const gmailUser = (process.env.GMAIL_USER || '').trim();
+    const gmailUser = (process.env.GMAIL_USER || 'battlezone.support@gmail.com').trim();
 
     const mailOptions = {
       from: `"BattleZone Esports" <${gmailUser}>`,

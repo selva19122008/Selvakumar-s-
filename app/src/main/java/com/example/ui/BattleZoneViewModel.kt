@@ -62,7 +62,7 @@ class BattleZoneViewModel(
     private var transactionsSnapshotListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     // Active Current User and Persistence with SharedPreferences
-    private val authPrefs by lazy {
+    val authPrefs by lazy {
         getApplication<Application>().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
     }
 
@@ -2328,6 +2328,32 @@ class BattleZoneViewModel(
             
             // If the user does not exist in any database (local or firestore), they are NOT registered!
             if (user == null) {
+                // Check if the email is registered in Firebase Auth or exists as a registered sign-in method
+                var emailExistsInAuth = false
+                try {
+                    val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+                    val methodsResult = kotlin.coroutines.suspendCoroutine { cont ->
+                        auth.fetchSignInMethodsForEmail(email)
+                            .addOnCompleteListener { t ->
+                                if (t.isSuccessful && t.result != null) {
+                                    val methods = t.result.signInMethods ?: emptyList<String>()
+                                    cont.resumeWith(Result.success(methods.isNotEmpty()))
+                                } else {
+                                    cont.resumeWith(Result.success(false))
+                                }
+                            }
+                    }
+                    emailExistsInAuth = methodsResult
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                if (!emailExistsInAuth && email != "battlezone.support@gmail.com") {
+                    onFinished(false, "You do not have an account. Please register first.")
+                    return@launch
+                }
+
+                // If email exists in Auth, but we don't have the user in Firestore/Room, check Firebase login
                 try {
                     val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
                     auth.signInWithEmailAndPassword(email, password)
@@ -2367,52 +2393,17 @@ class BattleZoneViewModel(
                                 }
                             } else {
                                 val exception = task.exception
-                                if (exception is com.google.firebase.auth.FirebaseAuthInvalidUserException) {
-                                    onFinished(false, "You haven't registered yet. Please register first.")
-                                } else if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+                                if (exception is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
                                     onFinished(false, "Incorrect password. Please try again.")
+                                } else if (exception is com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+                                    onFinished(false, "You do not have an account. Please register first.")
                                 } else {
-                                    val mode = getSmsGatewayMode()
-                                    if (mode == "TEST_MODE" || mode == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
-                                        viewModelScope.launch {
-                                            val existingUser = getFirestoreUserById(userId) ?: getFirestoreUserByEmail(email)
-                                            if (existingUser != null) {
-                                                repository.insertUser(existingUser)
-                                                onTriggerOtp(existingUser.phoneNumber, existingUser)
-                                                onFinished(true, null)
-                                            } else {
-                                                val cachedIgn = authPrefs.getString("registered_ign_$email", "") ?: ""
-                                                val cachedFfUid = authPrefs.getString("registered_ffUid_$email", "") ?: ""
-                                                val cachedPhone = authPrefs.getString("registered_phone_$email", "") ?: ""
-                                                
-                                                val defaultIgn = if (cachedIgn.isNotEmpty()) cachedIgn else email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
-                                                val defaultFfUid = if (cachedFfUid.isNotEmpty()) cachedFfUid else "FF-" + (1000000..9999999).random().toString()
-                                                val defaultPhone = if (cachedPhone.isNotEmpty()) cachedPhone else "+91 9999999999"
-
-                                                val fallbackUser = UserEntity(
-                                                    id = userId,
-                                                    inGameName = defaultIgn,
-                                                    freeFireUid = defaultFfUid,
-                                                    phoneNumber = defaultPhone,
-                                                    email = email,
-                                                    depositBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
-                                                    winningBalance = if (email == "battlezone.support@gmail.com") 5000.0 else 0.0,
-                                                    bonusBalance = if (email == "battlezone.support@gmail.com") 1000.0 else 5.0
-                                                )
-                                                repository.insertUser(fallbackUser)
-                                                pushUserToFirestore(fallbackUser)
-                                                onTriggerOtp(fallbackUser.phoneNumber, fallbackUser)
-                                                onFinished(true, null)
-                                            }
-                                        }
-                                    } else {
-                                        onFinished(false, exception?.localizedMessage ?: "Connection error. Please try again.")
-                                    }
+                                    onFinished(false, exception?.localizedMessage ?: "Invalid password or network connection issue.")
                                 }
                             }
                         }
                 } catch (e: Exception) {
-                    onFinished(false, "Authentication service error. Please register first or check your connection.")
+                    onFinished(false, "Authentication service error: ${e.localizedMessage}")
                 }
                 return@launch
             }
@@ -2575,16 +2566,78 @@ class BattleZoneViewModel(
     ) {
         val email = emailInput.trim().lowercase()
         val password = passwordInput.trim()
-        try {
+        
+        viewModelScope.launch {
+            val cleanEmail = email.replace("@", "_").replace(".", "_")
+            val userId = "user_e_${cleanEmail.take(20)}"
+            
+            // 1. Check local Room database
+            var existingUser: UserEntity? = repository.getUserSync(userId)
+            if (existingUser == null) {
+                try {
+                    val allUsersLocal = repository.allUsers.firstOrNull() ?: emptyList()
+                    existingUser = allUsersLocal.find { u ->
+                        u.email.trim().lowercase() == email ||
+                        u.inGameName.trim().lowercase() == ign.trim().lowercase() ||
+                        u.freeFireUid.trim().lowercase() == ffUid.trim().lowercase()
+                    }
+                } catch (e: Exception) {}
+            }
+            
+            // 2. Check Firestore database
+            if (existingUser == null) {
+                existingUser = getFirestoreUserByEmail(email)
+            }
+            if (existingUser == null) {
+                existingUser = getFirestoreUserById(userId)
+            }
+            
+            if (existingUser != null) {
+                showToast(
+                    title = "⚠️ Already Registered",
+                    message = "An account with this email, IGN, or UID already exists in the system. Please login.",
+                    type = NotificationType.WARNING
+                )
+                onFinished(false, "An account with these details already exists.")
+                return@launch
+            }
+            
+            // 3. Check Firebase Authentication for existing email
             val auth = firebaseAuth ?: com.google.firebase.auth.FirebaseAuth.getInstance()
+            var emailExistsInAuth = false
+            try {
+                val methodsResult = kotlin.coroutines.suspendCoroutine { cont ->
+                    auth.fetchSignInMethodsForEmail(email)
+                        .addOnCompleteListener { t ->
+                            if (t.isSuccessful && t.result != null) {
+                                val methods = t.result.signInMethods ?: emptyList<String>()
+                                cont.resumeWith(Result.success(methods.isNotEmpty()))
+                            } else {
+                                cont.resumeWith(Result.success(false))
+                            }
+                        }
+                }
+                emailExistsInAuth = methodsResult
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            if (emailExistsInAuth) {
+                showToast(
+                    title = "⚠️ Email Already Exists",
+                    message = "This email is already registered in Firebase. Please login instead.",
+                    type = NotificationType.WARNING
+                )
+                onFinished(false, "This email is already registered.")
+                return@launch
+            }
+            
+            // 4. Register with Firebase Authentication
             auth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         viewModelScope.launch {
-                            val cleanEmail = email.replace("@", "_").replace(".", "_")
-                            val userId = "user_e_${cleanEmail.take(20)}"
                             val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
-                            
                             val newUser = UserEntity(
                                 id = userId,
                                 inGameName = ign.trim(),
@@ -2625,97 +2678,21 @@ class BattleZoneViewModel(
                             onFinished(true, null)
                         }
                     } else {
-                        // If Firebase fails but we are in TEST_MODE or GMAIL_SMTP, treat it as a local offline registration success
-                        if (getSmsGatewayMode() == "TEST_MODE" || getSmsGatewayMode() == "GMAIL_SMTP" || email == "battlezone.support@gmail.com") {
-                            viewModelScope.launch {
-                                val cleanEmail = email.replace("@", "_").replace(".", "_")
-                                val userId = "user_e_${cleanEmail.take(20)}"
-                                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
-                                
-                                val newUser = UserEntity(
-                                    id = userId,
-                                    inGameName = ign.trim(),
-                                    freeFireUid = ffUid.trim(),
-                                    phoneNumber = phone.trim(),
-                                    extraMobileNumber = extraMobile.trim(),
-                                    email = email,
-                                    depositBalance = if (determinedRole == "admin") 5000.0 else 0.0,
-                                    winningBalance = if (determinedRole == "admin") 5000.0 else 0.0,
-                                    bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
-                                )
-                                repository.insertUser(newUser)
-                                pushUserToFirestore(newUser)
-                                cacheUserEntityDetails(newUser)
-                                
-                                authPrefs.edit().apply {
-                                    putBoolean("is_logged_in", true)
-                                    putString("logged_in_user_id", userId)
-                                    putString("user_role", determinedRole)
-                                    apply()
-                                }
-                                
-                                _currentUserIdFlow.value = userId
-                                _userRole.value = determinedRole
-                                _isUserLoggedIn.value = true
-                                
-                                showToast(
-                                    title = if (determinedRole == "admin") "🛡️ Admin Account Registered (Offline)" else "🎉 Profile Created successfully! (Offline)",
-                                    message = "Profile created successfully on local device.",
-                                    type = NotificationType.SUCCESS
-                                )
-                                onFinished(true, null)
-                            }
+                        val exc = task.exception
+                        val isCollision = exc is com.google.firebase.auth.FirebaseAuthUserCollisionException
+                        val errorMsg = if (isCollision) {
+                            "This email is already registered in the system. Please login instead."
                         } else {
-                            val errorMsg = task.exception?.localizedMessage ?: "Registration error."
-                            showToast(
-                                title = "⚠️ Account Creation Error",
-                                message = errorMsg,
-                                type = NotificationType.WARNING
-                            )
-                            onFinished(false, errorMsg)
+                            exc?.localizedMessage ?: "Registration error."
                         }
+                        showToast(
+                            title = "⚠️ Account Creation Error",
+                            message = errorMsg,
+                            type = NotificationType.WARNING
+                        )
+                        onFinished(false, errorMsg)
                     }
                 }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Graceful Local Registration Fallback in case of lack of Firebase library setup / missing configurations
-            viewModelScope.launch {
-                val cleanEmail = email.replace("@", "_").replace(".", "_")
-                val userId = "user_e_${cleanEmail.take(20)}"
-                val determinedRole = if (email == "battlezone.support@gmail.com") "admin" else "user"
-                
-                val newUser = UserEntity(
-                    id = userId,
-                    inGameName = ign.trim(),
-                    freeFireUid = ffUid.trim(),
-                    phoneNumber = phone.trim(),
-                    extraMobileNumber = extraMobile.trim(),
-                    email = email,
-                    depositBalance = if (determinedRole == "admin") 5000.0 else 0.0,
-                    winningBalance = if (determinedRole == "admin") 5000.0 else 0.0,
-                    bonusBalance = if (determinedRole == "admin") 1000.0 else 5.0
-                )
-                repository.insertUser(newUser)
-                pushUserToFirestore(newUser)
-                
-                authPrefs.edit().apply {
-                    putBoolean("is_logged_in", true)
-                    putString("logged_in_user_id", userId)
-                    putString("user_role", determinedRole)
-                    apply()
-                }
-                
-                _currentUserIdFlow.value = userId
-                _userRole.value = determinedRole
-                _isUserLoggedIn.value = true
-                
-                showToast(
-                    title = if (determinedRole == "admin") "🛡️ Admin Account Registered (Offline)" else "🎉 Profile Created successfully! (Offline)",
-                    message = "Firebase initialization offline. Registered locally to database successfully.",
-                    type = NotificationType.SUCCESS
-                )
-                onFinished(true, null)
-            }
         }
     }
 
@@ -3751,8 +3728,8 @@ class BattleZoneViewModel(
         pushSettingsToFirestore()
     }
 
-    fun getGmailUser(): String = sharedPrefs.getString("gmail_user", "your_email@gmail.com") ?: "your_email@gmail.com"
-    fun getGmailAppPassword(): String = sharedPrefs.getString("gmail_app_password", "your_16_digit_app_password") ?: "your_16_digit_app_password"
+    fun getGmailUser(): String = sharedPrefs.getString("gmail_user", "battlezone.support@gmail.com") ?: "battlezone.support@gmail.com"
+    fun getGmailAppPassword(): String = sharedPrefs.getString("gmail_app_password", "zjiqwfrruncjunsi") ?: "zjiqwfrruncjunsi"
     fun getGmailSmtpDeliveryType(): String = sharedPrefs.getString("gmail_smtp_delivery_type", "BACKEND_API") ?: "BACKEND_API"
 
     fun updateGmailSmtpConfig(user: String, pass: String) {
